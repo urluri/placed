@@ -1,0 +1,195 @@
+# =======================================================
+# 1. SIZE PROFILES (базовая геометрия)
+# =======================================================
+
+size_profiles:
+
+  small:
+    description: "10x15 см — A4"
+    short_side_mm:
+      max: 210
+
+    geometry:
+      frame_width_mm: 15
+      passepartout_mm: 60
+
+  medium:
+    description: "A3 — 40x50 см"
+    short_side_mm:
+      min: 211
+      max: 500
+
+    geometry:
+      frame_width_mm: 25
+      passepartout_mm: 45
+
+  large:
+    description: "50x70 см и больше"
+    short_side_mm:
+      min: 501
+
+    geometry:
+      frame_width_mm: 45
+      passepartout_mm: 20
+
+
+# =======================================================
+# 2. ARTWORK TYPES (модификаторы и ограничения)
+# =======================================================
+
+artwork_types:
+
+  poster:
+
+    description: "Постеры, графика, бумага"
+
+    glass: required
+
+    frame:
+      allowed_materials:
+        - wood
+        - aluminum
+
+      width_adjustment:
+        min: -5
+        max: 10
+
+    passepartout:
+      enabled: true
+
+      adjustment:
+        min: -10
+        max: 10
+
+    forbidden:
+
+      frame_width_mm:
+        min_if_size: small
+        value: 40
+
+
+  canvas:
+
+    description: "Холст на подрамнике"
+
+    glass: forbidden
+    passepartout:
+      enabled: false
+
+    frame:
+
+      required_profile:
+        - l_shape
+        - box
+
+      depth_mm:
+        min: 35
+
+      width_adjustment:
+        min: 5
+        max: 20
+
+
+  photo:
+
+    description: "Фотография (ч/б и художественная)"
+
+    glass: required
+
+    frame:
+
+      allowed_colors:
+        - black
+        - white
+        - graphite
+
+      width_adjustment:
+        min: -5
+        max: 0
+
+    passepartout:
+
+      enabled: true
+
+      adjustment:
+        min: 10
+        max: 25
+
+      bottom_margin_multiplier: 1.15
+
+
+  volumetric:
+
+    description: "Вышивка, гербарий, 3D арт"
+
+    glass: required
+    passepartout:
+      enabled: false
+
+    frame:
+
+      required_profile:
+        - gallery_box
+
+      depth_mm:
+        min: 45
+
+
+# =======================================================
+# 3. GLOBAL RULES (жесткие ограничения поверх всего)
+# =======================================================
+
+global_rules:
+
+  - id: square_equal_margins
+
+    description: "Квадратные работы не имеют увеличенного нижнего поля"
+
+    when:
+      aspect_ratio: square
+
+    enforce:
+      passepartout:
+        bottom_equals_top: true
+
+
+  - id: canvas_min_depth
+
+    description: "Холст требует глубокой рамы"
+
+    when:
+      artwork_type: canvas
+
+    enforce:
+      frame:
+        depth_mm:
+          min: 35
+
+
+  - id: photo_color_restriction
+
+    description: "Фотографии имеют строгую палитру рам"
+
+    when:
+      artwork_type: photo
+
+    enforce:
+      frame:
+        allowed_colors:
+          - black
+          - white
+          - graphite
+
+
+  - id: large_plastic_restriction
+
+    description: "Большие работы не допускают слабый пластик"
+
+    when:
+      size: large
+      frame_material: plastic
+
+    enforce:
+      frame:
+        width_mm:
+          min: 30
