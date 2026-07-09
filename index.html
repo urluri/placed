@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Placed MVP</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel" aria-label="Параметры картины">
+        <div class="brand-row">
+          <div>
+            <p class="eyebrow">Placed MVP</p>
+            <h1>Подбор багета</h1>
+          </div>
+          <output class="status-pill" id="sizeCategory">medium</output>
+        </div>
+
+        <form class="config-form" id="configForm">
+          <label class="upload-zone" for="artUpload">
+            <input id="artUpload" type="file" accept="image/*">
+            <span class="upload-icon" aria-hidden="true">+</span>
+            <span>
+              <strong id="uploadTitle">Загрузить изображение</strong>
+              <small id="uploadMeta">JPG, PNG или WEBP</small>
+            </span>
+          </label>
+
+          <fieldset class="dimensions">
+            <legend>Физические размеры</legend>
+            <label>
+              <span>Ширина, мм</span>
+              <input id="widthMm" type="number" min="50" max="3000" step="1" value="300">
+            </label>
+            <label>
+              <span>Высота, мм</span>
+              <input id="heightMm" type="number" min="50" max="3000" step="1" value="400">
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Исполнение</legend>
+            <div class="segmented" role="radiogroup" aria-label="Исполнение">
+              <label>
+                <input type="radio" name="material" value="paper" checked>
+                <span>Бумага</span>
+              </label>
+              <label>
+                <input type="radio" name="material" value="canvas">
+                <span>Холст</span>
+              </label>
+              <label>
+                <input type="radio" name="material" value="embroidery">
+                <span>Вышивка</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Стиль интерьера</legend>
+            <div class="style-grid" role="radiogroup" aria-label="Стиль интерьера">
+              <label>
+                <input type="radio" name="style" value="loft">
+                <span>Лофт</span>
+              </label>
+              <label>
+                <input type="radio" name="style" value="minimal" checked>
+                <span>Минимализм</span>
+              </label>
+              <label>
+                <input type="radio" name="style" value="classic">
+                <span>Классика</span>
+              </label>
+              <label>
+                <input type="radio" name="style" value="universal">
+                <span>Не знаю</span>
+              </label>
+            </div>
+          </fieldset>
+        </form>
+
+        <section class="recommendation" aria-label="Рекомендация">
+          <div class="recommendation-head">
+            <h2 id="recommendationTitle">Светлый дуб + музейное паспарту</h2>
+            <span id="confidence">82%</span>
+          </div>
+          <dl class="spec-list">
+            <div>
+              <dt>Багет</dt>
+              <dd id="frameSpec">25 мм, дерево, светлый дуб</dd>
+            </div>
+            <div>
+              <dt>Паспарту</dt>
+              <dd id="matSpec">45 мм, теплый белый</dd>
+            </div>
+            <div>
+              <dt>Защита</dt>
+              <dd id="glassSpec">Стекло обязательно</dd>
+            </div>
+            <div>
+              <dt>Итоговый размер</dt>
+              <dd id="finalSpec">440 x 540 мм</dd>
+            </div>
+          </dl>
+          <p id="reasonText" class="reason-text"></p>
+        </section>
+      </section>
+
+      <section class="preview-stage" aria-label="Превью оформления">
+        <div class="preview-toolbar">
+          <div>
+            <span id="previewLabel">300 x 400 мм</span>
+            <strong id="previewStyle">Современный интерьер</strong>
+          </div>
+          <button id="downloadButton" type="button">Скачать превью</button>
+        </div>
+        <canvas id="previewCanvas" width="1200" height="900"></canvas>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
