@@ -36,9 +36,11 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+@app.get("/health")
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "placed-api"}
 
 
 @app.post("/api/recommend")
