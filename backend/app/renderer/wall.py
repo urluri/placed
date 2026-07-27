@@ -23,7 +23,7 @@ WALL_STYLES = {
         "blur": 0.5
     },
 
-    "paper": {
+    "plaster": {
         "base": (239, 236, 228),
         "noise": 6,
         "blur": 0.8

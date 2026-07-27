@@ -1,195 +1,146 @@
-# =======================================================
-# 1. SIZE PROFILES (базовая геометрия)
-# =======================================================
-
-size_profiles:
-
-  small:
-    description: "10x15 см — A4"
-    short_side_mm:
-      max: 210
-
-    geometry:
-      frame_width_mm: 15
-      passepartout_mm: 60
-
-  medium:
-    description: "A3 — 40x50 см"
-    short_side_mm:
-      min: 211
-      max: 500
-
-    geometry:
-      frame_width_mm: 25
-      passepartout_mm: 45
-
-  large:
-    description: "50x70 см и больше"
-    short_side_mm:
-      min: 501
-
-    geometry:
-      frame_width_mm: 45
-      passepartout_mm: 20
-
-
-# =======================================================
-# 2. ARTWORK TYPES (модификаторы и ограничения)
-# =======================================================
+version: algorithm_v2_mvp
 
 artwork_types:
-
-  poster:
-
-    description: "Постеры, графика, бумага"
-
-    glass: required
-
+  watercolor:
+    glass:
+      required: true
+      default: museum
+    mat:
+      default: true
+    shadow_box: false
     frame:
-      allowed_materials:
-        - wood
-        - aluminum
-
-      width_adjustment:
-        min: -5
-        max: 10
-
-    passepartout:
-      enabled: true
-
-      adjustment:
-        min: -10
-        max: 10
-
-    forbidden:
-
-      frame_width_mm:
-        min_if_size: small
-        value: 40
-
-
-  canvas:
-
-    description: "Холст на подрамнике"
-
-    glass: forbidden
-    passepartout:
-      enabled: false
-
-    frame:
-
-      required_profile:
-        - l_shape
-        - box
-
-      depth_mm:
-        min: 35
-
-      width_adjustment:
-        min: 5
-        max: 20
-
+      min_depth_mm: null
+      preferred_profiles: [flat, box]
 
   photo:
-
-    description: "Фотография (ч/б и художественная)"
-
-    glass: required
-
+    glass:
+      required: true
+      default: museum
+    mat:
+      default: true
+      note: "Modern full-bleed photo can become an explicit option later."
+    shadow_box: false
     frame:
+      min_depth_mm: null
+      preferred_profiles: [flat, box]
 
-      allowed_colors:
-        - black
-        - white
-        - graphite
+  poster:
+    glass:
+      required: true
+      default: ordinary
+      signature: museum
+    mat:
+      default: true
+      conditional_rule: "Disable mat only when frame_occupancy is high and decor_style is modern or signature."
+    shadow_box: false
+    frame:
+      min_depth_mm: null
+      preferred_profiles: [flat, box]
 
-      width_adjustment:
-        min: -5
-        max: 0
-
-    passepartout:
-
-      enabled: true
-
-      adjustment:
-        min: 10
-        max: 25
-
-      bottom_margin_multiplier: 1.15
-
+  canvas:
+    glass:
+      required: false
+      default: none
+    mat:
+      default: false
+    shadow_box: false
+    frame:
+      min_depth_mm: 35
+      preferred_profiles: [l_shape, box, float]
 
   volumetric:
-
-    description: "Вышивка, гербарий, 3D арт"
-
-    glass: required
-    passepartout:
-      enabled: false
-
+    glass:
+      required: true
+      default: ordinary
+      signature: museum
+    mat:
+      default: false
+    shadow_box: true
+    spacer: true
     frame:
+      min_depth_mm: 45
+      preferred_profiles: [gallery_box]
 
-      required_profile:
-        - gallery_box
+size_profiles:
+  small:
+    longer_side_max_mm: 420
+  medium:
+    longer_side_max_mm: 700
+  large:
+    longer_side_max_mm: 1000
+  extra_large:
+    longer_side_min_mm: 1001
 
-      depth_mm:
-        min: 45
+decor_styles:
+  standard:
+    mat_percent:
+      small: 0.35
+      medium: 0.30
+      large: 0.25
+      extra_large: 0.15
+    bottom_weight: 1.15
+    double_mat: false
+  modern:
+    mat_percent:
+      small: 0.45
+      medium: 0.40
+      large: 0.35
+      extra_large: 0.18
+    bottom_weight: 1.15
+    double_mat: false
+  signature:
+    mat_percent:
+      small: 0.55
+      medium: 0.50
+      large: 0.45
+      extra_large: 0.20
+    bottom_weight: 1.20
+    double_mat: true
 
+mat_geometry:
+  min_mat_mm: 35
+  max_mat_mm: 140
+  extra_large_min_mat_mm: 50
+  extra_large_max_mat_mm: 160
+  overlap_mm: 4
+  inner_reveal_mm: 6
 
-# =======================================================
-# 3. GLOBAL RULES (жесткие ограничения поверх всего)
-# =======================================================
+interior_style_frame_candidates:
+  minimal: [black_wood, white_oak, natural_oak, graphite_aluminum]
+  scandi: [light_oak, white_oak, natural_oak]
+  japandi: [natural_oak, walnut, black_wood]
+  contemporary: [black_aluminum, graphite_aluminum, white_oak]
+  loft: [black_aluminum, graphite_aluminum, champagne_aluminum]
+  modern_vintage: [walnut, champagne_aluminum, black_wood]
+  neoclassic: [walnut, matte_gold, matte_silver]
+  universal: [natural_oak, black_wood, graphite_aluminum]
 
-global_rules:
+frame_widths_mm:
+  small:
+    low: {wood: 15, aluminum: 10}
+    medium: {wood: 15, aluminum: 10}
+    high: {wood: 20, aluminum: 12}
+  medium:
+    low: {wood: 20, aluminum: 12}
+    medium: {wood: 20, aluminum: 12}
+    high: {wood: 30, aluminum: 15}
+  large:
+    low: {wood: 30, aluminum: 15}
+    medium: {wood: 35, aluminum: 18}
+    high: {wood: 40, aluminum: 20}
+  extra_large:
+    low: {wood: 40, aluminum: 20}
+    medium: {wood: 50, aluminum: 22}
+    high: {wood: 50, aluminum: 25}
 
-  - id: square_equal_margins
-
-    description: "Квадратные работы не имеют увеличенного нижнего поля"
-
-    when:
-      aspect_ratio: square
-
-    enforce:
-      passepartout:
-        bottom_equals_top: true
-
-
-  - id: canvas_min_depth
-
-    description: "Холст требует глубокой рамы"
-
-    when:
-      artwork_type: canvas
-
-    enforce:
-      frame:
-        depth_mm:
-          min: 35
-
-
-  - id: photo_color_restriction
-
-    description: "Фотографии имеют строгую палитру рам"
-
-    when:
-      artwork_type: photo
-
-    enforce:
-      frame:
-        allowed_colors:
-          - black
-          - white
-          - graphite
-
-
-  - id: large_plastic_restriction
-
-    description: "Большие работы не допускают слабый пластик"
-
-    when:
-      size: large
-      frame_material: plastic
-
-    enforce:
-      frame:
-        width_mm:
-          min: 30
+frame_catalog_additions:
+  canvas_float_oak:
+    material: wood
+    color_family: natural_oak
+    depth_mm: 40
+    profile: float
+  canvas_float_black:
+    material: wood
+    color_family: black
+    depth_mm: 40
+    profile: float

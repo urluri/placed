@@ -6,6 +6,15 @@ __pycache__/
 .env
 .env.*
 
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+
 output.jpg
+mvp_check.jpg
+api_render_check.jpg
+test_image.jpg
 *.log
 
+knowledge_base/**/.obsidian/

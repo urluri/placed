@@ -1,3 +1,1 @@
-Pillow
-PyYAML
-numpy
+-r backend/requirements.txt
