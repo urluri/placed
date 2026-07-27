@@ -36,9 +36,9 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-@app.get("/health")
-@app.get("/api/health")
+@app.api_route("/", methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"])
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok", "service": "placed-api"}
 
