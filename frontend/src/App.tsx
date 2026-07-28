@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { recommend, renderPreview } from "./api";
@@ -35,70 +35,81 @@ const decorStyles: DecorStyle[] = ["standard", "modern", "signature"];
 
 export default function App() {
   const [form, setForm] = useState<FormState>({
-    widthMm: 300,
-    heightMm: 400,
+    widthMm: "300",
+    heightMm: "400",
     artworkType: "poster",
     interiorStyle: "minimal",
     image: null,
+    rotateArtwork: false,
   });
   const [selectedDecorStyle, setSelectedDecorStyle] = useState<DecorStyle>("standard");
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [renderState, setRenderState] = useState("Готовлю рендер");
+  const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const requestId = useRef(0);
 
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
   }, [recommendation, selectedDecorStyle]);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(async () => {
-      const id = ++requestId.current;
-      setRenderState("Считаю варианты");
-      try {
-        const nextRecommendation = await recommend(form);
-        if (id !== requestId.current) return;
-        setRecommendation(nextRecommendation);
-      } catch (error) {
-        if (id !== requestId.current) return;
-        setRenderState(error instanceof Error ? error.message : "Ошибка алгоритма");
-      }
-    }, 250);
-
-    return () => window.clearTimeout(timeout);
-  }, [form]);
-
-  useEffect(() => {
-    if (!selectedVariant) return;
-
-    const id = ++requestId.current;
-    let objectUrl = "";
-    setRenderState("Готовлю рендер");
-
-    renderPreview(form, selectedDecorStyle, selectedVariant)
-      .then((blob) => {
-        if (id !== requestId.current) return;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl((previousUrl) => {
-          if (previousUrl) URL.revokeObjectURL(previousUrl);
-          return objectUrl;
-        });
-        setRenderState("Готово");
-        window.setTimeout(() => {
-          if (id === requestId.current) setRenderState("");
-        }, 900);
-      })
-      .catch((error) => {
-        if (id !== requestId.current) return;
-        setRenderState(error instanceof Error ? error.message : "Ошибка рендера");
-      });
-
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [form, selectedDecorStyle, selectedVariant]);
-
   const palette = recommendation?.image_analysis.palette;
+
+  const clearPreview = () => {
+    setPreviewUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+      return "";
+    });
+  };
+
+  const updateForm = (patch: Partial<FormState>) => {
+    setForm((current) => ({ ...current, ...patch }));
+    setRecommendation(null);
+    clearPreview();
+    setRenderState("Нажмите «Применить»");
+  };
+
+  const handleDecorStyleChange = (decorStyle: DecorStyle) => {
+    setSelectedDecorStyle(decorStyle);
+    clearPreview();
+    setRenderState("Нажмите «Применить»");
+  };
+
+  const applyRender = async () => {
+    const id = ++requestId.current;
+    setRenderState("Считаю варианты");
+
+    try {
+      const nextRecommendation = await recommend(form);
+      if (id !== requestId.current) return;
+      const nextVariant =
+        nextRecommendation.variants.find((variant) => variant.decor_style === selectedDecorStyle) ??
+        nextRecommendation.variants[0] ??
+        null;
+
+      setRecommendation(nextRecommendation);
+
+      if (!nextVariant) {
+        setRenderState("Нет варианта для рендера");
+        return;
+      }
+
+      setRenderState("Готовлю рендер");
+      const blob = await renderPreview(form, selectedDecorStyle, nextVariant);
+      if (id !== requestId.current) return;
+      const objectUrl = URL.createObjectURL(blob);
+      setPreviewUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        return objectUrl;
+      });
+      setRenderState("Готово");
+      window.setTimeout(() => {
+        if (id === requestId.current) setRenderState("");
+      }, 900);
+    } catch (error) {
+      if (id !== requestId.current) return;
+      setRenderState(error instanceof Error ? error.message : "Ошибка рендера");
+    }
+  };
 
   return (
     <main className="app-shell">
@@ -117,7 +128,7 @@ export default function App() {
               id="artUpload"
               type="file"
               accept="image/*"
-              onChange={(event) => setForm((current) => ({ ...current, image: event.target.files?.[0] ?? null }))}
+              onChange={(event) => updateForm({ image: event.target.files?.[0] ?? null })}
             />
             <span className="upload-icon" aria-hidden="true">+</span>
             <span>
@@ -136,7 +147,7 @@ export default function App() {
                 max="3000"
                 step="1"
                 value={form.widthMm}
-                onChange={(event) => setForm((current) => ({ ...current, widthMm: Number(event.target.value) || 300 }))}
+                onChange={(event) => updateForm({ widthMm: event.target.value })}
               />
             </label>
             <label>
@@ -147,10 +158,19 @@ export default function App() {
                 max="3000"
                 step="1"
                 value={form.heightMm}
-                onChange={(event) => setForm((current) => ({ ...current, heightMm: Number(event.target.value) || 400 }))}
+                onChange={(event) => updateForm({ heightMm: event.target.value })}
               />
             </label>
           </fieldset>
+
+          <label className="rotate-toggle">
+            <input
+              type="checkbox"
+              checked={form.rotateArtwork}
+              onChange={(event) => updateForm({ rotateArtwork: event.target.checked })}
+            />
+            <span>Развернуть изображение на 90°</span>
+          </label>
 
           <RadioGrid
             label="Тип работы"
@@ -158,7 +178,7 @@ export default function App() {
             name="artworkType"
             value={form.artworkType}
             options={artworkOptions}
-            onChange={(artworkType) => setForm((current) => ({ ...current, artworkType }))}
+            onChange={(artworkType) => updateForm({ artworkType })}
           />
 
           <RadioGrid
@@ -167,7 +187,7 @@ export default function App() {
             name="interiorStyle"
             value={form.interiorStyle}
             options={interiorOptions}
-            onChange={(interiorStyle) => setForm((current) => ({ ...current, interiorStyle }))}
+            onChange={(interiorStyle) => updateForm({ interiorStyle })}
           />
         </form>
 
@@ -177,7 +197,7 @@ export default function App() {
               key={decorStyle}
               type="button"
               className={selectedDecorStyle === decorStyle ? "is-active" : ""}
-              onClick={() => setSelectedDecorStyle(decorStyle)}
+              onClick={() => handleDecorStyleChange(decorStyle)}
             >
               {decorStyle[0].toUpperCase() + decorStyle.slice(1)}
             </button>
@@ -215,12 +235,17 @@ export default function App() {
       <section className="preview-stage" aria-label="Превью оформления">
         <div className="preview-toolbar">
           <div>
-            <span>{form.widthMm || 300} x {form.heightMm || 400} мм</span>
+            <span>{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</span>
             <strong>{selectedDecorStyle.toUpperCase()}</strong>
           </div>
-          <button type="button" onClick={() => downloadPreview(previewUrl, selectedDecorStyle)}>
-            Скачать превью
-          </button>
+          <div className="preview-actions">
+            <button type="button" className="apply-button" onClick={applyRender}>
+              Применить
+            </button>
+            <button type="button" onClick={() => downloadPreview(previewUrl, selectedDecorStyle)} disabled={!previewUrl}>
+              Скачать превью
+            </button>
+          </div>
         </div>
         <div className="render-surface">
           {previewUrl && <img src={previewUrl} alt="Превью оформления" />}
@@ -325,6 +350,10 @@ function glassName(value?: string) {
   if (value === "museum") return "Музейное стекло";
   if (value === "uv") return "UV-стекло";
   return "Обычное стекло";
+}
+
+function displayDimension(value: string, fallback: number) {
+  return value.trim() || String(fallback);
 }
 
 function downloadPreview(previewUrl: string, decorStyle: DecorStyle) {

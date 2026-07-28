@@ -40,14 +40,20 @@ export async function renderPreview(
 
 function toPayload(form: FormState) {
   const payload = new FormData();
-  payload.set("widthMm", String(form.widthMm || 300));
-  payload.set("heightMm", String(form.heightMm || 400));
+  payload.set("widthMm", String(dimensionOrDefault(form.widthMm, 300)));
+  payload.set("heightMm", String(dimensionOrDefault(form.heightMm, 400)));
   payload.set("artworkType", form.artworkType);
   payload.set("interiorStyle", form.interiorStyle);
+  payload.set("rotateArtwork", String(form.rotateArtwork));
   if (form.image) {
     payload.set("image", form.image);
   }
   return payload;
+}
+
+function dimensionOrDefault(value: string, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function errorMessage(response: Response, fallback: string) {

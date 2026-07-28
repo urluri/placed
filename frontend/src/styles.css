@@ -182,6 +182,23 @@ legend,
   color: var(--ink);
 }
 
+.rotate-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.rotate-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
 .artwork-grid,
 .style-grid {
   display: grid;
@@ -420,6 +437,12 @@ legend,
   font-size: 17px;
 }
 
+.preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .preview-toolbar button {
   min-height: 40px;
   padding: 0 14px;
@@ -431,32 +454,49 @@ legend,
   cursor: pointer;
 }
 
+.preview-toolbar button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.preview-toolbar .apply-button {
+  background: var(--accent);
+}
+
 .preview-toolbar button:hover {
   background: #34302b;
 }
 
+.preview-toolbar .apply-button:hover {
+  background: #1f594e;
+}
+
+.preview-toolbar button:disabled:hover {
+  background: var(--ink);
+}
+
 .render-surface {
   position: relative;
-  min-height: 520px;
+  min-height: 430px;
   display: grid;
   place-items: center;
-  padding: 28px;
+  padding: 24px;
   overflow: hidden;
 }
 
 .render-surface img {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: calc(100vh - 130px);
+  width: auto;
+  height: auto;
+  max-width: min(76%, 920px);
+  max-height: calc(100vh - 180px);
   object-fit: contain;
   display: block;
 }
 
 .render-state {
   position: absolute;
-  left: 24px;
-  bottom: 24px;
+  top: 24px;
+  right: 24px;
   padding: 8px 10px;
   border-radius: 7px;
   background: rgba(29, 27, 24, 0.82);
@@ -485,7 +525,7 @@ legend,
   }
 
   .render-surface {
-    min-height: 480px;
+    min-height: 380px;
   }
 }
 
@@ -505,6 +545,14 @@ legend,
 
   .preview-toolbar {
     flex-direction: column;
+  }
+
+  .preview-actions {
+    width: 100%;
+  }
+
+  .preview-actions button {
+    flex: 1;
   }
 
   .artwork-grid,

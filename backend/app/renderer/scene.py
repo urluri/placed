@@ -15,8 +15,10 @@ from .utils import mm_to_px
 from .wall import create_wall
 
 
-def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg"):
+def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", rotate_image=False):
     artwork = Image.open(image_path).convert("RGB")
+    if rotate_image:
+        artwork = artwork.rotate(90, expand=True)
 
     art_w = mm_to_px(img_w_mm)
     art_h = mm_to_px(img_h_mm)

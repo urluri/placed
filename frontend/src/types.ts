@@ -104,9 +104,10 @@ export type Recommendation = {
 };
 
 export type FormState = {
-  widthMm: number;
-  heightMm: number;
+  widthMm: string;
+  heightMm: string;
   artworkType: ArtworkType;
   interiorStyle: InteriorStyle;
   image: File | null;
+  rotateArtwork: boolean;
 };

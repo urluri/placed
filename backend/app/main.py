@@ -72,6 +72,7 @@ async def render_preview(
     artworkType: str = Form("poster"),
     interiorStyle: str = Form("minimal"),
     decorStyle: str = Form("standard"),
+    rotateArtwork: bool = Form(False),
     spec: str | None = Form(None),
     image: UploadFile | None = File(None),
 ):
@@ -97,6 +98,7 @@ async def render_preview(
                     heightMm,
                     geometry,
                     output_path=str(Path(tmp_dir) / "preview.jpg"),
+                    rotate_image=rotateArtwork,
                 )
 
         buffer = io.BytesIO()
