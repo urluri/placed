@@ -5,6 +5,10 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 export async function recommend(form: FormState): Promise<Recommendation> {
   const response = await fetch(`${API_BASE}/api/recommend`, {
     method: "POST",
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache",
+    },
     body: toPayload(form),
   });
 
@@ -28,6 +32,10 @@ export async function renderPreview(
 
   const response = await fetch(`${API_BASE}/api/render`, {
     method: "POST",
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache",
+    },
     body: payload,
   });
 

@@ -13,6 +13,10 @@ from .renderer.scene import render
 
 DEFAULT_IMAGE = Path(__file__).resolve().parent / "assets" / "default_artwork.jpg"
 LOCAL_FRONTEND_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]
+NO_STORE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
 
 app = FastAPI(title="Placed API", version="0.1.0")
 
@@ -60,7 +64,7 @@ async def recommend(
                 artwork_type=artworkType,
                 interior_style=interiorStyle,
             )
-        return JSONResponse(result)
+        return JSONResponse(result, headers=NO_STORE_HEADERS)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -105,7 +109,7 @@ async def render_preview(
         rendered.save(buffer, format="JPEG", quality=92)
         buffer.seek(0)
 
-        headers = {"X-Decor-Style": variant["decor_style"]}
+        headers = {"X-Decor-Style": variant["decor_style"], **NO_STORE_HEADERS}
         return StreamingResponse(buffer, media_type="image/jpeg", headers=headers)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

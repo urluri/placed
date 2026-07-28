@@ -46,6 +46,7 @@ export default function App() {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
+  const [isRendering, setIsRendering] = useState(false);
   const requestId = useRef(0);
 
   const selectedVariant = useMemo(() => {
@@ -62,6 +63,8 @@ export default function App() {
   };
 
   const updateForm = (patch: Partial<FormState>) => {
+    requestId.current += 1;
+    setIsRendering(false);
     setForm((current) => ({ ...current, ...patch }));
     setRecommendation(null);
     clearPreview();
@@ -69,6 +72,8 @@ export default function App() {
   };
 
   const handleDecorStyleChange = (decorStyle: DecorStyle) => {
+    requestId.current += 1;
+    setIsRendering(false);
     setSelectedDecorStyle(decorStyle);
     clearPreview();
     setRenderState("Нажмите «Применить»");
@@ -76,6 +81,7 @@ export default function App() {
 
   const applyRender = async () => {
     const id = ++requestId.current;
+    setIsRendering(true);
     setRenderState("Считаю варианты");
 
     try {
@@ -108,6 +114,8 @@ export default function App() {
     } catch (error) {
       if (id !== requestId.current) return;
       setRenderState(error instanceof Error ? error.message : "Ошибка рендера");
+    } finally {
+      if (id === requestId.current) setIsRendering(false);
     }
   };
 
@@ -239,8 +247,8 @@ export default function App() {
             <strong>{selectedDecorStyle.toUpperCase()}</strong>
           </div>
           <div className="preview-actions">
-            <button type="button" className="apply-button" onClick={applyRender}>
-              Применить
+            <button type="button" className="apply-button" onClick={applyRender} disabled={isRendering}>
+              {isRendering ? "Применяю" : "Применить"}
             </button>
             <button type="button" onClick={() => downloadPreview(previewUrl, selectedDecorStyle)} disabled={!previewUrl}>
               Скачать превью
@@ -249,7 +257,10 @@ export default function App() {
         </div>
         <div className="render-surface">
           {previewUrl && <img src={previewUrl} alt="Превью оформления" />}
-          <div className={`render-state ${renderState ? "is-visible" : ""}`}>{renderState}</div>
+          <div className={`render-state ${renderState ? "is-visible" : ""} ${isRendering ? "is-loading" : ""}`}>
+            {isRendering && <span className="loader" aria-hidden="true" />}
+            <span>{renderState}</span>
+          </div>
         </div>
       </section>
     </main>
