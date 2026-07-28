@@ -183,19 +183,130 @@ def rgb_to_lab(rgb):
     return tuple(float(x) for x in rgb_array_to_lab(np.array([rgb], dtype=np.float32))[0])
 
 
+def hex_to_rgb(value):
+    value = value.lstrip("#")
+    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def catalog_temperature_from_lab(lab):
+    b = lab[2]
+    if b >= 7:
+        return Temperature.warm.value
+    if b <= -7:
+        return Temperature.cool.value
+    return Temperature.neutral.value
+
+
+def catalog_lightness_from_l(l_value):
+    if l_value >= 68:
+        return Tonality.light.value
+    if l_value <= 38:
+        return Tonality.dark.value
+    return Tonality.medium.value
+
+
+def catalog_chroma_level(chroma):
+    if chroma < 14:
+        return ChromaLevel.muted.value
+    if chroma > 34:
+        return ChromaLevel.vivid.value
+    return ChromaLevel.medium.value
+
+
+def mat_color(color_id, name, hex_value, family, temperature=None):
+    rgb = hex_to_rgb(hex_value)
+    lab = rgb_to_lab(rgb)
+    chroma = math.sqrt(lab[1] * lab[1] + lab[2] * lab[2])
+    return MatColor(
+        color_id,
+        name,
+        hex_value,
+        rgb,
+        lab,
+        family,
+        temperature or catalog_temperature_from_lab(lab),
+        catalog_lightness_from_l(lab[0]),
+        catalog_chroma_level(chroma),
+    )
+
+
 MAT_CATALOG = [
-    MatColor("museum_white", "музейный белый", "#F4F1E9", (244, 241, 233), rgb_to_lab((244, 241, 233)), "museum_white", "neutral", "light", "muted"),
-    MatColor("neutral_white", "нейтральный белый", "#F0EFEA", (240, 239, 234), rgb_to_lab((240, 239, 234)), "neutral_white", "neutral", "light", "muted"),
-    MatColor("warm_white", "тёплый белый", "#EFE7D8", (239, 231, 216), rgb_to_lab((239, 231, 216)), "warm_white", "warm", "light", "muted"),
-    MatColor("ivory", "айвори", "#E8DDC6", (232, 221, 198), rgb_to_lab((232, 221, 198)), "ivory", "warm", "light", "muted"),
-    MatColor("soft_grey", "мягкий серый", "#D8D6D0", (216, 214, 208), rgb_to_lab((216, 214, 208)), "soft_grey", "neutral", "light", "muted"),
-    MatColor("cool_grey", "холодный серый", "#C8CDD0", (200, 205, 208), rgb_to_lab((200, 205, 208)), "cool_grey", "cool", "medium", "muted"),
-    MatColor("graphite", "графит", "#555653", (85, 86, 83), rgb_to_lab((85, 86, 83)), "graphite", "neutral", "dark", "muted"),
-    MatColor("black", "чёрный", "#20201E", (32, 32, 30), rgb_to_lab((32, 32, 30)), "black", "neutral", "dark", "muted"),
-    MatColor("warm_beige", "тёплый бежевый", "#CDBEAA", (205, 190, 170), rgb_to_lab((205, 190, 170)), "warm_beige", "warm", "medium", "muted"),
-    MatColor("deep_blue", "глубокий синий", "#283D56", (40, 61, 86), rgb_to_lab((40, 61, 86)), "blue", "cool", "dark", "medium"),
-    MatColor("muted_green", "приглушённый зелёный", "#667563", (102, 117, 99), rgb_to_lab((102, 117, 99)), "green", "neutral", "medium", "medium"),
-    MatColor("terracotta", "терракота", "#A8674E", (168, 103, 78), rgb_to_lab((168, 103, 78)), "terracotta", "warm", "medium", "medium"),
+    mat_color("PW001", "Museum White", "#F7F6F2", "white", "cool"),
+    mat_color("PW002", "Gallery White", "#F3F2ED", "white", "neutral"),
+    mat_color("PW003", "Warm White", "#F5F1E8", "white", "warm"),
+    mat_color("PW004", "Ivory", "#EEE6D5", "white", "warm"),
+    mat_color("PW005", "Antique White", "#E8DFCF", "white", "warm"),
+    mat_color("PW006", "Linen", "#DDD4C4", "white", "warm"),
+    mat_color("PW007", "Natural Cotton", "#E6DFD2", "white", "neutral"),
+    mat_color("PW008", "Cream", "#F2E7D3", "white", "warm"),
+    mat_color("PG101", "Soft Grey", "#E5E4E0", "light_grey"),
+    mat_color("PG102", "Gallery Grey", "#DBD9D5", "light_grey"),
+    mat_color("PG103", "Stone Grey", "#CFCBC5", "light_grey"),
+    mat_color("PG104", "Silver Grey", "#C8C8C6", "light_grey"),
+    mat_color("PG105", "Ash Grey", "#B8B8B5", "light_grey"),
+    mat_color("PG106", "Mist Grey", "#D7D6D2", "light_grey"),
+    mat_color("PG107", "Pearl Grey", "#D0D0CC", "light_grey"),
+    mat_color("PG108", "Dove Grey", "#C5C2BB", "light_grey"),
+    mat_color("PG201", "Graphite", "#55575B", "dark_grey"),
+    mat_color("PG202", "Charcoal", "#4A4A4C", "dark_grey"),
+    mat_color("PG203", "Slate", "#666A73", "dark_grey"),
+    mat_color("PG204", "Basalt", "#5F625D", "dark_grey"),
+    mat_color("PG205", "Iron Grey", "#707070", "dark_grey"),
+    mat_color("PG206", "Anthracite", "#383A3D", "dark_grey"),
+    mat_color("PB301", "Sand", "#D6C3A5", "beige"),
+    mat_color("PB302", "Desert Sand", "#CDB59A", "beige"),
+    mat_color("PB303", "Beige", "#D9C6AE", "beige"),
+    mat_color("PB304", "Taupe", "#B7A79A", "beige"),
+    mat_color("PB305", "Clay", "#B79B84", "beige"),
+    mat_color("PB306", "Oatmeal", "#D8CBB8", "beige"),
+    mat_color("PB307", "Mushroom", "#B8AA9C", "beige"),
+    mat_color("PB308", "Camel", "#B6946A", "beige"),
+    mat_color("PE401", "Terracotta", "#B76545", "earth"),
+    mat_color("PE402", "Burnt Clay", "#A75A40", "earth"),
+    mat_color("PE403", "Rust", "#964B35", "earth"),
+    mat_color("PE404", "Cinnamon", "#A26A4A", "earth"),
+    mat_color("PE405", "Umber", "#7C5A46", "earth"),
+    mat_color("PE406", "Cocoa", "#6B4E3D", "earth"),
+    mat_color("PE407", "Mocha", "#7A6756", "earth"),
+    mat_color("PE408", "Chestnut", "#77523D", "earth"),
+    mat_color("PG501", "Sage", "#A7B39C", "green"),
+    mat_color("PG502", "Olive Grey", "#8E9378", "green"),
+    mat_color("PG503", "Moss", "#707A58", "green"),
+    mat_color("PG504", "Eucalyptus", "#8FA89B", "green"),
+    mat_color("PG505", "Forest Mist", "#6E7C6A", "green"),
+    mat_color("PG506", "Khaki", "#8C8762", "green"),
+    mat_color("PG507", "Lichen", "#B2B59A", "green"),
+    mat_color("PG508", "Dusty Olive", "#7A785C", "green"),
+    mat_color("PB601", "Dusty Blue", "#8FA7B5", "light_blue"),
+    mat_color("PB602", "Mist Blue", "#B5C2C9", "light_blue"),
+    mat_color("PB603", "Steel Blue", "#758A98", "light_blue"),
+    mat_color("PB604", "Blue Grey", "#8B99A3", "light_blue"),
+    mat_color("PB605", "Smoke Blue", "#6D7D89", "light_blue"),
+    mat_color("PB606", "Slate Blue", "#667789", "light_blue"),
+    mat_color("PB607", "Ocean Mist", "#A8BCC3", "light_blue"),
+    mat_color("PB608", "Ice Blue", "#D7E2E7", "light_blue"),
+    mat_color("PN701", "Navy Grey", "#45556A", "blue"),
+    mat_color("PN702", "Deep Indigo", "#3E4A63", "blue"),
+    mat_color("PN703", "Midnight Blue", "#2F3A4A", "blue"),
+    mat_color("PN704", "Denim", "#5C718A", "blue"),
+    mat_color("PN705", "Petrol Blue", "#4A6672", "blue"),
+    mat_color("PN706", "Ink Blue", "#35485A", "blue"),
+    mat_color("PR801", "Dusty Rose", "#C49A96", "pink"),
+    mat_color("PR802", "Blush", "#D9BBB3", "pink"),
+    mat_color("PR803", "Nude Pink", "#D8B3A5", "pink"),
+    mat_color("PR804", "Mauve", "#B799A6", "pink"),
+    mat_color("PR805", "Old Rose", "#A97E7A", "pink"),
+    mat_color("PR806", "Rose Clay", "#B98D82", "pink"),
+    mat_color("PV901", "Lavender Grey", "#B4A9B9", "purple"),
+    mat_color("PV902", "Heather", "#A58FA5", "purple"),
+    mat_color("PV903", "Dusty Lilac", "#9D8BA7", "purple"),
+    mat_color("PV904", "Plum Grey", "#746675", "purple"),
+    mat_color("PV905", "Aubergine", "#5E4A57", "purple"),
+    mat_color("PY1001", "Sand Yellow", "#D6BE78", "yellow"),
+    mat_color("PY1002", "Wheat", "#D3B57C", "yellow"),
+    mat_color("PY1003", "Ochre", "#C39A49", "yellow"),
+    mat_color("PY1004", "Honey", "#C28B3A", "yellow"),
+    mat_color("PY1005", "Mustard Grey", "#9F8A4C", "yellow"),
 ]
 
 
@@ -287,7 +398,7 @@ def build_variant(decor_style, width, height, artwork_type, interior_style, pale
     mat_enabled = decide_mat(artwork_type, decor_style, palette.frame_occupancy)
     shadow_box = artwork_type == ArtworkType.volumetric.value
     frame = choose_frame(decor_style, interior_style, artwork_type, size_profile, palette.frame_occupancy)
-    mat = build_mat_spec(decor_style, width, height, artwork_type, palette, size_profile, aspect, mat_enabled)
+    mat = build_mat_spec(decor_style, width, height, artwork_type, palette, size_profile, aspect, mat_enabled, frame)
     glass = choose_glass(decor_style, artwork_type)
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile, aspect)
 
@@ -365,7 +476,7 @@ def analyze_image(image_path):
 
     primary = first_meaningful_color(clusters)
     secondary = next_distinct_color(clusters, primary, min_share=0.08)
-    accent = find_accent_color(clusters, primary)
+    accent = find_accent_color(clusters, primary, secondary)
 
     avg_lab = lab.mean(axis=0)
     avg_chroma = float(np.sqrt(lab[:, 1] ** 2 + lab[:, 2] ** 2).mean())
@@ -434,7 +545,7 @@ def decide_mat(artwork_type, decor_style, occupancy):
     return True
 
 
-def build_mat_spec(decor_style, width, height, artwork_type, palette, size_profile, aspect, enabled):
+def build_mat_spec(decor_style, width, height, artwork_type, palette, size_profile, aspect, enabled, frame):
     if not enabled:
         return MatSpec(False, None, None, 0, 0, 0, 0, 0, 0)
 
@@ -448,7 +559,7 @@ def build_mat_spec(decor_style, width, height, artwork_type, palette, size_profi
     top = base
     bottom = base if aspect == "square" else int(round(base * (1.20 if decor_style == DecorStyle.signature.value else 1.15)))
 
-    outer_color = choose_mat_color(decor_style, palette)
+    outer_color = choose_mat_color(decor_style, palette, frame)
     inner_color = None
     reveal = 0
     if decor_style == DecorStyle.signature.value:
@@ -458,17 +569,27 @@ def build_mat_spec(decor_style, width, height, artwork_type, palette, size_profi
     return MatSpec(True, outer_color, inner_color, base, base, top, bottom, 4, reveal)
 
 
-def choose_mat_color(decor_style, palette):
+def choose_mat_color(decor_style, palette, frame=None):
     if decor_style == DecorStyle.modern.value:
-        source = palette.secondary or palette.primary
-        target = shift_lab_for_modern_mat(source.lab, palette.lightness)
-        return nearest_mat_color(target, allowed_chroma={"muted", "medium"}, exclude_too_close_to=palette.primary.lab)
+        source = modern_source_color(palette)
+        if source is None:
+            return neutral_mat_by_temperature(palette.temperature)
+        target = shift_lab_for_colored_mat(source.lab, palette.lightness, source.family, mode="modern")
+        return nearest_mat_color(
+            target,
+            allowed_chroma={"muted", "medium"},
+            exclude_too_close_to=palette.primary.lab,
+            avoid_frame_lab=rgb_to_lab(hex_to_rgb(frame.hex)) if frame else None,
+        )
+
+    if decor_style == DecorStyle.signature.value:
+        return choose_signature_outer_color(palette)
 
     preferred = standard_mat_families(palette.temperature, palette.lightness)
     candidates = sorted(
         MAT_CATALOG,
         key=lambda color: (
-            0 if color.family in preferred else 8,
+            0 if color.id in preferred else 8,
             0 if color.temperature == palette.temperature else 3,
             delta_e(color.lab, palette.primary.lab) * 0.04,
         ),
@@ -477,9 +598,22 @@ def choose_mat_color(decor_style, palette):
 
 
 def choose_signature_inner_color(palette):
-    if palette.is_monochrome or palette.accent is None:
-        return find_mat("graphite")
-    return nearest_mat_color(palette.accent.lab, allowed_chroma={"medium"}, exclude_too_close_to=palette.primary.lab)
+    if palette.is_monochrome:
+        return find_mat("PG201")
+    if is_minimal_image(palette):
+        return find_mat("PB304")
+    if palette.accent is None:
+        return find_mat("PG201") if palette.temperature == Temperature.cool.value else find_mat("PB304")
+    target = shift_lab_for_colored_mat(palette.accent.lab, palette.lightness, palette.accent.family, mode="signature")
+    return nearest_mat_color(target, allowed_chroma={"muted", "medium"}, exclude_too_close_to=palette.primary.lab)
+
+
+def choose_signature_outer_color(palette):
+    if palette.is_monochrome:
+        return find_mat("PW001")
+    if is_minimal_image(palette):
+        return find_mat("PW002")
+    return choose_mat_color(DecorStyle.standard.value, palette, None)
 
 
 def choose_frame(decor_style, interior_style, artwork_type, size_profile, occupancy):
@@ -840,33 +974,85 @@ def classify_aspect(width, height):
 def standard_mat_families(temperature, lightness):
     if temperature == Temperature.warm.value:
         if lightness == Tonality.light.value:
-            return ["ivory", "warm_white"]
+            return ["PW004", "PW003"]
         if lightness == Tonality.medium.value:
-            return ["warm_white", "ivory"]
-        return ["warm_white", "museum_white"]
+            return ["PW003", "PW004"]
+        return ["PW003", "PW001"]
     if temperature == Temperature.cool.value:
-        return ["museum_white", "neutral_white"] if lightness != Tonality.medium.value else ["neutral_white", "soft_grey"]
-    return ["neutral_white", "museum_white"]
+        return ["PW001", "PW002"] if lightness != Tonality.medium.value else ["PW002", "PG101"]
+    return ["PW002", "PW001"]
 
 
-def shift_lab_for_modern_mat(lab, image_lightness):
+def neutral_mat_by_temperature(temperature):
+    if temperature == Temperature.warm.value:
+        return find_mat("PW003")
+    if temperature == Temperature.cool.value:
+        return find_mat("PW001")
+    return find_mat("PW002")
+
+
+def modern_source_color(palette):
+    if is_expressive_mat_source(palette.secondary):
+        return palette.secondary
+    if palette.accent is not None:
+        return palette.accent
+    return None
+
+
+def is_expressive_mat_source(color):
+    if color is None:
+        return False
+    if color.family in {"white", "black", "grey", "light_grey", "dark_grey"}:
+        return False
+    if color.chroma <= 10:
+        return False
+    return color.lab[0] >= 32
+
+
+def is_minimal_image(palette):
+    return palette.primary.share > 0.70
+
+
+def shift_lab_for_colored_mat(lab, image_lightness, family, mode):
     l, a, b = lab
     if image_lightness == Tonality.light.value:
-        l -= 12
+        l -= 15
     elif image_lightness == Tonality.dark.value:
-        l += 14
-    return (clamp_float(l, 18, 90), a * 0.45, b * 0.45)
+        l += 15
+
+    factor = chroma_factor_for_mat(family, mode)
+    return (clamp_float(l, 18, 90), a * factor, b * factor)
 
 
-def nearest_mat_color(target_lab, allowed_chroma=None, exclude_too_close_to=None):
+def chroma_factor_for_mat(family, mode):
+    if mode == "signature":
+        return 0.40
+    if family in {"red", "brown", "earth", "yellow", "pink"}:
+        return 0.25
+    if family in {"green", "blue", "light_blue", "grey", "light_grey", "dark_grey"}:
+        return 0.45
+    return 0.35
+
+
+def nearest_mat_color(target_lab, allowed_chroma=None, exclude_too_close_to=None, avoid_frame_lab=None):
     candidates = [color for color in MAT_CATALOG if color.available]
     if allowed_chroma:
         candidates = [color for color in candidates if color.chroma_level in allowed_chroma]
 
     def score(color):
         distance = delta_e(color.lab, target_lab)
-        if exclude_too_close_to and delta_e(color.lab, exclude_too_close_to) < 6:
-            distance += 25
+        if exclude_too_close_to:
+            image_distance = delta_e(color.lab, exclude_too_close_to)
+            if image_distance < 6:
+                distance += 80
+            elif image_distance < 10:
+                distance += 35
+        if avoid_frame_lab:
+            frame_distance = delta_e(color.lab, avoid_frame_lab)
+            if frame_distance < 8:
+                distance += 55
+            elif frame_distance < 12:
+                distance += 25
         return distance
 
     return min(candidates, key=score)
@@ -891,15 +1077,22 @@ def next_distinct_color(clusters, primary, min_share):
     return None
 
 
-def find_accent_color(clusters, primary):
+def find_accent_color(clusters, primary, secondary):
+    if primary.share > 0.70:
+        return None
+
     scored = []
     for color in clusters:
-        if color.share < 0.03 or color.chroma_level == ChromaLevel.muted.value:
+        if color is primary or color is secondary:
+            continue
+        if color.share < 0.02 or color.share > 0.15:
+            continue
+        if color.chroma_level == ChromaLevel.muted.value:
             continue
         distance = delta_e(color.lab, primary.lab)
         if distance < 18:
             continue
-        scored.append((color.chroma * 0.55 + distance * 0.30 + color.share * 100 * 0.15, color))
+        scored.append((color.chroma, color))
     if not scored:
         return None
     return max(scored, key=lambda item: item[0])[1]
@@ -959,11 +1152,6 @@ def delta_e(a, b):
 
 def rgb_to_hex(rgb):
     return "#{:02X}{:02X}{:02X}".format(*rgb)
-
-
-def hex_to_rgb(value):
-    value = value.lstrip("#")
-    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
 
 
 def lab_to_rgb(lab):

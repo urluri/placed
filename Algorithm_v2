@@ -511,7 +511,16 @@ The inner mat color should be subtle. It is not a large colored field.
 
 ## 10. Mat Color Selection
 
-Mat color must be selected from `MatColor` catalog.
+Mat color must be selected from the Placed Passepartout Palette catalog defined in `colors.docx`.
+
+The algorithm stores colors in Lab for distance matching, but the selection logic is conceptually based on:
+
+- hue / color family;
+- saturation / chroma;
+- lightness;
+- catalog availability.
+
+The output must always contain a concrete catalog code such as `PW001`, `PB304`, or `PE401`, not an abstract name like `ivory`.
 
 ### 10.1 Standard DecorStyle
 
@@ -519,20 +528,20 @@ Goal: safe neutral mat.
 
 Rules:
 
-| Image Temperature | Image Lightness | Preferred Mat Families |
+| Image Temperature | Image Lightness | Preferred Placed Codes |
 | --- | --- | --- |
-| warm | light | ivory, warm_white |
-| warm | medium | warm_white, ivory |
-| warm | dark | warm_white, museum_white |
-| cool | light | museum_white, neutral_white |
-| cool | medium | neutral_white, soft_grey |
-| cool | dark | museum_white, neutral_white |
-| neutral | any | neutral_white, museum_white |
+| warm | light | PW004 Ivory, PW003 Warm White |
+| warm | medium | PW003 Warm White, PW004 Ivory |
+| warm | dark | PW003 Warm White, PW001 Museum White |
+| cool | light | PW001 Museum White, PW002 Gallery White |
+| cool | medium | PW002 Gallery White, PG101 Soft Grey |
+| cool | dark | PW001 Museum White, PW002 Gallery White |
+| neutral | any | PW002 Gallery White, PW001 Museum White |
 
 Pick the catalog color with:
 
 ```text
-lowest penalty = family_penalty + temperature_penalty + lightness_penalty
+lowest penalty = preferred_code_penalty + temperature_penalty + small_distance_to_image_penalty
 ```
 
 Do not try to match the artwork exactly in `standard`.
@@ -541,42 +550,52 @@ Do not try to match the artwork exactly in `standard`.
 
 Goal: contemporary mat that relates to the image without becoming too loud.
 
-Candidate color:
+Source color:
 
 ```text
-source_color = secondary_color
+if secondary_color is colorful, sufficiently saturated, and not too dark:
+    source_color = secondary_color
+elif accent_color exists:
+    source_color = accent_color
+else:
+    source_color = neutral color by image temperature
 ```
 
-If no secondary color:
+Reject `secondary_color` as a source when it is:
 
 ```text
-source_color = primary_color
+black / white / grey
+or chroma <= 10
+or L < 32
 ```
 
-Adjustment rule:
+Chroma reduction:
+
+```text
+red / orange / earth / yellow / pink -> keep about 25% of source chroma
+green / blue / grey -> keep about 45% of source chroma
+other colors -> keep about 35% of source chroma
+```
+
+Lightness adjustment:
 
 ```text
 if image_lightness == light:
-    target_L = source_L - 12
+    target_L = source_L - 15
 elif image_lightness == dark:
-    target_L = source_L + 14
+    target_L = source_L + 15
 else:
     target_L = source_L
 ```
 
-Reduce chroma for mat:
-
-```text
-target_chroma = source_chroma * 0.45
-```
-
-Then choose nearest `MatColor` by Delta E, but only among muted/medium catalog colors.
+Then choose nearest `MatColor` by Delta E among muted/medium catalog colors.
 
 Reject colors if:
 
 ```text
 chroma_level == vivid
 or delta_e(mat_color, primary_color) < 6
+or delta_e(mat_color, frame_color) < 8
 ```
 
 The mat should support the image, not disappear into it.
@@ -589,19 +608,47 @@ Use double mat:
 
 ```text
 outer_mat_color = Standard mat color
-inner_mat_color = accent-based catalog color
+inner_mat_color = muted accent-based catalog color
 ```
 
 If image is monochrome:
 
 ```text
-inner_mat_color = graphite
+outer_mat_color = PW001 Museum White
+inner_mat_color = PG201 Graphite
+```
+
+If image is minimalistic and one color covers more than 70%:
+
+```text
+outer_mat_color = PW002 Gallery White
+inner_mat_color = PB304 Taupe
 ```
 
 If no accent color exists:
 
 ```text
-inner_mat_color = soft_grey or graphite
+inner_mat_color = PG201 Graphite for cool images
+inner_mat_color = PB304 Taupe otherwise
+```
+
+Accent color selection for Signature:
+
+```text
+exclude primary_color and secondary_color
+candidate area must be between 2% and 15%
+candidate must not be muted
+candidate must be at least Delta E 18 away from primary_color
+choose candidate with maximum chroma
+```
+
+Before matching to the catalog, the accent is muted and lightness is corrected:
+
+```text
+target_chroma = accent_chroma * 0.40
+light image -> target_L - 15
+dark image -> target_L + 15
+medium image -> keep target_L
 ```
 
 Accent mat is only a reveal strip, usually 4-8 mm.
@@ -791,9 +838,9 @@ outer_height_mm = AH + 2 * F
       "mat": {
         "enabled": true,
         "outer_color": {
-          "id": "mat-warm-white",
+          "id": "PW003",
           "name": "Warm White",
-          "hex": "#F1EBDD"
+          "hex": "#F5F1E8"
         },
         "inner_color": null,
         "left_mm": 80,
@@ -825,25 +872,26 @@ outer_height_mm = AH + 2 * F
 
 ## 16. MVP Catalogs
 
-Before real supplier catalogs exist, define small internal catalogs.
+Before real supplier catalogs exist, use internal catalogs. Mat colors are now based on `colors.docx`.
 
 ### MVP Mat Colors
 
-Minimum catalog:
+Use `PLACED Passepartout Palette v1.0`.
+
+Catalog groups:
 
 ```text
-museum_white
-neutral_white
-warm_white
-ivory
-soft_grey
-graphite
-black
-warm_beige
-cool_grey
-deep_blue
-muted_green
-terracotta
+PW001..PW008   whites and warm whites
+PG101..PG108   light greys
+PG201..PG206   dark greys
+PB301..PB308   beige / taupe
+PE401..PE408   earth / terracotta / clay
+PG501..PG508   greens
+PB601..PB608   light blues
+PN701..PN706   deep blues
+PR801..PR806   pinks
+PV901..PV905   purples
+PY1001..PY1005 yellows
 ```
 
 Each item must have:
@@ -851,6 +899,8 @@ Each item must have:
 ```text
 id, name, hex, rgb, lab, family, temperature, lightness, chroma_level
 ```
+
+The code should compute `rgb`, `lab`, `lightness`, and `chroma_level` from HEX. The first white group can keep explicit catalog temperatures from `colors.docx`.
 
 ### MVP Frame Families
 
