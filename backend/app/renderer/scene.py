@@ -73,14 +73,21 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     )
 
     mat_for_bevel = max(mat_left, mat_right, mat_top, mat_bottom)
-    canvas = draw_mat(canvas, mat_rect, aperture_rect, mat_for_bevel, base=mat_color)
-    canvas = draw_inner_reveal(canvas, aperture_rect, inner_reveal, inner_mat_color)
-    canvas = add_inner_occlusion(canvas, aperture_rect, blur=max(5, mat_for_bevel // 18), opacity=42, spread=max(5, mat_for_bevel // 18))
+    if mat_for_bevel > 0:
+        canvas = draw_mat(canvas, mat_rect, aperture_rect, mat_for_bevel, base=mat_color)
+        canvas = draw_inner_reveal(canvas, aperture_rect, inner_reveal, inner_mat_color)
+        canvas = add_inner_occlusion(
+            canvas,
+            aperture_rect,
+            blur=max(5, mat_for_bevel // 18),
+            opacity=42,
+            spread=max(5, mat_for_bevel // 18),
+        )
 
     canvas.paste(artwork, (aperture_rect[0], aperture_rect[1]))
     canvas = add_contact_shadow(canvas, aperture_rect, blur=4, opacity=28)
 
-    if geometry.get("glass") != "forbidden":
+    if geometry.get("glass") not in {"none", "forbidden"}:
         canvas = add_glass_effect(canvas, aperture_rect)
 
     canvas = add_global_lighting(canvas)

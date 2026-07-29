@@ -47,6 +47,7 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
+  const [showDecisionTree, setShowDecisionTree] = useState(false);
   const requestId = useRef(0);
 
   const selectedVariant = useMemo(() => {
@@ -67,6 +68,7 @@ export default function App() {
     setIsRendering(false);
     setForm((current) => ({ ...current, ...patch }));
     setRecommendation(null);
+    setShowDecisionTree(false);
     clearPreview();
     setRenderState("Нажмите «Применить»");
   };
@@ -75,6 +77,7 @@ export default function App() {
     requestId.current += 1;
     setIsRendering(false);
     setSelectedDecorStyle(decorStyle);
+    setShowDecisionTree(false);
     clearPreview();
     setRenderState("Нажмите «Применить»");
   };
@@ -131,19 +134,21 @@ export default function App() {
         </div>
 
         <form className="config-form">
-          <label className="upload-zone" htmlFor="artUpload">
+          <div className="compact-upload">
+            <label className="icon-upload" htmlFor="artUpload" title="Загрузить изображение">
+              <span aria-hidden="true">+</span>
+            </label>
             <input
               id="artUpload"
               type="file"
               accept="image/*"
               onChange={(event) => updateForm({ image: event.target.files?.[0] ?? null })}
             />
-            <span className="upload-icon" aria-hidden="true">+</span>
-            <span>
+            <div className="upload-summary">
               <strong>{form.image?.name ?? "Загрузить изображение"}</strong>
               <small>{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
-            </span>
-          </label>
+            </div>
+          </div>
 
           <fieldset className="dimensions">
             <legend>Физические размеры</legend>
@@ -180,72 +185,40 @@ export default function App() {
             <span>Развернуть изображение на 90°</span>
           </label>
 
-          <RadioGrid
+          <SelectField
             label="Тип работы"
-            className="artwork-grid"
-            name="artworkType"
             value={form.artworkType}
             options={artworkOptions}
             onChange={(artworkType) => updateForm({ artworkType })}
           />
 
-          <RadioGrid
+          <SelectField
             label="Стиль интерьера"
-            className="style-grid"
-            name="interiorStyle"
             value={form.interiorStyle}
             options={interiorOptions}
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
           />
         </form>
-
-        <nav className="variant-tabs" aria-label="Варианты оформления">
-          {decorStyles.map((decorStyle) => (
-            <button
-              key={decorStyle}
-              type="button"
-              className={selectedDecorStyle === decorStyle ? "is-active" : ""}
-              onClick={() => handleDecorStyleChange(decorStyle)}
-            >
-              {decorStyle[0].toUpperCase() + decorStyle.slice(1)}
-            </button>
-          ))}
-        </nav>
-
-        <section className="recommendation" aria-label="Рекомендация">
-          <div className="recommendation-head">
-            <h2>{selectedVariant?.title ?? "Standard: спокойная мастерская база"}</h2>
-          </div>
-          <dl className="spec-list">
-            <SpecItem label="Багет">{frameSpec(selectedVariant)}</SpecItem>
-            <SpecItem label="Паспарту">{matSpec(selectedVariant)}</SpecItem>
-            <SpecItem label="Защита">{glassName(selectedVariant?.glass?.type)}</SpecItem>
-            <SpecItem label="Итоговый размер">
-              {selectedVariant
-                ? `${selectedVariant.geometry.outer_width_mm} x ${selectedVariant.geometry.outer_height_mm} мм`
-                : "—"}
-            </SpecItem>
-          </dl>
-          <p className="reason-text">{selectedVariant?.reasons.join(" ")}</p>
-          <div className="palette-row" aria-label="Цвета изображения">
-            <PaletteChip label="Основной" color={palette?.primary} />
-            <PaletteChip label="Второй" color={palette?.secondary} />
-            <PaletteChip label="Акцент" color={palette?.accent} />
-          </div>
-        </section>
-
-        <section className="debug-panel" aria-label="Дерево решений">
-          <h2>Дерево решений</h2>
-          <DecisionTree nodes={selectedVariant?.decision_tree ?? []} />
-        </section>
       </section>
 
       <section className="preview-stage" aria-label="Превью оформления">
         <div className="preview-toolbar">
-          <div>
+          <div className="preview-meta">
             <span>{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</span>
             <strong>{selectedDecorStyle.toUpperCase()}</strong>
           </div>
+          <nav className="variant-tabs" aria-label="Варианты оформления">
+            {decorStyles.map((decorStyle) => (
+              <button
+                key={decorStyle}
+                type="button"
+                className={selectedDecorStyle === decorStyle ? "is-active" : ""}
+                onClick={() => handleDecorStyleChange(decorStyle)}
+              >
+                {decorStyle[0].toUpperCase() + decorStyle.slice(1)}
+              </button>
+            ))}
+          </nav>
           <div className="preview-actions">
             <button type="button" className="apply-button" onClick={applyRender} disabled={isRendering}>
               {isRendering ? "Применяю" : "Применить"}
@@ -262,44 +235,67 @@ export default function App() {
             <span>{renderState}</span>
           </div>
         </div>
+        <div className="result-panel">
+          <details className="result-details">
+            <summary>Параметры итогового оформления</summary>
+            <dl className="spec-list">
+              <SpecItem label="Багет">{frameSpec(selectedVariant)}</SpecItem>
+              <SpecItem label="Паспарту">{matSpec(selectedVariant)}</SpecItem>
+              <SpecItem label="Защита">{glassName(selectedVariant?.glass?.type)}</SpecItem>
+              <SpecItem label="Итоговый размер">
+                {selectedVariant
+                  ? `${selectedVariant.geometry.outer_width_mm} x ${selectedVariant.geometry.outer_height_mm} мм`
+                  : "—"}
+              </SpecItem>
+            </dl>
+            <p className="reason-text">{selectedVariant?.reasons.join(" ")}</p>
+            <div className="palette-row" aria-label="Цвета изображения">
+              <PaletteChip label="Основной" color={palette?.primary} />
+              <PaletteChip label="Второй" color={palette?.secondary} />
+              <PaletteChip label="Акцент" color={palette?.accent} />
+            </div>
+          </details>
+          <button
+            type="button"
+            className="decision-toggle"
+            aria-expanded={showDecisionTree}
+            onClick={() => setShowDecisionTree((isOpen) => !isOpen)}
+          >
+            Дерево решений
+          </button>
+        </div>
+        {showDecisionTree && (
+          <section className="decision-panel" aria-label="Дерево решений">
+            <DecisionTree nodes={selectedVariant?.decision_tree ?? []} />
+          </section>
+        )}
       </section>
     </main>
   );
 }
 
-function RadioGrid<T extends string>({
+function SelectField<T extends string>({
   label,
-  className,
-  name,
   value,
   options,
   onChange,
 }: {
   label: string;
-  className: string;
-  name: string;
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
 }) {
   return (
-    <fieldset>
-      <legend>{label}</legend>
-      <div className={className} role="radiogroup" aria-label={label}>
+    <label className="select-field">
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
-          <label key={option.value}>
-            <input
-              type="radio"
-              name={name}
-              value={option.value}
-              checked={value === option.value}
-              onChange={() => onChange(option.value)}
-            />
-            <span>{option.label}</span>
-          </label>
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
         ))}
-      </div>
-    </fieldset>
+      </select>
+    </label>
   );
 }
 

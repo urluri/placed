@@ -86,13 +86,13 @@ def build_decoration_set(image_path, artwork_width_mm, artwork_height_mm, artwor
 def build_placeholder_variant(decor_style, width, height, artwork_type):
     frame = FrameOption(
         id="renderer-placeholder-frame",
-        name="Техническая рамка",
+        name="Черная техническая рама",
         material="wood",
         color_family="neutral",
         width_mm=20,
         depth_mm=24,
         profile="flat",
-        hex="#2B2925",
+        hex="#000000",
     )
     mat = MatSpec(
         enabled=False,
@@ -105,7 +105,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type):
         overlap_mm=0,
         inner_reveal_mm=0,
     )
-    glass = GlassSpec(type="ordinary", required=False)
+    glass = GlassSpec(type="none", required=False)
     geometry = build_geometry(width, height, frame.width_mm, mat)
 
     return DecorationSpec(
