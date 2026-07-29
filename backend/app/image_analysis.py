@@ -20,16 +20,16 @@ def analyze_image(image_path: str):
     lab = rgb_to_lab(rgb)
     clusters = extract_color_clusters(rgb, lab)
 
-    primary = choose_primary(clusters)
-    secondary = choose_secondary(clusters, primary)
-    accent = choose_accent(clusters, primary, secondary)
-
     lightness_value = float(np.percentile(lab[:, :, 0], 50))
     chroma_values = np.sqrt(lab[:, :, 1] ** 2 + lab[:, :, 2] ** 2)
     chroma_value = weighted_mean_chroma(chroma_values)
     contrast_value = image_contrast(lab[:, :, 0])
     occupancy_value = frame_occupancy(lab)
     temperature_score = image_temperature(clusters)
+
+    primary = choose_primary(clusters)
+    secondary = choose_secondary(clusters, primary)
+    accent = choose_accent(clusters, primary, secondary, temperature_score)
 
     return {
         "palette": {
@@ -62,7 +62,7 @@ def load_rgb(image_path: str):
     return np.asarray(image, dtype=np.float32)
 
 
-def extract_color_clusters(rgb, lab, k=7):
+def extract_color_clusters(rgb, lab, k=10):
     flat_rgb = rgb.reshape(-1, 3)
     flat_lab = lab.reshape(-1, 3)
 
@@ -165,19 +165,34 @@ def choose_secondary(clusters, primary):
     return max(candidates, key=lambda cluster: cluster.share * (0.5 + min(cluster.chroma, 70) / 140))
 
 
-def choose_accent(clusters, primary, secondary):
+def choose_accent(clusters, primary, secondary, scene_temperature):
     anchors = [cluster for cluster in (primary, secondary) if cluster]
-    candidates = [cluster for cluster in clusters if cluster not in anchors and cluster.share >= 0.012]
+    candidates = [cluster for cluster in clusters if cluster not in anchors and cluster.share >= 0.006]
     if not candidates:
         return None
 
     def score(cluster):
         distance = min(delta_e(cluster, anchor) for anchor in anchors) if anchors else 25
-        share_bonus = min(cluster.share, 0.18) / 0.18
-        return (cluster.chroma / 70) * (distance / 50) * (0.45 + share_bonus)
+        lightness = cluster.lab[0]
+        temp_score = color_temperature_score(cluster)
+        anchor_lightness = np.mean([anchor.lab[0] for anchor in anchors]) if anchors else lightness
+        lightness_pop = 1 + max(0, lightness - anchor_lightness) / 45
+        share_weight = np.sqrt(min(cluster.share / 0.035, 2.2))
+        chroma_weight = 0.45 + min(cluster.chroma / 34, 1.8)
+        distance_weight = 0.55 + min(distance / 38, 1.7)
+        temperature_weight = 1.0
+        if scene_temperature <= -5 and temp_score >= 10:
+            temperature_weight += 1.15
+        elif scene_temperature >= 7 and temp_score <= -8:
+            temperature_weight += 0.85
+        elif abs(temp_score - scene_temperature) >= 24:
+            temperature_weight += 0.35
+        highlight_weight = 1.25 if lightness >= 58 and cluster.chroma >= 16 else 1.0
+        dark_penalty = 0.45 if lightness < 20 and cluster.chroma < 16 else 1.0
+        return share_weight * chroma_weight * distance_weight * lightness_pop * temperature_weight * highlight_weight * dark_penalty
 
     accent = max(candidates, key=score)
-    return accent if score(accent) >= 0.08 else None
+    return accent if score(accent) >= 0.35 else None
 
 
 def image_temperature(clusters):
@@ -194,6 +209,10 @@ def image_temperature(clusters):
         numerator += (b_value + a_value * 0.22) * weight
         denominator += weight
     return numerator / denominator if denominator else 0.0
+
+
+def color_temperature_score(cluster):
+    return cluster.lab[2] + cluster.lab[1] * 0.22
 
 
 def weighted_mean_chroma(chroma_values):
