@@ -260,7 +260,6 @@ export default function App() {
               <SpecItem label="Насыщенность">{imageAnalysis?.chroma_level ?? "—"}</SpecItem>
               <SpecItem label="Заполненность">{imageAnalysis?.frame_occupancy ?? "—"}</SpecItem>
               <SpecItem label="Контраст">{imageAnalysis?.contrast ?? "—"}</SpecItem>
-              <SpecItem label="Монохромность">{imageAnalysis?.is_monochrome ? "да" : "нет"}</SpecItem>
               <SpecItem label="Метрики">{metricsSpec(imageAnalysis?.metrics)}</SpecItem>
             </dl>
           </details>

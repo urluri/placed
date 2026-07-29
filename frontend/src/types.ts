@@ -99,7 +99,6 @@ export type Recommendation = {
     chroma_level: string;
     frame_occupancy: string;
     contrast: string;
-    is_monochrome: boolean;
     metrics?: {
       lightness?: number;
       chroma?: number;

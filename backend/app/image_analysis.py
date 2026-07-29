@@ -42,7 +42,6 @@ def analyze_image(image_path: str):
         "chroma_level": classify_chroma(chroma_value),
         "frame_occupancy": classify_level(occupancy_value, low=0.22, high=0.45),
         "contrast": classify_contrast(contrast_value),
-        "is_monochrome": chroma_value < 10,
         "metrics": {
             "lightness": round(lightness_value, 2),
             "chroma": round(chroma_value, 2),
