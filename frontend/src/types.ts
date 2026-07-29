@@ -90,7 +90,7 @@ export type DecorationVariant = {
 export type Recommendation = {
   image_analysis: {
     palette: {
-      primary: ColorSample;
+      primary: ColorSample | null;
       secondary: ColorSample | null;
       accent: ColorSample | null;
     };
