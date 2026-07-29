@@ -243,6 +243,32 @@ legend,
   color: #fff;
 }
 
+.preview-mode-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.interior-toggle {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfaf7;
+  color: var(--ink);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.interior-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.interior-toggle.is-active {
+  border-color: var(--accent);
+  background: #e7f0ec;
+  color: var(--accent);
+}
+
 .spec-list {
   display: grid;
   gap: 10px;
@@ -388,7 +414,8 @@ legend,
 }
 
 .preview-toolbar span,
-.preview-toolbar strong {
+.preview-toolbar strong,
+.preview-toolbar small {
   display: block;
 }
 
@@ -401,6 +428,13 @@ legend,
 .preview-toolbar strong {
   margin-top: 2px;
   font-size: 17px;
+}
+
+.preview-toolbar small {
+  margin-top: 3px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .preview-actions {
@@ -445,20 +479,45 @@ legend,
 
 .render-surface {
   position: relative;
-  min-height: 360px;
+  min-height: 430px;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 28px;
   overflow: hidden;
+  background-color: #d8d4cb;
 }
 
-.render-surface img {
+.framed-art-preview {
   width: auto;
   height: auto;
-  max-width: min(62%, 780px);
-  max-height: calc(100vh - 280px);
+  max-width: min(64%, 720px);
+  max-height: calc(100vh - 290px);
   object-fit: contain;
   display: block;
+  box-shadow: 0 18px 34px rgba(18, 15, 12, 0.32), 0 2px 7px rgba(18, 15, 12, 0.2);
+  z-index: 1;
+}
+
+.plain-preview {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0) 52%),
+    #d8d4cb;
+}
+
+.interior-preview {
+  min-height: 520px;
+  display: block;
+  padding: 0;
+  background-position: center;
+  background-size: cover;
+}
+
+.interior-preview .framed-art-preview {
+  position: absolute;
+  max-width: min(34%, 360px);
+  min-width: 108px;
+  max-height: none;
+  transform: translate(-50%, -50%);
 }
 
 .result-panel {
@@ -588,7 +647,7 @@ legend,
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .preview-toolbar .variant-tabs {
+  .preview-toolbar .preview-mode-panel {
     grid-column: 1 / -1;
     order: 3;
   }
@@ -616,9 +675,18 @@ legend,
     min-height: 380px;
   }
 
-  .render-surface img {
+  .framed-art-preview {
     max-width: min(76%, 720px);
     max-height: 520px;
+  }
+
+  .interior-preview {
+    min-height: 440px;
+  }
+
+  .interior-preview .framed-art-preview {
+    max-width: 42%;
+    min-width: 92px;
   }
 }
 

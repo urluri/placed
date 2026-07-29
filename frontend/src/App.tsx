@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { recommend, renderPreview } from "./api";
 import type {
@@ -34,6 +34,60 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 
 const decorStyles: DecorStyle[] = ["standard", "modern", "signature"];
 
+const interiorScenes: Record<
+  InteriorStyle,
+  {
+    src: string;
+    label: string;
+    placement: {
+      left: string;
+      top: string;
+      width: string;
+    };
+  }
+> = {
+  minimal: {
+    src: "/interiors/minimal.jpg",
+    label: "Минимализм",
+    placement: { left: "50%", top: "34%", width: "20%" },
+  },
+  scandi: {
+    src: "/interiors/scandi.jpg",
+    label: "Сканди",
+    placement: { left: "50%", top: "35%", width: "21%" },
+  },
+  japandi: {
+    src: "/interiors/japandi.jpg",
+    label: "Джапанди",
+    placement: { left: "50%", top: "34%", width: "21%" },
+  },
+  contemporary: {
+    src: "/interiors/contemporary.jpg",
+    label: "Современный",
+    placement: { left: "50%", top: "35%", width: "20%" },
+  },
+  loft: {
+    src: "/interiors/loft.jpg",
+    label: "Лофт",
+    placement: { left: "50%", top: "35%", width: "19%" },
+  },
+  modern_vintage: {
+    src: "/interiors/modern_vintage.jpg",
+    label: "Modern vintage",
+    placement: { left: "50%", top: "35%", width: "20%" },
+  },
+  neoclassic: {
+    src: "/interiors/neoclassic.jpg",
+    label: "Неоклассика",
+    placement: { left: "50%", top: "34%", width: "20%" },
+  },
+  universal: {
+    src: "/interiors/universal.jpg",
+    label: "Универсальный",
+    placement: { left: "50%", top: "35%", width: "20%" },
+  },
+};
+
 export default function App() {
   const [form, setForm] = useState<FormState>({
     widthMm: "300",
@@ -49,6 +103,7 @@ export default function App() {
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
+  const [showInteriorPreview, setShowInteriorPreview] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const requestId = useRef(0);
 
@@ -56,6 +111,17 @@ export default function App() {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
   }, [recommendation, selectedDecorStyle]);
   const imageAnalysis = recommendation?.image_analysis ?? null;
+  const interiorScene = interiorScenes[form.interiorStyle];
+  const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
+    ? { backgroundImage: `url(${interiorScene.src})` }
+    : undefined;
+  const previewImageStyle: CSSProperties | undefined = showInteriorPreview
+    ? {
+        left: interiorScene.placement.left,
+        top: interiorScene.placement.top,
+        width: interiorScene.placement.width,
+      }
+    : undefined;
 
   const clearPreview = () => {
     setPreviewUrl((previousUrl) => {
@@ -217,19 +283,30 @@ export default function App() {
           <div className="preview-meta">
             <span>{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</span>
             <strong>{selectedDecorStyle.toUpperCase()}</strong>
+            <small>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</small>
           </div>
-          <nav className="variant-tabs" aria-label="Варианты оформления">
-            {decorStyles.map((decorStyle) => (
-              <button
-                key={decorStyle}
-                type="button"
-                className={selectedDecorStyle === decorStyle ? "is-active" : ""}
-                onClick={() => handleDecorStyleChange(decorStyle)}
-              >
-                {decorStyle[0].toUpperCase() + decorStyle.slice(1)}
-              </button>
-            ))}
-          </nav>
+          <div className="preview-mode-panel">
+            <nav className="variant-tabs" aria-label="Варианты оформления">
+              {decorStyles.map((decorStyle) => (
+                <button
+                  key={decorStyle}
+                  type="button"
+                  className={selectedDecorStyle === decorStyle ? "is-active" : ""}
+                  onClick={() => handleDecorStyleChange(decorStyle)}
+                >
+                  {decorStyle[0].toUpperCase() + decorStyle.slice(1)}
+                </button>
+              ))}
+            </nav>
+            <button
+              type="button"
+              className={`interior-toggle ${showInteriorPreview ? "is-active" : ""}`}
+              aria-pressed={showInteriorPreview}
+              onClick={() => setShowInteriorPreview((isVisible) => !isVisible)}
+            >
+              {showInteriorPreview ? "Обычный вид" : "Смотреть в интерьере"}
+            </button>
+          </div>
           <div className="preview-actions">
             <button type="button" className="apply-button" onClick={applyRender} disabled={isRendering}>
               {isRendering ? "Применяю" : "Применить"}
@@ -239,8 +316,18 @@ export default function App() {
             </button>
           </div>
         </div>
-        <div className="render-surface">
-          {previewUrl && <img src={previewUrl} alt="Превью оформления" />}
+        <div
+          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"}`}
+          style={previewSurfaceStyle}
+        >
+          {previewUrl && (
+            <img
+              className="framed-art-preview"
+              src={previewUrl}
+              alt="Превью оформления"
+              style={previewImageStyle}
+            />
+          )}
           <div className={`render-state ${renderState ? "is-visible" : ""} ${isRendering ? "is-loading" : ""}`}>
             {isRendering && <span className="loader" aria-hidden="true" />}
             <span>{renderState}</span>
