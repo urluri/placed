@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { recommend, renderPreview } from "./api";
 import type {
+  AccentAnalysis,
   ArtworkType,
   ColorSample,
   DecisionNode,
@@ -252,8 +253,9 @@ export default function App() {
             <div className="palette-row" aria-label="Цвета изображения">
               <PaletteChip label="Основной" color={imageAnalysis?.palette.primary} />
               <PaletteChip label="Вторичный" color={imageAnalysis?.palette.secondary} />
-              <PaletteChip label="Акцентный" color={imageAnalysis?.palette.accent} />
+              <PaletteChip label="Акцентный" color={imageAnalysis?.palette.accent?.selected} />
             </div>
+            <AccentDetails accent={imageAnalysis?.palette.accent} />
             <dl className="spec-list analysis-list">
               <SpecItem label="Температура">{imageAnalysis?.temperature ?? "—"}</SpecItem>
               <SpecItem label="Светлота">{imageAnalysis?.lightness ?? "—"}</SpecItem>
@@ -323,6 +325,30 @@ function PaletteChip({ label, color }: { label: string; color?: ColorSample | nu
       <span>{color ? `${label}: ${color.hex}` : `${label}: —`}</span>
     </div>
   );
+}
+
+function AccentDetails({ accent }: { accent?: AccentAnalysis | null }) {
+  if (!accent) return null;
+
+  return (
+    <div className="accent-details">
+      <div className="accent-summary">
+        <span>Источник: {accent.source ?? "—"}</span>
+        <span>Уверенность: {accent.confidence}</span>
+      </div>
+      <p className="reason-text">{accent.reason}</p>
+      <div className="accent-candidates" aria-label="Кандидаты акцентного цвета">
+        <PaletteChip label={`Pop ${scoreLabel(accent.scores?.pop)}`} color={accent.candidates.pop} />
+        <PaletteChip label={`Temperature ${scoreLabel(accent.scores?.temperature)}`} color={accent.candidates.temperature} />
+        <PaletteChip label={`Light ${scoreLabel(accent.scores?.light)}`} color={accent.candidates.light} />
+        <PaletteChip label={`Area ${scoreLabel(accent.scores?.area)}`} color={accent.candidates.area} />
+      </div>
+    </div>
+  );
+}
+
+function scoreLabel(value: number | undefined) {
+  return typeof value === "number" ? `(${value})` : "";
 }
 
 function DecisionTree({ nodes }: { nodes: DecisionNode[] }) {

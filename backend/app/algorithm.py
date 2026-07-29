@@ -208,7 +208,7 @@ def analysis_facts(image_analysis):
     facts = [
         f"Основной цвет: {color_fact(palette.get('primary'))}.",
         f"Вторичный цвет: {color_fact(palette.get('secondary'))}.",
-        f"Акцентный цвет: {color_fact(palette.get('accent'))}.",
+        f"Акцентный цвет: {accent_fact(palette.get('accent'))}.",
         f"Цветовая температура: {image_analysis['temperature']}.",
         f"Светлота: {image_analysis['lightness']}.",
         f"Насыщенность: {image_analysis['chroma_level']}.",
@@ -231,6 +231,15 @@ def color_fact(color):
     if not color:
         return "не найден"
     return f"{color['hex']} ({color['family']}, доля {round(color['share'] * 100, 1)}%)"
+
+
+def accent_fact(accent):
+    if not accent or not accent.get("selected"):
+        return "не найден"
+    selected = accent["selected"]
+    source = accent.get("source") or "unknown"
+    confidence = accent.get("confidence") or "unknown"
+    return f"{color_fact(selected)}, источник {source}, уверенность {confidence}"
 
 
 def placeholder_title(decor_style):

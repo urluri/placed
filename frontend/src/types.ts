@@ -22,6 +22,25 @@ export type ColorSample = {
   share: number;
 };
 
+export type AccentAnalysis = {
+  selected: ColorSample | null;
+  source: "pop" | "temperature" | "light" | "area" | null;
+  confidence: "high" | "medium" | "low";
+  reason: string;
+  candidates: {
+    pop: ColorSample | null;
+    temperature: ColorSample | null;
+    light: ColorSample | null;
+    area: ColorSample | null;
+  };
+  scores?: {
+    pop?: number;
+    temperature?: number;
+    light?: number;
+    area?: number;
+  };
+};
+
 export type MatColor = {
   id: string;
   name: string;
@@ -92,7 +111,7 @@ export type Recommendation = {
     palette: {
       primary: ColorSample | null;
       secondary: ColorSample | null;
-      accent: ColorSample | null;
+      accent: AccentAnalysis | null;
     };
     temperature: string;
     lightness: string;

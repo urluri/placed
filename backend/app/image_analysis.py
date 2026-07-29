@@ -18,7 +18,8 @@ class ColorCluster:
 def analyze_image(image_path: str):
     rgb = load_rgb(image_path)
     lab = rgb_to_lab(rgb)
-    clusters = extract_color_clusters(rgb, lab)
+    clusters = extract_color_clusters(rgb, lab, k=10)
+    accent_clusters = extract_color_clusters(rgb, lab, k=14)
 
     lightness_value = float(np.percentile(lab[:, :, 0], 50))
     chroma_values = np.sqrt(lab[:, :, 1] ** 2 + lab[:, :, 2] ** 2)
@@ -29,13 +30,13 @@ def analyze_image(image_path: str):
 
     primary = choose_primary(clusters)
     secondary = choose_secondary(clusters, primary)
-    accent = choose_accent(clusters, primary, secondary, temperature_score)
+    accent = choose_accent(accent_clusters, primary, secondary, temperature_score)
 
     return {
         "palette": {
             "primary": serialize_color(primary),
             "secondary": serialize_color(secondary),
-            "accent": serialize_color(accent),
+            "accent": serialize_accent(accent),
         },
         "temperature": classify_temperature(temperature_score),
         "lightness": classify_lightness(lightness_value),
@@ -167,32 +168,143 @@ def choose_secondary(clusters, primary):
 
 def choose_accent(clusters, primary, secondary, scene_temperature):
     anchors = [cluster for cluster in (primary, secondary) if cluster]
-    candidates = [cluster for cluster in clusters if cluster not in anchors and cluster.share >= 0.006]
+    candidates = [cluster for cluster in clusters if cluster not in anchors and cluster.share >= 0.001]
     if not candidates:
-        return None
+        return empty_accent()
 
-    def score(cluster):
-        distance = min(delta_e(cluster, anchor) for anchor in anchors) if anchors else 25
-        lightness = cluster.lab[0]
-        temp_score = color_temperature_score(cluster)
-        anchor_lightness = np.mean([anchor.lab[0] for anchor in anchors]) if anchors else lightness
-        lightness_pop = 1 + max(0, lightness - anchor_lightness) / 45
-        share_weight = np.sqrt(min(cluster.share / 0.035, 2.2))
-        chroma_weight = 0.45 + min(cluster.chroma / 34, 1.8)
-        distance_weight = 0.55 + min(distance / 38, 1.7)
-        temperature_weight = 1.0
-        if scene_temperature <= -5 and temp_score >= 10:
-            temperature_weight += 1.15
-        elif scene_temperature >= 7 and temp_score <= -8:
-            temperature_weight += 0.85
-        elif abs(temp_score - scene_temperature) >= 24:
-            temperature_weight += 0.35
-        highlight_weight = 1.25 if lightness >= 58 and cluster.chroma >= 16 else 1.0
-        dark_penalty = 0.45 if lightness < 20 and cluster.chroma < 16 else 1.0
-        return share_weight * chroma_weight * distance_weight * lightness_pop * temperature_weight * highlight_weight * dark_penalty
+    candidate_scores = {
+        "pop": best_candidate(candidates, lambda cluster: pop_accent_score(cluster, anchors)),
+        "temperature": best_candidate(candidates, lambda cluster: temperature_accent_score(cluster, anchors, scene_temperature)),
+        "light": best_candidate(candidates, lambda cluster: light_accent_score(cluster, anchors)),
+        "area": best_candidate(candidates, lambda cluster: area_accent_score(cluster, anchors)),
+    }
 
-    accent = max(candidates, key=score)
-    return accent if score(accent) >= 0.35 else None
+    thresholds = {
+        "pop": 2.8,
+        "temperature": 2.2,
+        "light": 2.1,
+        "area": 1.0,
+    }
+
+    for source in ("pop", "temperature", "light", "area"):
+        cluster, score = candidate_scores[source]
+        if cluster and score >= thresholds[source]:
+            return build_accent_result(source, cluster, score, candidate_scores)
+
+    source, (cluster, score) = max(candidate_scores.items(), key=lambda item: item[1][1])
+    return build_accent_result(source, cluster, score, candidate_scores)
+
+
+def best_candidate(candidates, score_fn):
+    if not candidates:
+        return None, 0.0
+    scored = [(cluster, score_fn(cluster)) for cluster in candidates]
+    return max(scored, key=lambda item: item[1])
+
+
+def pop_accent_score(cluster, anchors):
+    distance = min_delta_e(cluster, anchors)
+    lightness = cluster.lab[0]
+    temp_score = color_temperature_score(cluster)
+    share_weight = np.sqrt(min(cluster.share / 0.006, 2.4))
+    chroma_weight = min(cluster.chroma / 38, 2.25)
+    distance_weight = 0.45 + min(distance / 42, 1.75)
+    lightness_weight = 0.6 + min(lightness / 72, 1.2)
+    yellow_red_bonus = 1.35 if cluster.lab[2] >= 35 or cluster.lab[1] >= 22 else 1.0
+    warm_signal_bonus = 1.2 if temp_score >= 24 and cluster.chroma >= 28 else 1.0
+    neutral_penalty = 0.3 if cluster.chroma < 14 else 1.0
+    dark_penalty = 0.55 if lightness < 28 else 1.0
+    return (
+        share_weight
+        * chroma_weight
+        * distance_weight
+        * lightness_weight
+        * yellow_red_bonus
+        * warm_signal_bonus
+        * neutral_penalty
+        * dark_penalty
+    )
+
+
+def temperature_accent_score(cluster, anchors, scene_temperature):
+    temp_score = color_temperature_score(cluster)
+    if -5 < scene_temperature < 7:
+        contrast = abs(temp_score - scene_temperature)
+    elif scene_temperature <= -5 and temp_score >= 7:
+        contrast = temp_score - scene_temperature
+    elif scene_temperature >= 7 and temp_score <= -5:
+        contrast = scene_temperature - temp_score
+    else:
+        contrast = 0
+    if contrast <= 0:
+        return 0.0
+
+    share_weight = np.sqrt(min(cluster.share / 0.025, 2.0))
+    chroma_weight = 0.55 + min(cluster.chroma / 34, 1.65)
+    distance_weight = 0.55 + min(min_delta_e(cluster, anchors) / 42, 1.6)
+    lightness_weight = 0.75 + min(cluster.lab[0] / 78, 1.0)
+    return share_weight * chroma_weight * distance_weight * lightness_weight * min(contrast / 32, 2.0)
+
+
+def light_accent_score(cluster, anchors):
+    lightness = cluster.lab[0]
+    anchor_lightness = np.mean([anchor.lab[0] for anchor in anchors]) if anchors else lightness
+    pop = max(0, lightness - anchor_lightness)
+    if pop <= 12:
+        return 0.0
+    share_weight = np.sqrt(min(cluster.share / 0.025, 2.0))
+    distance_weight = 0.5 + min(min_delta_e(cluster, anchors) / 42, 1.7)
+    chroma_weight = 0.75 + min(cluster.chroma / 45, 1.0)
+    return share_weight * distance_weight * chroma_weight * min(pop / 35, 1.8)
+
+
+def area_accent_score(cluster, anchors):
+    if cluster.share < 0.01:
+        return 0.0
+    share_weight = np.sqrt(min(cluster.share / 0.055, 2.4))
+    chroma_weight = 0.45 + min(cluster.chroma / 34, 1.65)
+    distance_weight = 0.5 + min(min_delta_e(cluster, anchors) / 42, 1.7)
+    dark_penalty = 0.45 if cluster.lab[0] < 18 and cluster.chroma < 16 else 1.0
+    return share_weight * chroma_weight * distance_weight * dark_penalty
+
+
+def build_accent_result(source, cluster, score, candidate_scores):
+    return {
+        "selected": cluster,
+        "source": source,
+        "confidence": confidence(score),
+        "candidates": {key: value[0] for key, value in candidate_scores.items()},
+        "scores": {key: round(float(value[1]), 3) for key, value in candidate_scores.items()},
+        "reason": accent_reason(source),
+    }
+
+
+def empty_accent():
+    return {
+        "selected": None,
+        "source": None,
+        "confidence": "low",
+        "candidates": {"pop": None, "temperature": None, "light": None, "area": None},
+        "scores": {"pop": 0.0, "temperature": 0.0, "light": 0.0, "area": 0.0},
+        "reason": "Акцентный цвет не найден.",
+    }
+
+
+def confidence(score):
+    if score >= 3.8:
+        return "high"
+    if score >= 2.0:
+        return "medium"
+    return "low"
+
+
+def accent_reason(source):
+    return {
+        "pop": "Выбран маленький, яркий и хорошо отделенный цветовой объект.",
+        "temperature": "Выбран цвет, который контрастирует с общей температурой изображения.",
+        "light": "Выбрана светлая зона, заметно выделяющаяся на общей сцене.",
+        "area": "Выбран самый заметный цветовой кластер вне основного и вторичного цветов.",
+    }.get(source, "Акцентный цвет выбран по резервной эвристике.")
 
 
 def image_temperature(clusters):
@@ -213,6 +325,10 @@ def image_temperature(clusters):
 
 def color_temperature_score(cluster):
     return cluster.lab[2] + cluster.lab[1] * 0.22
+
+
+def min_delta_e(cluster, anchors):
+    return min((delta_e(cluster, anchor) for anchor in anchors), default=25)
 
 
 def weighted_mean_chroma(chroma_values):
@@ -261,6 +377,20 @@ def serialize_color(cluster):
         "chroma_level": classify_chroma(cluster.chroma),
         "chroma": round(cluster.chroma, 2),
         "share": round(cluster.share, 3),
+    }
+
+
+def serialize_accent(accent):
+    return {
+        "selected": serialize_color(accent["selected"]),
+        "source": accent["source"],
+        "confidence": accent["confidence"],
+        "reason": accent["reason"],
+        "candidates": {
+            source: serialize_color(cluster)
+            for source, cluster in accent["candidates"].items()
+        },
+        "scores": accent["scores"],
     }
 
 
