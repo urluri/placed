@@ -463,7 +463,7 @@ legend,
 
 .result-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) auto;
   gap: 12px;
   align-items: start;
   padding: 0 24px 18px;
@@ -483,6 +483,14 @@ legend,
 
 .result-details .spec-list {
   max-width: 760px;
+}
+
+.result-details .palette-row {
+  margin-bottom: 10px;
+}
+
+.analysis-list dd {
+  word-break: break-word;
 }
 
 .decision-toggle {
@@ -555,6 +563,14 @@ legend,
   .preview-toolbar .variant-tabs {
     grid-column: 1 / -1;
     order: 3;
+  }
+
+  .result-panel {
+    grid-template-columns: 1fr auto;
+  }
+
+  .result-details {
+    grid-column: 1 / -1;
   }
 }
 

@@ -1,6 +1,8 @@
 from dataclasses import asdict, dataclass
 from enum import Enum
 
+from .image_analysis import analyze_image
+
 
 class DecorStyle(str, Enum):
     standard = "standard"
@@ -70,20 +72,21 @@ class DecorationSpec:
 def build_decoration_set(image_path, artwork_width_mm, artwork_height_mm, artwork_type, interior_style):
     width = clamp_int(artwork_width_mm, 50, 3000)
     height = clamp_int(artwork_height_mm, 50, 3000)
+    image_analysis = analyze_image(image_path)
 
     variants = [
-        build_placeholder_variant(DecorStyle.standard.value, width, height, artwork_type),
-        build_placeholder_variant(DecorStyle.modern.value, width, height, artwork_type),
-        build_placeholder_variant(DecorStyle.signature.value, width, height, artwork_type),
+        build_placeholder_variant(DecorStyle.standard.value, width, height, artwork_type, interior_style, image_analysis),
+        build_placeholder_variant(DecorStyle.modern.value, width, height, artwork_type, interior_style, image_analysis),
+        build_placeholder_variant(DecorStyle.signature.value, width, height, artwork_type, interior_style, image_analysis),
     ]
 
     return {
-        "image_analysis": empty_image_analysis(),
+        "image_analysis": image_analysis,
         "variants": [serialize_dataclass(variant) for variant in variants],
     }
 
 
-def build_placeholder_variant(decor_style, width, height, artwork_type):
+def build_placeholder_variant(decor_style, width, height, artwork_type, interior_style, image_analysis):
     frame = FrameOption(
         id="renderer-placeholder-frame",
         name="Черная техническая рама",
@@ -118,18 +121,34 @@ def build_placeholder_variant(decor_style, width, height, artwork_type):
         shadow_box=False,
         geometry=geometry,
         reasons=[
-            "Алгоритм подбора очищен и временно отключен.",
-            "Показан только технический рендер без решения о паспарту, цветах, раме или стекле.",
+            "Расчеты изображения выполнены, но алгоритм подбора оформления пока отключен.",
+            "Показан только технический рендер: черная рама без паспарту и стекла.",
         ],
         warnings=["Это не рекомендация по оформлению."],
         decision_tree=[
             {
+                "title": "Входные данные",
+                "result": "Пользовательские параметры сохранены для будущего этапа принятия решений.",
+                "facts": [
+                    f"Тип работы: {artwork_type}.",
+                    f"Физический размер: {width} x {height} мм.",
+                    f"Стиль интерьера: {interior_style}.",
+                    f"Вариант оформления: {decor_style}.",
+                ],
+            },
+            {
+                "title": "Расчеты изображения",
+                "result": "Вычислены наблюдаемые характеристики изображения. Они пока не влияют на оформление.",
+                "facts": analysis_facts(image_analysis),
+            },
+            {
                 "title": "Алгоритм отключен",
                 "result": "Старая логика удалена. Новые правила еще не определены.",
                 "facts": [
-                    "Renderer получает готовую техническую спецификацию.",
-                    "Renderer не выбирает цвета, паспарту, размеры паспарту, раму или стекло.",
-                    "Текущий вариант нужен только для проверки механизма отрисовки.",
+                    "Renderer получает только техническую спецификацию.",
+                    "Паспарту отключено.",
+                    "Стекло отключено.",
+                    "Цвет рамы зафиксирован как #000000.",
                 ],
             }
         ],
@@ -172,7 +191,7 @@ def renderer_geometry(spec):
         "mat_bottom": mat["bottom_mm"] if mat and mat["enabled"] else 0,
         "inner_reveal": mat["inner_reveal_mm"] if mat and mat["enabled"] else 0,
         "frame_color": hex_to_rgb(frame.get("hex", "#2B2925")),
-        "glass": spec.get("glass", {}).get("type", "ordinary"),
+        "glass": spec.get("glass", {}).get("type", "none"),
     }
 
     if mat and mat["enabled"] and mat["outer_color"]:
@@ -183,19 +202,35 @@ def renderer_geometry(spec):
     return geometry
 
 
-def empty_image_analysis():
-    return {
-        "palette": {
-            "primary": None,
-            "secondary": None,
-            "accent": None,
-        },
-        "temperature": "not_analyzed",
-        "lightness": "not_analyzed",
-        "chroma_level": "not_analyzed",
-        "frame_occupancy": "not_analyzed",
-        "is_monochrome": False,
-    }
+def analysis_facts(image_analysis):
+    palette = image_analysis["palette"]
+    metrics = image_analysis.get("metrics", {})
+    facts = [
+        f"Основной цвет: {color_fact(palette.get('primary'))}.",
+        f"Вторичный цвет: {color_fact(palette.get('secondary'))}.",
+        f"Акцентный цвет: {color_fact(palette.get('accent'))}.",
+        f"Цветовая температура: {image_analysis['temperature']}.",
+        f"Светлота: {image_analysis['lightness']}.",
+        f"Насыщенность: {image_analysis['chroma_level']}.",
+        f"Заполненность кадра: {image_analysis['frame_occupancy']}.",
+        f"Контраст: {image_analysis['contrast']}.",
+    ]
+    if metrics:
+        facts.append(
+            "Метрики: "
+            f"L={metrics.get('lightness')}, "
+            f"C={metrics.get('chroma')}, "
+            f"contrast={metrics.get('contrast')}, "
+            f"occupancy={metrics.get('frame_occupancy')}, "
+            f"temperature={metrics.get('temperature_score')}."
+        )
+    return facts
+
+
+def color_fact(color):
+    if not color:
+        return "не найден"
+    return f"{color['hex']} ({color['family']}, доля {round(color['share'] * 100, 1)}%)"
 
 
 def placeholder_title(decor_style):

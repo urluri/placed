@@ -98,7 +98,15 @@ export type Recommendation = {
     lightness: string;
     chroma_level: string;
     frame_occupancy: string;
+    contrast: string;
     is_monochrome: boolean;
+    metrics?: {
+      lightness?: number;
+      chroma?: number;
+      contrast?: number;
+      frame_occupancy?: number;
+      temperature_score?: number;
+    };
   };
   variants: DecorationVariant[];
 };

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { recommend, renderPreview } from "./api";
 import type {
   ArtworkType,
+  ColorSample,
   DecisionNode,
   DecorStyle,
   FormState,
@@ -52,6 +53,7 @@ export default function App() {
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
   }, [recommendation, selectedDecorStyle]);
+  const imageAnalysis = recommendation?.image_analysis ?? null;
 
   const clearPreview = () => {
     setPreviewUrl((previousUrl) => {
@@ -245,6 +247,23 @@ export default function App() {
             </dl>
             <p className="reason-text">{selectedVariant?.reasons.join(" ")}</p>
           </details>
+          <details className="result-details">
+            <summary>Расчеты изображения</summary>
+            <div className="palette-row" aria-label="Цвета изображения">
+              <PaletteChip label="Основной" color={imageAnalysis?.palette.primary} />
+              <PaletteChip label="Вторичный" color={imageAnalysis?.palette.secondary} />
+              <PaletteChip label="Акцентный" color={imageAnalysis?.palette.accent} />
+            </div>
+            <dl className="spec-list analysis-list">
+              <SpecItem label="Температура">{imageAnalysis?.temperature ?? "—"}</SpecItem>
+              <SpecItem label="Светлота">{imageAnalysis?.lightness ?? "—"}</SpecItem>
+              <SpecItem label="Насыщенность">{imageAnalysis?.chroma_level ?? "—"}</SpecItem>
+              <SpecItem label="Заполненность">{imageAnalysis?.frame_occupancy ?? "—"}</SpecItem>
+              <SpecItem label="Контраст">{imageAnalysis?.contrast ?? "—"}</SpecItem>
+              <SpecItem label="Монохромность">{imageAnalysis?.is_monochrome ? "да" : "нет"}</SpecItem>
+              <SpecItem label="Метрики">{metricsSpec(imageAnalysis?.metrics)}</SpecItem>
+            </dl>
+          </details>
           <button
             type="button"
             className="decision-toggle"
@@ -298,6 +317,15 @@ function SpecItem({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function PaletteChip({ label, color }: { label: string; color?: ColorSample | null }) {
+  return (
+    <div className="color-chip">
+      <div className="color-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
+      <span>{color ? `${label}: ${color.hex}` : `${label}: —`}</span>
+    </div>
+  );
+}
+
 function DecisionTree({ nodes }: { nodes: DecisionNode[] }) {
   return (
     <div className="decision-tree">
@@ -325,6 +353,21 @@ function frameSpec(variant: Recommendation["variants"][number] | null) {
 
 function materialName(value?: string) {
   return value === "aluminum" ? "алюминий" : "дерево";
+}
+
+function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | undefined) {
+  if (!metrics) return "—";
+  return [
+    `L ${formatMetric(metrics.lightness)}`,
+    `C ${formatMetric(metrics.chroma)}`,
+    `contrast ${formatMetric(metrics.contrast)}`,
+    `occupancy ${formatMetric(metrics.frame_occupancy)}`,
+    `temp ${formatMetric(metrics.temperature_score)}`,
+  ].join(" / ");
+}
+
+function formatMetric(value: number | undefined) {
+  return typeof value === "number" ? String(value) : "—";
 }
 
 function displayDimension(value: string, fallback: number) {
