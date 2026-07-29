@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { recommend, renderPreview } from "./api";
 import type {
   ArtworkType,
-  ColorSample,
   DecisionNode,
   DecorStyle,
   FormState,
@@ -53,8 +52,6 @@ export default function App() {
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
   }, [recommendation, selectedDecorStyle]);
-
-  const palette = recommendation?.image_analysis.palette;
 
   const clearPreview = () => {
     setPreviewUrl((previousUrl) => {
@@ -239,9 +236,7 @@ export default function App() {
           <details className="result-details">
             <summary>Параметры итогового оформления</summary>
             <dl className="spec-list">
-              <SpecItem label="Багет">{frameSpec(selectedVariant)}</SpecItem>
-              <SpecItem label="Паспарту">{matSpec(selectedVariant)}</SpecItem>
-              <SpecItem label="Защита">{glassName(selectedVariant?.glass?.type)}</SpecItem>
+              <SpecItem label="Рама">{frameSpec(selectedVariant)}</SpecItem>
               <SpecItem label="Итоговый размер">
                 {selectedVariant
                   ? `${selectedVariant.geometry.outer_width_mm} x ${selectedVariant.geometry.outer_height_mm} мм`
@@ -249,11 +244,6 @@ export default function App() {
               </SpecItem>
             </dl>
             <p className="reason-text">{selectedVariant?.reasons.join(" ")}</p>
-            <div className="palette-row" aria-label="Цвета изображения">
-              <PaletteChip label="Основной" color={palette?.primary} />
-              <PaletteChip label="Второй" color={palette?.secondary} />
-              <PaletteChip label="Акцент" color={palette?.accent} />
-            </div>
           </details>
           <button
             type="button"
@@ -308,15 +298,6 @@ function SpecItem({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function PaletteChip({ label, color }: { label: string; color?: ColorSample | null }) {
-  return (
-    <div className="color-chip">
-      <div className="color-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
-      <span>{color ? `${label}: ${color.hex}` : `${label}: нет`}</span>
-    </div>
-  );
-}
-
 function DecisionTree({ nodes }: { nodes: DecisionNode[] }) {
   return (
     <div className="decision-tree">
@@ -342,21 +323,8 @@ function frameSpec(variant: Recommendation["variants"][number] | null) {
   return `${variant.frame.width_mm} мм, ${materialName(variant.frame.material)}, ${variant.frame.name}`;
 }
 
-function matSpec(variant: Recommendation["variants"][number] | null) {
-  if (!variant?.mat?.enabled) return "Без паспарту";
-  const inner = variant.mat.inner_color ? ` + кант ${variant.mat.inner_color.name}` : "";
-  return `${variant.mat.left_mm}/${variant.mat.top_mm}/${variant.mat.bottom_mm} мм, ${variant.mat.outer_color?.name}${inner}`;
-}
-
 function materialName(value?: string) {
   return value === "aluminum" ? "алюминий" : "дерево";
-}
-
-function glassName(value?: string) {
-  if (!value || value === "none") return "Без стекла";
-  if (value === "museum") return "Музейное стекло";
-  if (value === "uv") return "UV-стекло";
-  return "Обычное стекло";
 }
 
 function displayDimension(value: string, fallback: number) {
