@@ -49,6 +49,7 @@ export default function App() {
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const requestId = useRef(0);
 
   const selectedVariant = useMemo(() => {
@@ -135,14 +136,24 @@ export default function App() {
 
         <form className="config-form">
           <div className="compact-upload">
-            <label className="icon-upload" htmlFor="artUpload" title="Загрузить изображение">
+            <button
+              type="button"
+              className="icon-upload"
+              title="Загрузить изображение"
+              aria-label="Загрузить изображение"
+              onClick={() => uploadInputRef.current?.click()}
+            >
               <span aria-hidden="true">+</span>
-            </label>
+            </button>
             <input
+              ref={uploadInputRef}
               id="artUpload"
               type="file"
               accept="image/*"
-              onChange={(event) => updateForm({ image: event.target.files?.[0] ?? null })}
+              onChange={(event) => {
+                updateForm({ image: event.target.files?.[0] ?? null });
+                event.currentTarget.value = "";
+              }}
             />
             <div className="upload-summary">
               <strong>{form.image?.name ?? "Загрузить изображение"}</strong>
