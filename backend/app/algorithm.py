@@ -240,7 +240,7 @@ def constructive_decision(artwork_type, size_profile, image_analysis):
     occupancy_vote = POSTER_OCCUPANCY_VOTES[occupancy_level]
     size_vote = POSTER_SIZE_PROFILE_VOTES[size_profile]
     total_vote = occupancy_vote + size_vote
-    mat_enabled = total_vote >= 2
+    mat_enabled = total_vote > 1
     facts.extend(
         [
             f"Постер: решение по паспарту принимается голосованием.",
@@ -257,7 +257,7 @@ def constructive_decision(artwork_type, size_profile, image_analysis):
         "glass_type": rule["glass_type"],
         "shadow_box": rule["shadow_box"],
         "reason": (
-            f"Для постера сумма голосов за паспарту равна {total_vote}; "
+            f"Для постера сумма голосов за паспарту равна {total_vote}; порог включения - больше 1; "
             f"{'паспарту используется' if mat_enabled else 'паспарту не используется'}."
         ),
         "facts": facts,
