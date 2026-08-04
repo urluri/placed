@@ -10,6 +10,50 @@ class DecorStyle(str, Enum):
     signature = "signature"
 
 
+SIZE_PROFILE_LABELS = {
+    "small": "малый",
+    "medium": "средний",
+    "large": "большой",
+    "extra_large": "очень большой",
+}
+
+ARTWORK_TYPE_LABELS = {
+    "poster": "постер",
+    "photo": "фото",
+    "watercolor": "акварель",
+    "canvas": "холст",
+    "volumetric": "объемная работа",
+}
+
+CONSTRUCTIVE_RULES = {
+    "watercolor": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": False},
+    "photo": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": False},
+    "poster": {"glass_required": True, "glass_type": "regular", "mat": "vote", "shadow_box": False},
+    "canvas": {"glass_required": False, "glass_type": "none", "mat": "never", "shadow_box": False},
+    "volumetric": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": True},
+}
+
+POSTER_OCCUPANCY_VOTES = {
+    "low": 2,
+    "medium": 1,
+    "high": -1,
+}
+
+POSTER_SIZE_PROFILE_VOTES = {
+    "small": 2,
+    "medium": 1,
+    "large": -1,
+    "extra_large": -1,
+}
+
+MAT_SIZE_PERCENTAGES = {
+    "small": {"standard": 0.35, "modern": 0.45, "signature": 0.55},
+    "medium": {"standard": 0.30, "modern": 0.40, "signature": 0.50},
+    "large": {"standard": 0.25, "modern": 0.35, "signature": 0.45},
+    "extra_large": {"standard": 0.15, "modern": 0.15, "signature": 0.15},
+}
+
+
 @dataclass
 class FrameOption:
     id: str
@@ -87,6 +131,9 @@ def build_decoration_set(image_path, artwork_width_mm, artwork_height_mm, artwor
 
 
 def build_placeholder_variant(decor_style, width, height, artwork_type, interior_style, image_analysis):
+    normalized_type = normalize_artwork_type(artwork_type)
+    size_profile = classify_size_profile(width, height)
+    constructive = constructive_decision(normalized_type, size_profile, image_analysis)
     frame = FrameOption(
         id="renderer-placeholder-frame",
         name="Черная техническая рама",
@@ -97,44 +144,49 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
         profile="flat",
         hex="#000000",
     )
-    mat = MatSpec(
-        enabled=False,
-        outer_color=None,
-        inner_color=None,
-        left_mm=0,
-        right_mm=0,
-        top_mm=0,
-        bottom_mm=0,
-        overlap_mm=0,
-        inner_reveal_mm=0,
-    )
-    glass = GlassSpec(type="none", required=False)
-    geometry = build_geometry(width, height, frame.width_mm, mat)
+    mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis)
+    glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
+    geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
+    warnings = []
+    if mat.enabled:
+        warnings.append("Цвет паспарту временно взят из вторичного цвета работы.")
 
     return DecorationSpec(
         decor_style=decor_style,
         title=placeholder_title(decor_style),
-        artwork_type=str(artwork_type or "unknown"),
+        artwork_type=normalized_type,
         frame=frame,
         mat=mat,
         glass=glass,
-        shadow_box=False,
+        shadow_box=constructive["shadow_box"],
         geometry=geometry,
         reasons=[
-            "Расчеты изображения выполнены, но алгоритм подбора оформления пока отключен.",
-            "Показан только технический рендер: черная рама без паспарту и стекла.",
+            constructive["reason"],
+            mat_reason(mat, decor_style, size_profile) if mat.enabled else "Паспарту не используется.",
+            f"Багет пока технический: черная рама {frame.width_mm} мм.",
         ],
-        warnings=["Это не рекомендация по оформлению."],
+        warnings=warnings,
         decision_tree=[
             {
                 "title": "Входные данные",
-                "result": "Пользовательские параметры сохранены для будущего этапа принятия решений.",
+                "result": "Пользовательские параметры используются как физический размер работы.",
                 "facts": [
-                    f"Тип работы: {artwork_type}.",
+                    f"Тип работы: {ARTWORK_TYPE_LABELS.get(normalized_type, normalized_type)}.",
                     f"Физический размер: {width} x {height} мм.",
+                    f"Размерный профиль: {SIZE_PROFILE_LABELS[size_profile]}.",
                     f"Стиль интерьера: {interior_style}.",
                     f"Вариант оформления: {decor_style}.",
                 ],
+            },
+            {
+                "title": "Конструктив",
+                "result": constructive["reason"],
+                "facts": constructive["facts"],
+            },
+            {
+                "title": "Размер паспарту",
+                "result": mat_reason(mat, decor_style, size_profile) if mat.enabled else "Расчет не требуется.",
+                "facts": mat_facts(mat, decor_style, size_profile, width, height),
             },
             {
                 "title": "Расчеты изображения",
@@ -142,20 +194,146 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
                 "facts": analysis_facts(image_analysis),
             },
             {
-                "title": "Алгоритм отключен",
-                "result": "Старая логика удалена. Новые правила еще не определены.",
+                "title": "Цвета",
+                "result": "Цветовая логика паспарту еще не определена.",
                 "facts": [
-                    "Renderer получает только техническую спецификацию.",
-                    "Паспарту отключено.",
-                    "Стекло отключено.",
                     "Цвет рамы зафиксирован как #000000.",
+                    "Если паспарту включено, его цвет временно равен вторичному цвету работы.",
                 ],
             }
         ],
     )
 
 
-def build_geometry(width, height, frame_width, mat):
+def constructive_decision(artwork_type, size_profile, image_analysis):
+    rule = CONSTRUCTIVE_RULES.get(artwork_type, CONSTRUCTIVE_RULES["poster"])
+    mat_mode = rule["mat"]
+    facts = [
+        f"Стекло: {'да' if rule['glass_required'] else 'нет'}.",
+        f"Тип стекла: {glass_type_label(rule['glass_type'])}.",
+        f"Shadow box: {'да' if rule['shadow_box'] else 'нет'}.",
+    ]
+
+    if mat_mode == "always":
+        facts.append("Паспарту: да, согласно правилу для типа работы.")
+        return {
+            "mat_enabled": True,
+            "glass_required": rule["glass_required"],
+            "glass_type": rule["glass_type"],
+            "shadow_box": rule["shadow_box"],
+            "reason": f"Для типа работы «{ARTWORK_TYPE_LABELS.get(artwork_type, artwork_type)}» паспарту используется согласно таблице конструктивных правил.",
+            "facts": facts,
+        }
+
+    if mat_mode == "never":
+        facts.append("Паспарту: нет, согласно правилу для типа работы.")
+        return {
+            "mat_enabled": False,
+            "glass_required": rule["glass_required"],
+            "glass_type": rule["glass_type"],
+            "shadow_box": rule["shadow_box"],
+            "reason": f"Для типа работы «{ARTWORK_TYPE_LABELS.get(artwork_type, artwork_type)}» паспарту не используется согласно таблице конструктивных правил.",
+            "facts": facts,
+        }
+
+    occupancy_level = normalize_level(image_analysis.get("frame_occupancy"))
+    occupancy_vote = POSTER_OCCUPANCY_VOTES[occupancy_level]
+    size_vote = POSTER_SIZE_PROFILE_VOTES[size_profile]
+    total_vote = occupancy_vote + size_vote
+    mat_enabled = total_vote >= 2
+    facts.extend(
+        [
+            f"Постер: решение по паспарту принимается голосованием.",
+            f"Заполненность кадра: {occupancy_level}, голос {occupancy_vote}.",
+            f"Размерный профиль: {SIZE_PROFILE_LABELS[size_profile]}, голос {size_vote}.",
+            f"Сумма голосов: {total_vote}.",
+            f"Итог: {'использовать паспарту' if mat_enabled else 'без паспарту'}.",
+        ]
+    )
+
+    return {
+        "mat_enabled": mat_enabled,
+        "glass_required": rule["glass_required"],
+        "glass_type": rule["glass_type"],
+        "shadow_box": rule["shadow_box"],
+        "reason": (
+            f"Для постера сумма голосов за паспарту равна {total_vote}; "
+            f"{'паспарту используется' if mat_enabled else 'паспарту не используется'}."
+        ),
+        "facts": facts,
+    }
+
+
+def build_mat_spec(enabled, decor_style, size_profile, width, height, image_analysis):
+    if not enabled:
+        return MatSpec(
+            enabled=False,
+            outer_color=None,
+            inner_color=None,
+            left_mm=0,
+            right_mm=0,
+            top_mm=0,
+            bottom_mm=0,
+            overlap_mm=0,
+            inner_reveal_mm=0,
+        )
+
+    base_size = mat_base_size(width, height, decor_style, size_profile)
+    return MatSpec(
+        enabled=True,
+        outer_color=mat_color_from_image(image_analysis),
+        inner_color=None,
+        left_mm=base_size,
+        right_mm=base_size,
+        top_mm=base_size,
+        bottom_mm=int(round(base_size * 1.1)),
+        overlap_mm=0,
+        inner_reveal_mm=0,
+    )
+
+
+def mat_base_size(width, height, decor_style, size_profile):
+    percentage = MAT_SIZE_PERCENTAGES[size_profile][decor_style]
+    return int(round(min(width, height) * percentage))
+
+
+def mat_color_from_image(image_analysis):
+    palette = image_analysis.get("palette", {})
+    color = palette.get("secondary") or palette.get("primary")
+    hex_value = color["hex"] if color else "#F1EEE8"
+    return {
+        "id": "image-secondary-color",
+        "name": "Вторичный цвет работы",
+        "hex": hex_value,
+    }
+
+
+def mat_reason(mat, decor_style, size_profile):
+    if not mat.enabled:
+        return "Паспарту не используется."
+    percentage = int(round(MAT_SIZE_PERCENTAGES[size_profile][decor_style] * 100))
+    return (
+        f"Размер паспарту: верх и боковые края {mat.left_mm} мм "
+        f"({percentage}% от меньшей стороны работы), нижний край {mat.bottom_mm} мм."
+    )
+
+
+def mat_facts(mat, decor_style, size_profile, width, height):
+    if not mat.enabled:
+        return ["Паспарту отключено, размер не рассчитывается."]
+    percentage = int(round(MAT_SIZE_PERCENTAGES[size_profile][decor_style] * 100))
+    return [
+        f"Меньшая сторона работы: {min(width, height)} мм.",
+        f"Размерный профиль: {SIZE_PROFILE_LABELS[size_profile]}.",
+        f"Вариант оформления: {decor_style}.",
+        f"Процент по таблице: {percentage}%.",
+        f"Левый/правый/верхний край: {mat.left_mm} мм.",
+        f"Нижний край: {mat.bottom_mm} мм.",
+        f"Цвет паспарту временно взят из вторичного цвета работы: {mat.outer_color['hex']}.",
+    ]
+
+
+def build_geometry(width, height, frame_width, mat, size_profile):
     if mat.enabled:
         window_width = width - 2 * mat.overlap_mm
         window_height = height - 2 * mat.overlap_mm
@@ -168,7 +346,7 @@ def build_geometry(width, height, frame_width, mat):
         mat_outer_height = height
 
     return GeometrySpec(
-        size_profile="manual",
+        size_profile=size_profile,
         aspect=classify_aspect(width, height),
         window_width_mm=window_width,
         window_height_mm=window_height,
@@ -248,6 +426,55 @@ def placeholder_title(decor_style):
         "modern": "Modern: технический рендер",
         "signature": "Signature: технический рендер",
     }[decor_style]
+
+
+def normalize_artwork_type(value):
+    normalized = str(value or "poster").strip().lower()
+    aliases = {
+        "постер": "poster",
+        "poster": "poster",
+        "фото": "photo",
+        "photo": "photo",
+        "акварель": "watercolor",
+        "watercolor": "watercolor",
+        "холст": "canvas",
+        "canvas": "canvas",
+        "объемная": "volumetric",
+        "объёмная": "volumetric",
+        "volumetric": "volumetric",
+    }
+    return aliases.get(normalized, "poster")
+
+
+def classify_size_profile(width, height):
+    max_side = max(width, height)
+    area_m2 = width * height / 1_000_000
+    if max_side >= 1001 or area_m2 >= 0.70:
+        return "extra_large"
+    if max_side >= 701 or area_m2 >= 0.30:
+        return "large"
+    if max_side >= 401 or area_m2 >= 0.10:
+        return "medium"
+    return "small"
+
+
+def normalize_level(value):
+    normalized = str(value or "").strip().lower()
+    if normalized in ("low", "низкая", "низкий"):
+        return "low"
+    if normalized in ("medium", "средняя", "средний", "нейтральный"):
+        return "medium"
+    if normalized in ("high", "высокая", "высокий"):
+        return "high"
+    return "medium"
+
+
+def glass_type_label(value):
+    return {
+        "museum": "музейное",
+        "regular": "обычное",
+        "none": "нет",
+    }.get(value, value)
 
 
 def classify_aspect(width, height):

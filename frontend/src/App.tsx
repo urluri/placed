@@ -504,6 +504,7 @@ export default function App() {
             <summary>Параметры итогового оформления</summary>
             <dl className="spec-list">
               <SpecItem label="Рама">{frameSpec(selectedVariant)}</SpecItem>
+              <SpecItem label="Паспарту">{matSpec(selectedVariant)}</SpecItem>
               <SpecItem label="Итоговый размер">
                 {selectedVariant
                   ? `${selectedVariant.geometry.outer_width_mm} x ${selectedVariant.geometry.outer_height_mm} мм`
@@ -646,6 +647,13 @@ function DecisionTree({ nodes }: { nodes: DecisionNode[] }) {
 function frameSpec(variant: Recommendation["variants"][number] | null) {
   if (!variant) return "—";
   return `${variant.frame.width_mm} мм, ${materialName(variant.frame.material)}, ${variant.frame.name}`;
+}
+
+function matSpec(variant: Recommendation["variants"][number] | null) {
+  if (!variant?.mat?.enabled) return "нет";
+  const mat = variant.mat;
+  const color = mat.outer_color?.hex ?? "цвет не задан";
+  return `${mat.left_mm}/${mat.top_mm}/${mat.right_mm}/${mat.bottom_mm} мм, ${color}`;
 }
 
 function materialName(value?: string) {
