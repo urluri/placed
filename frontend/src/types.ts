@@ -9,6 +9,12 @@ export type InteriorStyle =
   | "neoclassic"
   | "universal";
 export type DecorStyle = "standard" | "modern" | "signature";
+export type SizeSource = "manual" | "from_file";
+
+export type ImageInfo = {
+  pixelWidth: number;
+  pixelHeight: number;
+};
 
 export type ColorSample = {
   hex: string;
@@ -132,6 +138,9 @@ export type Recommendation = {
 export type FormState = {
   widthMm: string;
   heightMm: string;
+  sizeSource: SizeSource;
+  lockAspect: boolean;
+  imageInfo: ImageInfo | null;
   artworkType: ArtworkType;
   interiorStyle: InteriorStyle;
   image: File | null;

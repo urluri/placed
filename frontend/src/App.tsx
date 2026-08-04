@@ -9,8 +9,10 @@ import type {
   DecisionNode,
   DecorStyle,
   FormState,
+  ImageInfo,
   InteriorStyle,
   Recommendation,
+  SizeSource,
 } from "./types";
 
 const artworkOptions: Array<{ value: ArtworkType; label: string }> = [
@@ -33,6 +35,12 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 ];
 
 const decorStyles: DecorStyle[] = ["standard", "modern", "signature"];
+
+const printSizePresets = [
+  { ppi: 300, label: "300 PPI", note: "высокое качество" },
+  { ppi: 200, label: "200 PPI", note: "хороший крупный размер" },
+  { ppi: 150, label: "150 PPI", note: "крупно, но мягче" },
+];
 
 const interiorScenes: Record<
   InteriorStyle,
@@ -92,6 +100,9 @@ export default function App() {
   const [form, setForm] = useState<FormState>({
     widthMm: "300",
     heightMm: "400",
+    sizeSource: "manual",
+    lockAspect: true,
+    imageInfo: null,
     artworkType: "poster",
     interiorStyle: "minimal",
     image: null,
@@ -112,6 +123,9 @@ export default function App() {
   }, [recommendation, selectedDecorStyle]);
   const imageAnalysis = recommendation?.image_analysis ?? null;
   const interiorScene = interiorScenes[form.interiorStyle];
+  const currentPrintQuality = form.imageInfo
+    ? printQualityFor(form.imageInfo, dimensionNumber(form.widthMm), dimensionNumber(form.heightMm))
+    : null;
   const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
     ? { backgroundImage: `url(${interiorScene.src})` }
     : undefined;
@@ -138,6 +152,82 @@ export default function App() {
     setShowDecisionTree(false);
     clearPreview();
     setRenderState("Нажмите «Применить»");
+  };
+
+  const handleImageUpload = async (file: File | null) => {
+    if (!file) {
+      updateForm({ image: null, imageInfo: null, sizeSource: "manual" });
+      return;
+    }
+
+    try {
+      const imageInfo = await readImageInfo(file);
+      const recommendedSize = sizeFromPpi(imageInfo, 300);
+      updateForm({
+        image: file,
+        imageInfo,
+        sizeSource: "from_file",
+        lockAspect: true,
+        widthMm: String(recommendedSize.widthMm),
+        heightMm: String(recommendedSize.heightMm),
+      });
+    } catch {
+      updateForm({ image: file, imageInfo: null, sizeSource: "manual" });
+      setRenderState("Не удалось прочитать размер файла");
+    }
+  };
+
+  const handleSizeSourceChange = (sizeSource: SizeSource) => {
+    if (sizeSource === "from_file" && form.imageInfo) {
+      const recommendedSize = sizeFromPpi(form.imageInfo, 300);
+      updateForm({
+        sizeSource,
+        lockAspect: true,
+        widthMm: String(recommendedSize.widthMm),
+        heightMm: String(recommendedSize.heightMm),
+      });
+      return;
+    }
+
+    updateForm({ sizeSource });
+  };
+
+  const applyPrintPreset = (ppi: number) => {
+    if (!form.imageInfo) return;
+    const nextSize = sizeFromPpi(form.imageInfo, ppi);
+    updateForm({
+      sizeSource: "from_file",
+      lockAspect: true,
+      widthMm: String(nextSize.widthMm),
+      heightMm: String(nextSize.heightMm),
+    });
+  };
+
+  const handleDimensionChange = (axis: "width" | "height", value: string) => {
+    if (!form.lockAspect || !form.imageInfo || value.trim() === "") {
+      updateForm(axis === "width" ? { widthMm: value } : { heightMm: value });
+      return;
+    }
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      updateForm(axis === "width" ? { widthMm: value } : { heightMm: value });
+      return;
+    }
+
+    const aspect = form.imageInfo.pixelWidth / form.imageInfo.pixelHeight;
+    if (axis === "width") {
+      updateForm({
+        widthMm: value,
+        heightMm: String(Math.max(1, Math.round(numericValue / aspect))),
+      });
+      return;
+    }
+
+    updateForm({
+      widthMm: String(Math.max(1, Math.round(numericValue * aspect))),
+      heightMm: value,
+    });
   };
 
   const handleDecorStyleChange = (decorStyle: DecorStyle) => {
@@ -217,7 +307,7 @@ export default function App() {
               type="file"
               accept="image/*"
               onChange={(event) => {
-                updateForm({ image: event.target.files?.[0] ?? null });
+                void handleImageUpload(event.target.files?.[0] ?? null);
                 event.currentTarget.value = "";
               }}
             />
@@ -225,6 +315,58 @@ export default function App() {
               <strong>{form.image?.name ?? "Загрузить изображение"}</strong>
               <small>{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
             </div>
+          </div>
+
+          <div className="size-source-panel">
+            <div className="segmented-control" aria-label="Источник физического размера">
+              <button
+                type="button"
+                className={form.sizeSource === "from_file" ? "is-active" : ""}
+                disabled={!form.imageInfo}
+                onClick={() => handleSizeSourceChange("from_file")}
+              >
+                По файлу
+              </button>
+              <button
+                type="button"
+                className={form.sizeSource === "manual" ? "is-active" : ""}
+                onClick={() => handleSizeSourceChange("manual")}
+              >
+                Вручную
+              </button>
+            </div>
+            <button
+              type="button"
+              className={`aspect-toggle ${form.lockAspect ? "is-active" : ""}`}
+              disabled={!form.imageInfo}
+              aria-pressed={form.lockAspect}
+              onClick={() => updateForm({ lockAspect: !form.lockAspect })}
+            >
+              {form.lockAspect ? "Пропорции связаны" : "Пропорции свободные"}
+            </button>
+            {form.imageInfo && (
+              <div className="file-size-hint">
+                <span>
+                  Файл: {form.imageInfo.pixelWidth} x {form.imageInfo.pixelHeight} px
+                </span>
+                <strong>{currentPrintQuality ? currentPrintQuality.label : "Качество не рассчитано"}</strong>
+              </div>
+            )}
+            {form.imageInfo && (
+              <div className="print-presets" aria-label="Размеры печати по качеству">
+                {printSizePresets.map((preset) => {
+                  const size = sizeFromPpi(form.imageInfo as ImageInfo, preset.ppi);
+                  return (
+                    <button key={preset.ppi} type="button" onClick={() => applyPrintPreset(preset.ppi)}>
+                      <strong>{preset.label}</strong>
+                      <span>
+                        {size.widthMm} x {size.heightMm} мм, {preset.note}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <fieldset className="dimensions">
@@ -237,7 +379,7 @@ export default function App() {
                 max="3000"
                 step="1"
                 value={form.widthMm}
-                onChange={(event) => updateForm({ widthMm: event.target.value })}
+                onChange={(event) => handleDimensionChange("width", event.target.value)}
               />
             </label>
             <label>
@@ -248,7 +390,7 @@ export default function App() {
                 max="3000"
                 step="1"
                 value={form.heightMm}
-                onChange={(event) => updateForm({ heightMm: event.target.value })}
+                onChange={(event) => handleDimensionChange("height", event.target.value)}
               />
             </label>
           </fieldset>
@@ -491,6 +633,63 @@ function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | unde
 
 function formatMetric(value: number | undefined) {
   return typeof value === "number" ? String(value) : "—";
+}
+
+function readImageInfo(file: File): Promise<ImageInfo> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      if (!image.naturalWidth || !image.naturalHeight) {
+        reject(new Error("Image metadata is unavailable"));
+        return;
+      }
+      resolve({
+        pixelWidth: image.naturalWidth,
+        pixelHeight: image.naturalHeight,
+      });
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Image metadata is unavailable"));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function sizeFromPpi(imageInfo: ImageInfo, ppi: number) {
+  return {
+    widthMm: Math.max(1, Math.round((imageInfo.pixelWidth / ppi) * 25.4)),
+    heightMm: Math.max(1, Math.round((imageInfo.pixelHeight / ppi) * 25.4)),
+  };
+}
+
+function printQualityFor(imageInfo: ImageInfo, widthMm: number | null, heightMm: number | null) {
+  if (!widthMm || !heightMm) return null;
+
+  const widthInches = widthMm / 25.4;
+  const heightInches = heightMm / 25.4;
+  const ppi = Math.round(Math.min(imageInfo.pixelWidth / widthInches, imageInfo.pixelHeight / heightInches));
+
+  return {
+    ppi,
+    label: qualityText(ppi),
+  };
+}
+
+function qualityText(ppi: number) {
+  if (ppi >= 300) return `Качество: высокое, около ${ppi} PPI`;
+  if (ppi >= 200) return `Качество: хорошее, около ${ppi} PPI`;
+  if (ppi >= 150) return `Качество: среднее, около ${ppi} PPI`;
+  if (ppi >= 100) return `Качество: низкое, около ${ppi} PPI`;
+  return `Качество: очень низкое, около ${ppi} PPI`;
+}
+
+function dimensionNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function displayDimension(value: string, fallback: number) {

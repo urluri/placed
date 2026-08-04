@@ -171,6 +171,117 @@ legend,
   font-size: 12px;
 }
 
+.size-source-panel {
+  display: grid;
+  gap: 9px;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfaf7;
+}
+
+.segmented-control button,
+.aspect-toggle {
+  min-height: 34px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.segmented-control button.is-active,
+.aspect-toggle.is-active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.segmented-control button:disabled,
+.aspect-toggle:disabled {
+  cursor: default;
+  opacity: 0.44;
+}
+
+.aspect-toggle {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fbfaf7;
+}
+
+.file-size-hint {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfaf7;
+}
+
+.file-size-hint span,
+.file-size-hint strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.file-size-hint span {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.file-size-hint strong {
+  color: var(--accent);
+  font-weight: 850;
+}
+
+.print-presets {
+  display: grid;
+  gap: 6px;
+}
+
+.print-presets button {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfaf7;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.print-presets button:hover {
+  border-color: var(--accent);
+}
+
+.print-presets strong,
+.print-presets span {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.print-presets strong {
+  font-weight: 900;
+}
+
+.print-presets span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .dimensions {
   display: grid;
   grid-template-columns: 1fr 1fr;
