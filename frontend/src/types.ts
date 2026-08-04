@@ -139,6 +139,7 @@ export type FormState = {
   widthMm: string;
   heightMm: string;
   sizeSource: SizeSource;
+  printPpi: number;
   lockAspect: boolean;
   imageInfo: ImageInfo | null;
   artworkType: ArtworkType;

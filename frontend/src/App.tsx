@@ -101,6 +101,7 @@ export default function App() {
     widthMm: "300",
     heightMm: "400",
     sizeSource: "manual",
+    printPpi: 300,
     lockAspect: true,
     imageInfo: null,
     artworkType: "poster",
@@ -167,6 +168,7 @@ export default function App() {
         image: file,
         imageInfo,
         sizeSource: "from_file",
+        printPpi: 300,
         lockAspect: true,
         widthMm: String(recommendedSize.widthMm),
         heightMm: String(recommendedSize.heightMm),
@@ -182,6 +184,7 @@ export default function App() {
       const recommendedSize = sizeFromPpi(form.imageInfo, 300);
       updateForm({
         sizeSource,
+        printPpi: 300,
         lockAspect: true,
         widthMm: String(recommendedSize.widthMm),
         heightMm: String(recommendedSize.heightMm),
@@ -197,6 +200,7 @@ export default function App() {
     const nextSize = sizeFromPpi(form.imageInfo, ppi);
     updateForm({
       sizeSource: "from_file",
+      printPpi: ppi,
       lockAspect: true,
       widthMm: String(nextSize.widthMm),
       heightMm: String(nextSize.heightMm),
@@ -318,32 +322,29 @@ export default function App() {
           </div>
 
           <div className="size-source-panel">
+            <div className="section-label-row">
+              <span>Размер работы</span>
+              <TooltipHint text="Если это цифровой файл, можно рассчитать размер печати по пикселям. Если работа уже существует физически, задайте размер вручную." />
+            </div>
             <div className="segmented-control" aria-label="Источник физического размера">
               <button
                 type="button"
                 className={form.sizeSource === "from_file" ? "is-active" : ""}
                 disabled={!form.imageInfo}
+                title={form.imageInfo ? "Размер будет рассчитан по пикселям файла и выбранному качеству печати." : "Сначала загрузите изображение."}
                 onClick={() => handleSizeSourceChange("from_file")}
               >
-                По файлу
+                Рассчитать по файлу
               </button>
               <button
                 type="button"
                 className={form.sizeSource === "manual" ? "is-active" : ""}
+                title="Введите реальный физический размер работы в миллиметрах."
                 onClick={() => handleSizeSourceChange("manual")}
               >
-                Вручную
+                Задать вручную
               </button>
             </div>
-            <button
-              type="button"
-              className={`aspect-toggle ${form.lockAspect ? "is-active" : ""}`}
-              disabled={!form.imageInfo}
-              aria-pressed={form.lockAspect}
-              onClick={() => updateForm({ lockAspect: !form.lockAspect })}
-            >
-              {form.lockAspect ? "Пропорции связаны" : "Пропорции свободные"}
-            </button>
             {form.imageInfo && (
               <div className="file-size-hint">
                 <span>
@@ -352,12 +353,20 @@ export default function App() {
                 <strong>{currentPrintQuality ? currentPrintQuality.label : "Качество не рассчитано"}</strong>
               </div>
             )}
-            {form.imageInfo && (
+            {!form.imageInfo && (
+              <p className="size-mode-hint">Загрузите изображение, чтобы рассчитать размер печати автоматически.</p>
+            )}
+            {form.imageInfo && form.sizeSource === "from_file" && (
               <div className="print-presets" aria-label="Размеры печати по качеству">
                 {printSizePresets.map((preset) => {
                   const size = sizeFromPpi(form.imageInfo as ImageInfo, preset.ppi);
                   return (
-                    <button key={preset.ppi} type="button" onClick={() => applyPrintPreset(preset.ppi)}>
+                    <button
+                      key={preset.ppi}
+                      type="button"
+                      className={form.printPpi === preset.ppi ? "is-active" : ""}
+                      onClick={() => applyPrintPreset(preset.ppi)}
+                    >
                       <strong>{preset.label}</strong>
                       <span>
                         {size.widthMm} x {size.heightMm} мм, {preset.note}
@@ -370,7 +379,20 @@ export default function App() {
           </div>
 
           <fieldset className="dimensions">
-            <legend>Физические размеры</legend>
+            <legend>
+              Физические размеры
+              {form.sizeSource === "manual" && form.imageInfo && (
+                <button
+                  type="button"
+                  className={`aspect-toggle ${form.lockAspect ? "is-active" : ""}`}
+                  aria-pressed={form.lockAspect}
+                  title="При изменении одной стороны вторая пересчитывается по пропорциям загруженного файла."
+                  onClick={() => updateForm({ lockAspect: !form.lockAspect })}
+                >
+                  {form.lockAspect ? "Сохранять пропорции" : "Свободные пропорции"}
+                </button>
+              )}
+            </legend>
             <label>
               <span>Ширина, мм</span>
               <input
@@ -379,6 +401,7 @@ export default function App() {
                 max="3000"
                 step="1"
                 value={form.widthMm}
+                disabled={form.sizeSource === "from_file"}
                 onChange={(event) => handleDimensionChange("width", event.target.value)}
               />
             </label>
@@ -390,6 +413,7 @@ export default function App() {
                 max="3000"
                 step="1"
                 value={form.heightMm}
+                disabled={form.sizeSource === "from_file"}
                 onChange={(event) => handleDimensionChange("height", event.target.value)}
               />
             </label>
@@ -546,6 +570,14 @@ function SelectField<T extends string>({
         ))}
       </select>
     </label>
+  );
+}
+
+function TooltipHint({ text }: { text: string }) {
+  return (
+    <span className="tooltip-hint" tabIndex={0} title={text} aria-label={text}>
+      ?
+    </span>
   );
 }
 
