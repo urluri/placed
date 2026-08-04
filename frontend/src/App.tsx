@@ -42,57 +42,52 @@ const printSizePresets = [
   { ppi: 150, label: "150 PPI", note: "крупно, но мягче" },
 ];
 
+const interiorSceneScale = {
+  wallWidthMm: 3600,
+  artworkCenterXPercent: 50,
+  artworkCenterYPercent: 36,
+  minArtworkWidthPercent: 5,
+  maxArtworkWidthPercent: 42,
+};
+
 const interiorScenes: Record<
   InteriorStyle,
   {
     src: string;
     label: string;
-    placement: {
-      left: string;
-      top: string;
-      width: string;
-    };
   }
 > = {
   minimal: {
     src: "/interiors/minimal.jpg",
     label: "Минимализм",
-    placement: { left: "50%", top: "34%", width: "20%" },
   },
   scandi: {
     src: "/interiors/scandi.jpg",
     label: "Сканди",
-    placement: { left: "50%", top: "35%", width: "21%" },
   },
   japandi: {
     src: "/interiors/japandi.jpg",
     label: "Джапанди",
-    placement: { left: "50%", top: "34%", width: "21%" },
   },
   contemporary: {
     src: "/interiors/contemporary.jpg",
     label: "Современный",
-    placement: { left: "50%", top: "35%", width: "20%" },
   },
   loft: {
     src: "/interiors/loft.jpg",
     label: "Лофт",
-    placement: { left: "50%", top: "35%", width: "19%" },
   },
   modern_vintage: {
     src: "/interiors/modern_vintage.jpg",
     label: "Modern vintage",
-    placement: { left: "50%", top: "35%", width: "20%" },
   },
   neoclassic: {
     src: "/interiors/neoclassic.jpg",
     label: "Неоклассика",
-    placement: { left: "50%", top: "34%", width: "20%" },
   },
   universal: {
     src: "/interiors/universal.jpg",
     label: "Универсальный",
-    placement: { left: "50%", top: "35%", width: "20%" },
   },
 };
 
@@ -124,6 +119,9 @@ export default function App() {
   }, [recommendation, selectedDecorStyle]);
   const imageAnalysis = recommendation?.image_analysis ?? null;
   const interiorScene = interiorScenes[form.interiorStyle];
+  const interiorArtworkScale = selectedVariant
+    ? scaleInteriorArtwork(selectedVariant.geometry.outer_width_mm)
+    : null;
   const currentPrintQuality = form.imageInfo
     ? printQualityFor(form.imageInfo, dimensionNumber(form.widthMm), dimensionNumber(form.heightMm))
     : null;
@@ -132,9 +130,9 @@ export default function App() {
     : undefined;
   const previewImageStyle: CSSProperties | undefined = showInteriorPreview
     ? {
-        left: interiorScene.placement.left,
-        top: interiorScene.placement.top,
-        width: interiorScene.placement.width,
+        left: `${interiorSceneScale.artworkCenterXPercent}%`,
+        top: `${interiorSceneScale.artworkCenterYPercent}%`,
+        width: `${interiorArtworkScale?.widthPercent ?? interiorSceneScale.minArtworkWidthPercent}%`,
       }
     : undefined;
 
@@ -730,6 +728,19 @@ function qualityText(ppi: number) {
 function dimensionNumber(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function scaleInteriorArtwork(outerWidthMm: number) {
+  const rawWidthPercent = (outerWidthMm / interiorSceneScale.wallWidthMm) * 100;
+  const widthPercent = Math.max(
+    interiorSceneScale.minArtworkWidthPercent,
+    Math.min(interiorSceneScale.maxArtworkWidthPercent, rawWidthPercent),
+  );
+
+  return {
+    widthPercent,
+    rawWidthPercent,
+  };
 }
 
 function displayDimension(value: string, fallback: number) {

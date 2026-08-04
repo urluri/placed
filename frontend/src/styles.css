@@ -683,8 +683,8 @@ legend,
 
 .interior-preview .framed-art-preview {
   position: absolute;
-  max-width: min(34%, 360px);
-  min-width: 108px;
+  max-width: 42%;
+  min-width: 0;
   max-height: none;
   transform: translate(-50%, -50%);
 }
@@ -855,7 +855,7 @@ legend,
 
   .interior-preview .framed-art-preview {
     max-width: 42%;
-    min-width: 92px;
+    min-width: 0;
   }
 }
 
