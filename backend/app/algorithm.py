@@ -60,6 +60,12 @@ MAT_SIZE_MAX_MM = {
     "extra_large": {"standard": 120, "modern": 140, "signature": 160},
 }
 
+DEFAULT_MAT_COLOR = {
+    "id": "ivory",
+    "name": "Ivory",
+    "hex": "#FFFFF0",
+}
+
 
 @dataclass
 class FrameOption:
@@ -156,7 +162,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
     warnings = []
     if mat.enabled:
-        warnings.append("Цвет паспарту временно взят из вторичного цвета работы.")
+        warnings.append("Цвет паспарту временно зафиксирован как ivory.")
 
     return DecorationSpec(
         decor_style=decor_style,
@@ -205,7 +211,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
                 "result": "Цветовая логика паспарту еще не определена.",
                 "facts": [
                     "Цвет рамы зафиксирован как #000000.",
-                    "Если паспарту включено, его цвет временно равен вторичному цвету работы.",
+                    "Если паспарту включено, его цвет временно зафиксирован как ivory (#FFFFF0).",
                 ],
             }
         ],
@@ -288,7 +294,7 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
     base_size = mat_base_size(width, height, decor_style, size_profile)
     return MatSpec(
         enabled=True,
-        outer_color=mat_color_from_image(image_analysis),
+        outer_color=mat_color_ivory(),
         inner_color=None,
         left_mm=base_size,
         right_mm=base_size,
@@ -308,15 +314,8 @@ def mat_base_size(width, height, decor_style, size_profile):
     return raw_size
 
 
-def mat_color_from_image(image_analysis):
-    palette = image_analysis.get("palette", {})
-    color = palette.get("secondary") or palette.get("primary")
-    hex_value = color["hex"] if color else "#F1EEE8"
-    return {
-        "id": "image-secondary-color",
-        "name": "Вторичный цвет работы",
-        "hex": hex_value,
-    }
+def mat_color_ivory():
+    return DEFAULT_MAT_COLOR.copy()
 
 
 def mat_reason(mat, decor_style, size_profile):
@@ -345,7 +344,7 @@ def mat_facts(mat, decor_style, size_profile, width, height):
         f"Размер по проценту до ограничения: {raw_size} мм.",
         f"Левый/правый/верхний край: {mat.left_mm} мм.",
         f"Нижний край: {mat.bottom_mm} мм.",
-        f"Цвет паспарту временно взят из вторичного цвета работы: {mat.outer_color['hex']}.",
+        f"Цвет паспарту временно зафиксирован как ivory: {mat.outer_color['hex']}.",
     ]
     if max_size is not None:
         facts.insert(5, f"Максимум по таблице: {max_size} мм.")
