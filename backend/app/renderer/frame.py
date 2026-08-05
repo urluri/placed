@@ -21,6 +21,14 @@ def wood_texture(width, height, base=FRAME_BASE):
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
 
 
+def bevel_color(color, factor):
+    if factor <= 1:
+        return adjust_color(color, factor)
+
+    amount = min(1.0, (factor - 1) * 0.72)
+    return tuple(int(channel + (255 - channel) * amount) for channel in color)
+
+
 def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE):
     left, top, right, bottom = outer_rect
     width = right - left
@@ -60,10 +68,10 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE):
         dark = 0.58 + t * 0.20
 
         current_bottom = bottom - i
-        draw.line([(left + i, top + i), (right - i, top + i)], fill=adjust_color(base, light))
-        draw.line([(left + i, top + i), (left + i, current_bottom)], fill=adjust_color(base, light))
-        draw.line([(left + i, current_bottom), (right - i, current_bottom)], fill=adjust_color(base, dark))
-        draw.line([(right - i, top + i), (right - i, current_bottom)], fill=adjust_color(base, dark))
+        draw.line([(left + i, top + i), (right - i, top + i)], fill=bevel_color(base, light))
+        draw.line([(left + i, top + i), (left + i, current_bottom)], fill=bevel_color(base, light))
+        draw.line([(left + i, current_bottom), (right - i, current_bottom)], fill=bevel_color(base, dark))
+        draw.line([(right - i, top + i), (right - i, current_bottom)], fill=bevel_color(base, dark))
 
     inner_left, inner_top, inner_right, inner_bottom = inner_rect
     inner_layers = max(5, min(18, frame_px // 10))
@@ -71,9 +79,9 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE):
         t = i / max(1, inner_layers - 1)
         light = 1.16 - t * 0.13
         dark = 0.66 + t * 0.18
-        draw.line([(inner_left - i, inner_top - i), (inner_right + i, inner_top - i)], fill=adjust_color(base, dark))
-        draw.line([(inner_left - i, inner_top - i), (inner_left - i, inner_bottom + i)], fill=adjust_color(base, dark))
-        draw.line([(inner_left - i, inner_bottom + i), (inner_right + i, inner_bottom + i)], fill=adjust_color(base, light))
-        draw.line([(inner_right + i, inner_top - i), (inner_right + i, inner_bottom + i)], fill=adjust_color(base, light))
+        draw.line([(inner_left - i, inner_top - i), (inner_right + i, inner_top - i)], fill=bevel_color(base, dark))
+        draw.line([(inner_left - i, inner_top - i), (inner_left - i, inner_bottom + i)], fill=bevel_color(base, dark))
+        draw.line([(inner_left - i, inner_bottom + i), (inner_right + i, inner_bottom + i)], fill=bevel_color(base, light))
+        draw.line([(inner_right + i, inner_top - i), (inner_right + i, inner_bottom + i)], fill=bevel_color(base, light))
 
     return canvas

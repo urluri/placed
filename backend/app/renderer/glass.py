@@ -23,6 +23,7 @@ def add_glass_effect(canvas, rect, opacity=16):
     highlight = highlight.filter(ImageFilter.GaussianBlur(12))
 
     layer = Image.alpha_composite(layer, highlight)
+    draw = ImageDraw.Draw(layer)
 
     for offset in range(-160, int(right - left), 170):
         draw.line(
