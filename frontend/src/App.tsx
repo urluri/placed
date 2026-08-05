@@ -523,6 +523,7 @@ export default function App() {
               <SpecItem label="Температура">{imageAnalysis?.temperature ?? "—"}</SpecItem>
               <SpecItem label="Светлота">{imageAnalysis?.lightness ?? "—"}</SpecItem>
               <SpecItem label="Насыщенность">{imageAnalysis?.chroma_level ?? "—"}</SpecItem>
+              <SpecItem label="Монохромность">{imageAnalysis?.monochrome ?? "—"}</SpecItem>
               <SpecItem label="Заполненность">{imageAnalysis?.frame_occupancy ?? "—"}</SpecItem>
               <SpecItem label="Контраст">{imageAnalysis?.contrast ?? "—"}</SpecItem>
               <SpecItem label="Метрики">{metricsSpec(imageAnalysis?.metrics)}</SpecItem>
@@ -673,6 +674,7 @@ function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | unde
   return [
     `L ${formatMetric(metrics.lightness)}`,
     `C ${formatMetric(metrics.chroma)}`,
+    `mono ${formatMetric(metrics.monochrome_score)}`,
     `contrast ${formatMetric(metrics.contrast)}`,
     `occupancy ${formatMetric(metrics.frame_occupancy)}`,
     `temp ${formatMetric(metrics.temperature_score)}`,

@@ -66,6 +66,12 @@ DEFAULT_MAT_COLOR = {
     "hex": "#FFFFF0",
 }
 
+MAT_COLOR_OPTIONS = {
+    "ivory": {"id": "ivory", "name": "Ivory", "hex": "#EEE6D5"},
+    "warm_white": {"id": "warm-white", "name": "Warm White", "hex": "#F5F1E8"},
+    "museum_white": {"id": "museum-white", "name": "Museum White", "hex": "#F7F6F2"},
+}
+
 
 @dataclass
 class FrameOption:
@@ -161,7 +167,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
     glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
     warnings = []
-    if mat.enabled:
+    if mat.enabled and decor_style != DecorStyle.standard.value:
         warnings.append("Цвет паспарту временно зафиксирован как ivory.")
 
     return DecorationSpec(
@@ -208,11 +214,8 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
             },
             {
                 "title": "Цвета",
-                "result": "Цветовая логика паспарту еще не определена.",
-                "facts": [
-                    "Цвет рамы зафиксирован как #000000.",
-                    "Если паспарту включено, его цвет временно зафиксирован как ivory (#FFFFF0).",
-                ],
+                "result": mat_color_reason(mat, decor_style, image_analysis) if mat.enabled else "Цвет паспарту не рассчитывается.",
+                "facts": color_facts(mat, decor_style, image_analysis),
             }
         ],
     )
@@ -294,7 +297,7 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
     base_size = mat_base_size(width, height, decor_style, size_profile)
     return MatSpec(
         enabled=True,
-        outer_color=mat_color_ivory(),
+        outer_color=mat_color_for_variant(decor_style, image_analysis),
         inner_color=None,
         left_mm=base_size,
         right_mm=base_size,
@@ -316,6 +319,55 @@ def mat_base_size(width, height, decor_style, size_profile):
 
 def mat_color_ivory():
     return DEFAULT_MAT_COLOR.copy()
+
+
+def mat_color_for_variant(decor_style, image_analysis):
+    if decor_style != DecorStyle.standard.value:
+        return mat_color_ivory()
+    return standard_mat_color(image_analysis)
+
+
+def standard_mat_color(image_analysis):
+    if image_analysis.get("monochrome") == "монохромное":
+        return MAT_COLOR_OPTIONS["museum_white"].copy()
+
+    temperature = image_analysis.get("temperature")
+    lightness = image_analysis.get("lightness")
+    if temperature == "теплый" and lightness == "светлый":
+        return MAT_COLOR_OPTIONS["ivory"].copy()
+    if temperature == "теплый":
+        return MAT_COLOR_OPTIONS["warm_white"].copy()
+    return MAT_COLOR_OPTIONS["museum_white"].copy()
+
+
+def mat_color_reason(mat, decor_style, image_analysis):
+    if not mat.enabled:
+        return "Цвет паспарту не рассчитывается."
+    if decor_style != DecorStyle.standard.value:
+        return f"{decor_style}: цветовая таблица еще не задана, временно используется {mat.outer_color['name']} ({mat.outer_color['hex']})."
+    return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
+
+
+def color_facts(mat, decor_style, image_analysis):
+    facts = ["Цвет рамы зафиксирован как #000000."]
+    if not mat.enabled:
+        facts.append("Паспарту не используется, цвет не выбирается.")
+        return facts
+
+    facts.extend(
+        [
+            f"Вариант оформления: {decor_style}.",
+            f"Монохромность: {image_analysis.get('monochrome')}.",
+            f"Температура изображения: {image_analysis.get('temperature')}.",
+            f"Светлота изображения: {image_analysis.get('lightness')}.",
+            f"Итоговый цвет паспарту: {mat.outer_color['name']} ({mat.outer_color['hex']}).",
+        ]
+    )
+    if decor_style == DecorStyle.standard.value:
+        facts.append("Для Standard применена таблица из `Цвет.md`; монохромное изображение имеет приоритет над температурой и светлотой.")
+    else:
+        facts.append("Для Modern и Signature цветовые правила еще не заданы, поэтому используется временный ivory.")
+    return facts
 
 
 def mat_reason(mat, decor_style, size_profile):
@@ -344,7 +396,7 @@ def mat_facts(mat, decor_style, size_profile, width, height):
         f"Размер по проценту до ограничения: {raw_size} мм.",
         f"Левый/правый/верхний край: {mat.left_mm} мм.",
         f"Нижний край: {mat.bottom_mm} мм.",
-        f"Цвет паспарту временно зафиксирован как ivory: {mat.outer_color['hex']}.",
+        f"Цвет паспарту: {mat.outer_color['name']} ({mat.outer_color['hex']}).",
     ]
     if max_size is not None:
         facts.insert(5, f"Максимум по таблице: {max_size} мм.")
@@ -408,6 +460,7 @@ def analysis_facts(image_analysis):
         f"Цветовая температура: {image_analysis['temperature']}.",
         f"Светлота: {image_analysis['lightness']}.",
         f"Насыщенность: {image_analysis['chroma_level']}.",
+        f"Монохромность: {image_analysis['monochrome']}.",
         f"Заполненность кадра: {image_analysis['frame_occupancy']}.",
         f"Контраст: {image_analysis['contrast']}.",
     ]
@@ -416,6 +469,7 @@ def analysis_facts(image_analysis):
             "Метрики: "
             f"L={metrics.get('lightness')}, "
             f"C={metrics.get('chroma')}, "
+            f"monochrome={metrics.get('monochrome_score')}, "
             f"contrast={metrics.get('contrast')}, "
             f"occupancy={metrics.get('frame_occupancy')}, "
             f"temperature={metrics.get('temperature_score')}."

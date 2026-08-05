@@ -122,11 +122,13 @@ export type Recommendation = {
     temperature: string;
     lightness: string;
     chroma_level: string;
+    monochrome: string;
     frame_occupancy: string;
     contrast: string;
     metrics?: {
       lightness?: number;
       chroma?: number;
+      monochrome_score?: number;
       contrast?: number;
       frame_occupancy?: number;
       temperature_score?: number;

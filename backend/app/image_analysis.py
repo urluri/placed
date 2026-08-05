@@ -27,6 +27,7 @@ def analyze_image(image_path: str):
     contrast_value = image_contrast(lab[:, :, 0])
     occupancy_value = frame_occupancy(lab)
     temperature_score = image_temperature(clusters)
+    monochrome_score = image_monochrome_score(chroma_values, clusters)
 
     primary = choose_primary(clusters)
     secondary = choose_secondary(clusters, primary)
@@ -41,11 +42,13 @@ def analyze_image(image_path: str):
         "temperature": classify_temperature(temperature_score),
         "lightness": classify_lightness(lightness_value),
         "chroma_level": classify_chroma(chroma_value),
+        "monochrome": classify_monochrome(monochrome_score),
         "frame_occupancy": classify_level(occupancy_value, low=0.22, high=0.45),
         "contrast": classify_contrast(contrast_value),
         "metrics": {
             "lightness": round(lightness_value, 2),
             "chroma": round(chroma_value, 2),
+            "monochrome_score": round(monochrome_score, 3),
             "contrast": round(contrast_value, 2),
             "frame_occupancy": round(occupancy_value, 3),
             "temperature_score": round(temperature_score, 2),
@@ -337,6 +340,18 @@ def weighted_mean_chroma(chroma_values):
     return float(np.average(flattened, weights=weights))
 
 
+def image_monochrome_score(chroma_values, clusters):
+    flattened = chroma_values.reshape(-1)
+    low_chroma_ratio = float((flattened <= 10).mean())
+    p85_chroma = float(np.percentile(flattened, 85))
+    colorful_share = sum(cluster.share for cluster in clusters if cluster.chroma >= 18)
+
+    low_chroma_signal = low_chroma_ratio
+    p85_signal = 1 - min(p85_chroma / 32, 1)
+    colorful_signal = 1 - min(colorful_share / 0.22, 1)
+    return max(0.0, min(1.0, low_chroma_signal * 0.5 + p85_signal * 0.3 + colorful_signal * 0.2))
+
+
 def image_contrast(lightness):
     p5, p95 = np.percentile(lightness, [5, 95])
     p20, p80 = np.percentile(lightness, [20, 80])
@@ -458,6 +473,12 @@ def classify_chroma(value):
     if value <= 16:
         return "низкая"
     return "средняя"
+
+
+def classify_monochrome(score):
+    if score >= 0.72:
+        return "монохромное"
+    return "цветное"
 
 
 def classify_contrast(value):
