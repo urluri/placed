@@ -364,7 +364,7 @@ def color_facts(mat, decor_style, image_analysis):
         ]
     )
     if decor_style == DecorStyle.standard.value:
-        facts.append("Для Standard применена таблица из `Цвет.md`; монохромное изображение имеет приоритет над температурой и светлотой.")
+        facts.append("Для Standard применена таблица из `Цвет паспарту.md`; монохромное изображение имеет приоритет над температурой и светлотой.")
     else:
         facts.append("Для Modern и Signature цветовые правила еще не заданы, поэтому используется временный ivory.")
     return facts
