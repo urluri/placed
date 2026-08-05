@@ -289,7 +289,7 @@ export default function App() {
             <p className="eyebrow">Placed MVP</p>
             <h1>Подбор багета</h1>
           </div>
-          <output className="status-pill">{selectedVariant?.geometry.size_profile ?? "medium"}</output>
+          <output className="status-pill">{sizeProfileName(selectedVariant?.geometry.size_profile)}</output>
         </div>
 
         <form className="config-form">
@@ -656,6 +656,16 @@ function matSpec(variant: Recommendation["variants"][number] | null) {
 
 function materialName(value?: string) {
   return value === "aluminum" ? "алюминий" : "дерево";
+}
+
+function sizeProfileName(value?: string) {
+  const names: Record<string, string> = {
+    small: "малый",
+    medium: "средний",
+    large: "большой",
+    extra_large: "очень большой",
+  };
+  return names[value ?? ""] ?? "средний";
 }
 
 function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | undefined) {

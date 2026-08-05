@@ -50,7 +50,14 @@ MAT_SIZE_PERCENTAGES = {
     "small": {"standard": 0.35, "modern": 0.45, "signature": 0.55},
     "medium": {"standard": 0.30, "modern": 0.40, "signature": 0.50},
     "large": {"standard": 0.25, "modern": 0.35, "signature": 0.45},
-    "extra_large": {"standard": 0.15, "modern": 0.15, "signature": 0.15},
+    "extra_large": {"standard": 0.20, "modern": 0.25, "signature": 0.30},
+}
+
+MAT_SIZE_MAX_MM = {
+    "small": {"standard": None, "modern": None, "signature": None},
+    "medium": {"standard": None, "modern": None, "signature": None},
+    "large": {"standard": None, "modern": None, "signature": None},
+    "extra_large": {"standard": 120, "modern": 140, "signature": 160},
 }
 
 
@@ -294,7 +301,11 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
 
 def mat_base_size(width, height, decor_style, size_profile):
     percentage = MAT_SIZE_PERCENTAGES[size_profile][decor_style]
-    return int(round(min(width, height) * percentage))
+    raw_size = int(round(min(width, height) * percentage))
+    max_size = MAT_SIZE_MAX_MM[size_profile][decor_style]
+    if max_size is not None:
+        return min(raw_size, max_size)
+    return raw_size
 
 
 def mat_color_from_image(image_analysis):
@@ -312,9 +323,11 @@ def mat_reason(mat, decor_style, size_profile):
     if not mat.enabled:
         return "Паспарту не используется."
     percentage = int(round(MAT_SIZE_PERCENTAGES[size_profile][decor_style] * 100))
+    max_size = MAT_SIZE_MAX_MM[size_profile][decor_style]
+    limit_note = f", ограничение {max_size} мм" if max_size is not None else ""
     return (
         f"Размер паспарту: верх и боковые края {mat.left_mm} мм "
-        f"({percentage}% от меньшей стороны работы), нижний край {mat.bottom_mm} мм."
+        f"({percentage}% от меньшей стороны работы{limit_note}), нижний край {mat.bottom_mm} мм."
     )
 
 
@@ -322,15 +335,21 @@ def mat_facts(mat, decor_style, size_profile, width, height):
     if not mat.enabled:
         return ["Паспарту отключено, размер не рассчитывается."]
     percentage = int(round(MAT_SIZE_PERCENTAGES[size_profile][decor_style] * 100))
-    return [
+    raw_size = int(round(min(width, height) * MAT_SIZE_PERCENTAGES[size_profile][decor_style]))
+    max_size = MAT_SIZE_MAX_MM[size_profile][decor_style]
+    facts = [
         f"Меньшая сторона работы: {min(width, height)} мм.",
         f"Размерный профиль: {SIZE_PROFILE_LABELS[size_profile]}.",
         f"Вариант оформления: {decor_style}.",
         f"Процент по таблице: {percentage}%.",
+        f"Размер по проценту до ограничения: {raw_size} мм.",
         f"Левый/правый/верхний край: {mat.left_mm} мм.",
         f"Нижний край: {mat.bottom_mm} мм.",
         f"Цвет паспарту временно взят из вторичного цвета работы: {mat.outer_color['hex']}.",
     ]
+    if max_size is not None:
+        facts.insert(5, f"Максимум по таблице: {max_size} мм.")
+    return facts
 
 
 def build_geometry(width, height, frame_width, mat, size_profile):
@@ -447,13 +466,12 @@ def normalize_artwork_type(value):
 
 
 def classify_size_profile(width, height):
-    max_side = max(width, height)
-    area_m2 = width * height / 1_000_000
-    if max_side >= 1001 or area_m2 >= 0.70:
+    long_side = max(width, height)
+    if long_side > 900:
         return "extra_large"
-    if max_side >= 701 or area_m2 >= 0.30:
+    if long_side > 600:
         return "large"
-    if max_side >= 401 or area_m2 >= 0.10:
+    if long_side > 300:
         return "medium"
     return "small"
 
