@@ -2,8 +2,10 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 from .utils import adjust_color
+from .utils import mm_to_px
 
 MAT_BASE = (236, 228, 214)
+MAT_BEVEL_MM = 1.5
 
 
 def mat_board_texture(width, height, base=MAT_BASE):
@@ -39,7 +41,7 @@ def draw_mat(canvas, mat_rect, aperture_rect, mat_px, base=MAT_BASE):
     canvas = Image.alpha_composite(canvas.convert("RGBA"), mat_layer).convert("RGB")
     draw = ImageDraw.Draw(canvas)
 
-    bevel = max(4, min(18, mat_px // 7))
+    bevel = max(1, mm_to_px(MAT_BEVEL_MM))
     for i in range(bevel):
         t = i / max(1, bevel - 1)
         high = adjust_color(base, 1.10 - t * 0.04)
