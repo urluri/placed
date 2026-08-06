@@ -55,7 +55,7 @@ const decorStyleLabels: Record<DecorStyle, string> = {
 const defaultMatSizeConfig: MatSizeConfig = {
   percentages: {
     small: { standard: "35", modern: "45", signature: "55" },
-    medium: { standard: "20", modern: "30", signature: "35" },
+    medium: { standard: "25", modern: "35", signature: "40" },
     large: { standard: "15", modern: "20", signature: "25" },
     extra_large: { standard: "20", modern: "25", signature: "30" },
   },
