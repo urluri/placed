@@ -41,8 +41,8 @@ POSTER_OCCUPANCY_VOTES = {
 
 POSTER_SIZE_PROFILE_VOTES = {
     "small": 2,
-    "medium": 1,
-    "large": -1,
+    "medium": 2,
+    "large": 1,
     "extra_large": -1,
 }
 
