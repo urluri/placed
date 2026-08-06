@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { recommend, renderPreview } from "./api";
@@ -122,6 +122,8 @@ const interiorScenes: Record<
   },
 };
 
+type ThemeMode = "light" | "dark";
+
 export default function App() {
   const [form, setForm] = useState<FormState>({
     widthMm: "300",
@@ -143,8 +145,20 @@ export default function App() {
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return "light";
+    const savedTheme = window.localStorage.getItem("placed-theme");
+    if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const requestId = useRef(0);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = themeMode;
+    document.documentElement.style.colorScheme = themeMode;
+    window.localStorage.setItem("placed-theme", themeMode);
+  }, [themeMode]);
 
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
@@ -348,14 +362,26 @@ export default function App() {
   };
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={themeMode}>
       <section className="control-panel" aria-label="Параметры картины">
         <div className="brand-row">
           <div>
             <p className="eyebrow">Placed MVP</p>
             <h1>Подбор багета</h1>
           </div>
-          <output className="status-pill">{sizeProfileName(selectedVariant?.geometry.size_profile)}</output>
+          <div className="brand-actions">
+            <button
+              type="button"
+              className="theme-toggle"
+              aria-pressed={themeMode === "dark"}
+              title={themeMode === "dark" ? "Включить светлую тему" : "Включить темную тему"}
+              onClick={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
+            >
+              <span className="theme-toggle-icon" aria-hidden="true" />
+              <span>{themeMode === "dark" ? "Светлая" : "Темная"}</span>
+            </button>
+            <output className="status-pill">{sizeProfileName(selectedVariant?.geometry.size_profile)}</output>
+          </div>
         </div>
 
         <form className="config-form">
