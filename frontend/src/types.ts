@@ -18,8 +18,8 @@ export type ImageInfo = {
 };
 
 export type MatSizeConfig = {
-  percentages: Record<SizeProfile, Record<DecorStyle, number>>;
-  max_mm: Record<SizeProfile, Record<DecorStyle, number | null>>;
+  percentages: Record<SizeProfile, Record<DecorStyle, string>>;
+  max_mm: Record<SizeProfile, Record<DecorStyle, string>>;
 };
 
 export type ColorSample = {

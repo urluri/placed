@@ -54,16 +54,16 @@ const decorStyleLabels: Record<DecorStyle, string> = {
 
 const defaultMatSizeConfig: MatSizeConfig = {
   percentages: {
-    small: { standard: 35, modern: 45, signature: 55 },
-    medium: { standard: 20, modern: 30, signature: 35 },
-    large: { standard: 20, modern: 25, signature: 30 },
-    extra_large: { standard: 20, modern: 25, signature: 30 },
+    small: { standard: "35", modern: "45", signature: "55" },
+    medium: { standard: "20", modern: "30", signature: "35" },
+    large: { standard: "20", modern: "25", signature: "30" },
+    extra_large: { standard: "20", modern: "25", signature: "30" },
   },
   max_mm: {
-    small: { standard: null, modern: null, signature: null },
-    medium: { standard: null, modern: null, signature: null },
-    large: { standard: null, modern: null, signature: null },
-    extra_large: { standard: 120, modern: 140, signature: 160 },
+    small: { standard: "", modern: "", signature: "" },
+    medium: { standard: "", modern: "", signature: "" },
+    large: { standard: "", modern: "", signature: "" },
+    extra_large: { standard: "120", modern: "140", signature: "160" },
   },
 };
 
@@ -274,8 +274,6 @@ export default function App() {
   };
 
   const handleMatPercentageChange = (profile: SizeProfile, decorStyle: DecorStyle, value: string) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return;
     updateForm({
       matSizeConfig: {
         ...form.matSizeConfig,
@@ -283,7 +281,7 @@ export default function App() {
           ...form.matSizeConfig.percentages,
           [profile]: {
             ...form.matSizeConfig.percentages[profile],
-            [decorStyle]: clampNumber(parsed, 1, 100),
+            [decorStyle]: value,
           },
         },
       },
@@ -291,8 +289,6 @@ export default function App() {
   };
 
   const handleMatMaxChange = (decorStyle: DecorStyle, value: string) => {
-    const parsed = value.trim() === "" ? null : Number(value);
-    if (parsed !== null && !Number.isFinite(parsed)) return;
     updateForm({
       matSizeConfig: {
         ...form.matSizeConfig,
@@ -300,7 +296,7 @@ export default function App() {
           ...form.matSizeConfig.max_mm,
           extra_large: {
             ...form.matSizeConfig.max_mm.extra_large,
-            [decorStyle]: parsed === null ? null : clampNumber(parsed, 1, 500),
+            [decorStyle]: value,
           },
         },
       },
@@ -543,7 +539,8 @@ export default function App() {
                       min="1"
                       max="500"
                       step="1"
-                      value={form.matSizeConfig.max_mm.extra_large[decorStyle] ?? ""}
+                      inputMode="numeric"
+                      value={form.matSizeConfig.max_mm.extra_large[decorStyle]}
                       onChange={(event) => handleMatMaxChange(decorStyle, event.target.value)}
                     />
                   </label>
@@ -761,7 +758,7 @@ function MatSizeRow({
   onChange,
 }: {
   profile: SizeProfile;
-  values: Record<DecorStyle, number>;
+  values: Record<DecorStyle, string>;
   onChange: (profile: SizeProfile, decorStyle: DecorStyle, value: string) => void;
 }) {
   return (
@@ -775,6 +772,7 @@ function MatSizeRow({
             min="1"
             max="100"
             step="1"
+            inputMode="decimal"
             value={values[decorStyle]}
             onChange={(event) => onChange(profile, decorStyle, event.target.value)}
           />
@@ -841,10 +839,6 @@ function cloneMatSizeConfig(config: MatSizeConfig): MatSizeConfig {
       extra_large: { ...config.max_mm.extra_large },
     },
   };
-}
-
-function clampNumber(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 function readImageInfo(file: File): Promise<ImageInfo> {

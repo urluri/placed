@@ -578,7 +578,7 @@ def classify_size_profile(width, height):
     short_side = min(width, height)
     if short_side > 700:
         return "extra_large"
-    if short_side > 500:
+    if short_side > 400:
         return "large"
     if short_side > 300:
         return "medium"
