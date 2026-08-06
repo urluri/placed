@@ -57,7 +57,7 @@ const defaultMatSizeConfig: MatSizeConfig = {
     small: { standard: "35", modern: "45", signature: "55" },
     medium: { standard: "25", modern: "35", signature: "40" },
     large: { standard: "15", modern: "20", signature: "25" },
-    extra_large: { standard: "20", modern: "25", signature: "30" },
+    extra_large: { standard: "10", modern: "15", signature: "20" },
   },
   max_mm: {
     small: { standard: "", modern: "", signature: "" },

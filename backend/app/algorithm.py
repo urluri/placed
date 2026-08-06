@@ -50,7 +50,7 @@ MAT_SIZE_PERCENTAGES = {
     "small": {"standard": 0.35, "modern": 0.45, "signature": 0.55},
     "medium": {"standard": 0.25, "modern": 0.35, "signature": 0.40},
     "large": {"standard": 0.15, "modern": 0.20, "signature": 0.25},
-    "extra_large": {"standard": 0.20, "modern": 0.25, "signature": 0.30},
+    "extra_large": {"standard": 0.10, "modern": 0.15, "signature": 0.20},
 }
 
 MAT_SIZE_MAX_MM = {
@@ -576,11 +576,11 @@ def normalize_artwork_type(value):
 
 def classify_size_profile(width, height):
     short_side = min(width, height)
-    if short_side > 700:
+    if short_side >= 600:
         return "extra_large"
-    if short_side > 400:
+    if short_side >= 401:
         return "large"
-    if short_side > 300:
+    if short_side >= 300:
         return "medium"
     return "small"
 
