@@ -6,6 +6,9 @@ from math import sqrt
 import numpy as np
 from PIL import Image, ImageOps
 
+FRAME_OCCUPANCY_LOW_THRESHOLD = 0.198
+FRAME_OCCUPANCY_HIGH_THRESHOLD = 0.405
+
 
 @dataclass
 class ColorCluster:
@@ -43,7 +46,11 @@ def analyze_image(image_path: str):
         "lightness": classify_lightness(lightness_value),
         "chroma_level": classify_chroma(chroma_value),
         "monochrome": classify_monochrome(monochrome_score),
-        "frame_occupancy": classify_level(occupancy_value, low=0.22, high=0.45),
+        "frame_occupancy": classify_level(
+            occupancy_value,
+            low=FRAME_OCCUPANCY_LOW_THRESHOLD,
+            high=FRAME_OCCUPANCY_HIGH_THRESHOLD,
+        ),
         "contrast": classify_contrast(contrast_value),
         "metrics": {
             "lightness": round(lightness_value, 2),
