@@ -48,8 +48,8 @@ POSTER_SIZE_PROFILE_VOTES = {
 
 MAT_SIZE_PERCENTAGES = {
     "small": {"standard": 0.35, "modern": 0.45, "signature": 0.55},
-    "medium": {"standard": 0.30, "modern": 0.40, "signature": 0.50},
-    "large": {"standard": 0.25, "modern": 0.35, "signature": 0.45},
+    "medium": {"standard": 0.20, "modern": 0.30, "signature": 0.35},
+    "large": {"standard": 0.20, "modern": 0.25, "signature": 0.30},
     "extra_large": {"standard": 0.20, "modern": 0.25, "signature": 0.30},
 }
 
@@ -132,15 +132,23 @@ class DecorationSpec:
     decision_tree: list[dict]
 
 
-def build_decoration_set(image_path, artwork_width_mm, artwork_height_mm, artwork_type, interior_style):
+def build_decoration_set(
+    image_path,
+    artwork_width_mm,
+    artwork_height_mm,
+    artwork_type,
+    interior_style,
+    mat_size_config=None,
+):
     width = clamp_int(artwork_width_mm, 50, 3000)
     height = clamp_int(artwork_height_mm, 50, 3000)
     image_analysis = analyze_image(image_path)
+    mat_size_config = normalize_mat_size_config(mat_size_config)
 
     variants = [
-        build_placeholder_variant(DecorStyle.standard.value, width, height, artwork_type, interior_style, image_analysis),
-        build_placeholder_variant(DecorStyle.modern.value, width, height, artwork_type, interior_style, image_analysis),
-        build_placeholder_variant(DecorStyle.signature.value, width, height, artwork_type, interior_style, image_analysis),
+        build_placeholder_variant(DecorStyle.standard.value, width, height, artwork_type, interior_style, image_analysis, mat_size_config),
+        build_placeholder_variant(DecorStyle.modern.value, width, height, artwork_type, interior_style, image_analysis, mat_size_config),
+        build_placeholder_variant(DecorStyle.signature.value, width, height, artwork_type, interior_style, image_analysis, mat_size_config),
     ]
 
     return {
@@ -149,7 +157,7 @@ def build_decoration_set(image_path, artwork_width_mm, artwork_height_mm, artwor
     }
 
 
-def build_placeholder_variant(decor_style, width, height, artwork_type, interior_style, image_analysis):
+def build_placeholder_variant(decor_style, width, height, artwork_type, interior_style, image_analysis, mat_size_config):
     normalized_type = normalize_artwork_type(artwork_type)
     size_profile = classify_size_profile(width, height)
     constructive = constructive_decision(normalized_type, size_profile, image_analysis)
@@ -163,7 +171,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
         profile="flat",
         hex="#000000",
     )
-    mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis)
+    mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis, mat_size_config)
     glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
     warnings = []
@@ -181,7 +189,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
         geometry=geometry,
         reasons=[
             constructive["reason"],
-            mat_reason(mat, decor_style, size_profile) if mat.enabled else "Паспарту не используется.",
+            mat_reason(mat, decor_style, size_profile, mat_size_config) if mat.enabled else "Паспарту не используется.",
             f"Багет пока технический: черная рама {frame.width_mm} мм.",
         ],
         warnings=warnings,
@@ -204,8 +212,8 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
             },
             {
                 "title": "Размер паспарту",
-                "result": mat_reason(mat, decor_style, size_profile) if mat.enabled else "Расчет не требуется.",
-                "facts": mat_facts(mat, decor_style, size_profile, width, height),
+                "result": mat_reason(mat, decor_style, size_profile, mat_size_config) if mat.enabled else "Расчет не требуется.",
+                "facts": mat_facts(mat, decor_style, size_profile, width, height, mat_size_config),
             },
             {
                 "title": "Расчеты изображения",
@@ -280,7 +288,7 @@ def constructive_decision(artwork_type, size_profile, image_analysis):
     }
 
 
-def build_mat_spec(enabled, decor_style, size_profile, width, height, image_analysis):
+def build_mat_spec(enabled, decor_style, size_profile, width, height, image_analysis, mat_size_config=None):
     if not enabled:
         return MatSpec(
             enabled=False,
@@ -294,7 +302,8 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
             inner_reveal_mm=0,
         )
 
-    base_size = mat_base_size(width, height, decor_style, size_profile)
+    mat_size_config = normalize_mat_size_config(mat_size_config)
+    base_size = mat_base_size(width, height, decor_style, size_profile, mat_size_config)
     return MatSpec(
         enabled=True,
         outer_color=mat_color_for_variant(decor_style, image_analysis),
@@ -308,13 +317,58 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
     )
 
 
-def mat_base_size(width, height, decor_style, size_profile):
-    percentage = MAT_SIZE_PERCENTAGES[size_profile][decor_style]
+def mat_base_size(width, height, decor_style, size_profile, mat_size_config=None):
+    mat_size_config = normalize_mat_size_config(mat_size_config)
+    percentage = mat_size_config["percentages"][size_profile][decor_style]
     raw_size = int(round(min(width, height) * percentage))
-    max_size = MAT_SIZE_MAX_MM[size_profile][decor_style]
+    max_size = mat_size_config["max_mm"][size_profile][decor_style]
     if max_size is not None:
         return min(raw_size, max_size)
     return raw_size
+
+
+def normalize_mat_size_config(config=None):
+    percentages = {profile: values.copy() for profile, values in MAT_SIZE_PERCENTAGES.items()}
+    max_mm = {profile: values.copy() for profile, values in MAT_SIZE_MAX_MM.items()}
+    if not isinstance(config, dict):
+        return {"percentages": percentages, "max_mm": max_mm}
+
+    for profile in SIZE_PROFILE_LABELS:
+        for decor_style in DecorStyle:
+            style = decor_style.value
+            raw_percentage = config.get("percentages", {}).get(profile, {}).get(style)
+            percentage = normalize_percentage(raw_percentage)
+            if percentage is not None:
+                percentages[profile][style] = percentage
+
+            raw_max = config.get("max_mm", {}).get(profile, {}).get(style)
+            max_value = normalize_optional_mm(raw_max)
+            if raw_max is not None:
+                max_mm[profile][style] = max_value
+
+    return {"percentages": percentages, "max_mm": max_mm}
+
+
+def normalize_percentage(value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not 0 < parsed <= 100:
+        return None
+    return parsed / 100 if parsed > 1 else parsed
+
+
+def normalize_optional_mm(value):
+    if value in ("", None):
+        return None
+    try:
+        parsed = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
 
 
 def mat_color_ivory():
@@ -370,11 +424,12 @@ def color_facts(mat, decor_style, image_analysis):
     return facts
 
 
-def mat_reason(mat, decor_style, size_profile):
+def mat_reason(mat, decor_style, size_profile, mat_size_config=None):
     if not mat.enabled:
         return "Паспарту не используется."
-    percentage = int(round(MAT_SIZE_PERCENTAGES[size_profile][decor_style] * 100))
-    max_size = MAT_SIZE_MAX_MM[size_profile][decor_style]
+    mat_size_config = normalize_mat_size_config(mat_size_config)
+    percentage = int(round(mat_size_config["percentages"][size_profile][decor_style] * 100))
+    max_size = mat_size_config["max_mm"][size_profile][decor_style]
     limit_note = f", ограничение {max_size} мм" if max_size is not None else ""
     return (
         f"Размер паспарту: верх и боковые края {mat.left_mm} мм "
@@ -382,12 +437,13 @@ def mat_reason(mat, decor_style, size_profile):
     )
 
 
-def mat_facts(mat, decor_style, size_profile, width, height):
+def mat_facts(mat, decor_style, size_profile, width, height, mat_size_config=None):
     if not mat.enabled:
         return ["Паспарту отключено, размер не рассчитывается."]
-    percentage = int(round(MAT_SIZE_PERCENTAGES[size_profile][decor_style] * 100))
-    raw_size = int(round(min(width, height) * MAT_SIZE_PERCENTAGES[size_profile][decor_style]))
-    max_size = MAT_SIZE_MAX_MM[size_profile][decor_style]
+    mat_size_config = normalize_mat_size_config(mat_size_config)
+    percentage = int(round(mat_size_config["percentages"][size_profile][decor_style] * 100))
+    raw_size = int(round(min(width, height) * mat_size_config["percentages"][size_profile][decor_style]))
+    max_size = mat_size_config["max_mm"][size_profile][decor_style]
     facts = [
         f"Меньшая сторона работы: {min(width, height)} мм.",
         f"Размерный профиль: {SIZE_PROFILE_LABELS[size_profile]}.",

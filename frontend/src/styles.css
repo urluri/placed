@@ -389,6 +389,88 @@ legend,
   accent-color: var(--accent);
 }
 
+.debug-panel {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfaf7;
+}
+
+.debug-panel summary {
+  min-height: 40px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.debug-section {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px 12px;
+}
+
+.text-button {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mat-size-grid {
+  display: grid;
+  grid-template-columns: 92px repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  align-items: center;
+}
+
+.mat-size-grid > span,
+.mat-size-grid > strong,
+.mat-limit-grid > span,
+.mat-limit-grid label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mat-size-grid label span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.mat-size-grid input,
+.mat-limit-grid input {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.mat-limit-grid {
+  display: grid;
+  grid-template-columns: 92px repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  align-items: end;
+}
+
+.mat-limit-grid label {
+  display: grid;
+  gap: 5px;
+}
+
 .variant-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -10,10 +10,16 @@ export type InteriorStyle =
   | "universal";
 export type DecorStyle = "standard" | "modern" | "signature";
 export type SizeSource = "manual" | "from_file";
+export type SizeProfile = "small" | "medium" | "large" | "extra_large";
 
 export type ImageInfo = {
   pixelWidth: number;
   pixelHeight: number;
+};
+
+export type MatSizeConfig = {
+  percentages: Record<SizeProfile, Record<DecorStyle, number>>;
+  max_mm: Record<SizeProfile, Record<DecorStyle, number | null>>;
 };
 
 export type ColorSample = {
@@ -148,4 +154,5 @@ export type FormState = {
   interiorStyle: InteriorStyle;
   image: File | null;
   rotateArtwork: boolean;
+  matSizeConfig: MatSizeConfig;
 };

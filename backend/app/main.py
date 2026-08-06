@@ -53,9 +53,11 @@ async def recommend(
     heightMm: int = Form(400),
     artworkType: str = Form("poster"),
     interiorStyle: str = Form("minimal"),
+    matSizeConfig: str | None = Form(None),
     image: UploadFile | None = File(None),
 ):
     try:
+        mat_size_config = parse_json_field(matSizeConfig)
         with await uploaded_or_default_image(image) as image_path:
             result = build_decoration_set(
                 image_path=str(image_path),
@@ -63,6 +65,7 @@ async def recommend(
                 artwork_height_mm=heightMm,
                 artwork_type=artworkType,
                 interior_style=interiorStyle,
+                mat_size_config=mat_size_config,
             )
         return JSONResponse(result, headers=NO_STORE_HEADERS)
     except Exception as exc:
@@ -77,10 +80,12 @@ async def render_preview(
     interiorStyle: str = Form("minimal"),
     decorStyle: str = Form("standard"),
     rotateArtwork: bool = Form(False),
+    matSizeConfig: str | None = Form(None),
     spec: str | None = Form(None),
     image: UploadFile | None = File(None),
 ):
     try:
+        mat_size_config = parse_json_field(matSizeConfig)
         with await uploaded_or_default_image(image) as image_path:
             if spec:
                 variant = json.loads(spec)
@@ -91,6 +96,7 @@ async def render_preview(
                     artwork_height_mm=heightMm,
                     artwork_type=artworkType,
                     interior_style=interiorStyle,
+                    mat_size_config=mat_size_config,
                 )
                 variant = find_variant(result["variants"], decorStyle)
 
@@ -120,6 +126,12 @@ def find_variant(variants, decor_style):
         if variant["decor_style"] == decor_style:
             return variant
     return variants[0]
+
+
+def parse_json_field(value: str | None):
+    if not value:
+        return None
+    return json.loads(value)
 
 
 async def uploaded_or_default_image(uploaded: UploadFile | None):

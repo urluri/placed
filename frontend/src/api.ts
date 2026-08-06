@@ -53,6 +53,7 @@ function toPayload(form: FormState) {
   payload.set("artworkType", form.artworkType);
   payload.set("interiorStyle", form.interiorStyle);
   payload.set("rotateArtwork", String(form.rotateArtwork));
+  payload.set("matSizeConfig", JSON.stringify(form.matSizeConfig));
   if (form.image) {
     payload.set("image", form.image);
   }

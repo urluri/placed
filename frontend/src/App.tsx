@@ -11,7 +11,9 @@ import type {
   FormState,
   ImageInfo,
   InteriorStyle,
+  MatSizeConfig,
   Recommendation,
+  SizeProfile,
   SizeSource,
 } from "./types";
 
@@ -35,6 +37,35 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 ];
 
 const decorStyles: DecorStyle[] = ["standard", "modern", "signature"];
+const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
+
+const sizeProfileLabels: Record<SizeProfile, string> = {
+  small: "Малый",
+  medium: "Средний",
+  large: "Большой",
+  extra_large: "Очень большой",
+};
+
+const decorStyleLabels: Record<DecorStyle, string> = {
+  standard: "Standard",
+  modern: "Modern",
+  signature: "Signature",
+};
+
+const defaultMatSizeConfig: MatSizeConfig = {
+  percentages: {
+    small: { standard: 35, modern: 45, signature: 55 },
+    medium: { standard: 20, modern: 30, signature: 35 },
+    large: { standard: 20, modern: 25, signature: 30 },
+    extra_large: { standard: 20, modern: 25, signature: 30 },
+  },
+  max_mm: {
+    small: { standard: null, modern: null, signature: null },
+    medium: { standard: null, modern: null, signature: null },
+    large: { standard: null, modern: null, signature: null },
+    extra_large: { standard: 120, modern: 140, signature: 160 },
+  },
+};
 
 const printSizePresets = [
   { ppi: 300, label: "300 PPI", note: "высокое качество" },
@@ -103,6 +134,7 @@ export default function App() {
     interiorStyle: "minimal",
     image: null,
     rotateArtwork: false,
+    matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig),
   });
   const [selectedDecorStyle, setSelectedDecorStyle] = useState<DecorStyle>("standard");
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
@@ -239,6 +271,44 @@ export default function App() {
     setShowDecisionTree(false);
     clearPreview();
     setRenderState("Нажмите «Применить»");
+  };
+
+  const handleMatPercentageChange = (profile: SizeProfile, decorStyle: DecorStyle, value: string) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    updateForm({
+      matSizeConfig: {
+        ...form.matSizeConfig,
+        percentages: {
+          ...form.matSizeConfig.percentages,
+          [profile]: {
+            ...form.matSizeConfig.percentages[profile],
+            [decorStyle]: clampNumber(parsed, 1, 100),
+          },
+        },
+      },
+    });
+  };
+
+  const handleMatMaxChange = (decorStyle: DecorStyle, value: string) => {
+    const parsed = value.trim() === "" ? null : Number(value);
+    if (parsed !== null && !Number.isFinite(parsed)) return;
+    updateForm({
+      matSizeConfig: {
+        ...form.matSizeConfig,
+        max_mm: {
+          ...form.matSizeConfig.max_mm,
+          extra_large: {
+            ...form.matSizeConfig.max_mm.extra_large,
+            [decorStyle]: parsed === null ? null : clampNumber(parsed, 1, 500),
+          },
+        },
+      },
+    });
+  };
+
+  const resetMatSizeConfig = () => {
+    updateForm({ matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig) });
   };
 
   const applyRender = async () => {
@@ -439,6 +509,48 @@ export default function App() {
             options={interiorOptions}
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
           />
+
+          <details className="debug-panel">
+            <summary>Отладка</summary>
+            <div className="debug-section">
+              <div className="section-label-row">
+                <span>Размер паспарту, %</span>
+                <button type="button" className="text-button" onClick={resetMatSizeConfig}>
+                  Сбросить
+                </button>
+              </div>
+              <div className="mat-size-grid" role="group" aria-label="Таблица размеров паспарту">
+                <span />
+                {decorStyles.map((decorStyle) => (
+                  <strong key={decorStyle}>{decorStyleLabels[decorStyle]}</strong>
+                ))}
+                {sizeProfiles.map((profile) => (
+                  <MatSizeRow
+                    key={profile}
+                    profile={profile}
+                    values={form.matSizeConfig.percentages[profile]}
+                    onChange={handleMatPercentageChange}
+                  />
+                ))}
+              </div>
+              <div className="mat-limit-grid" role="group" aria-label="Ограничения паспарту для очень большого профиля">
+                <span>Максимум, мм</span>
+                {decorStyles.map((decorStyle) => (
+                  <label key={decorStyle}>
+                    <span>{decorStyleLabels[decorStyle]}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="500"
+                      step="1"
+                      value={form.matSizeConfig.max_mm.extra_large[decorStyle] ?? ""}
+                      onChange={(event) => handleMatMaxChange(decorStyle, event.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </details>
         </form>
       </section>
 
@@ -643,6 +755,35 @@ function DecisionTree({ nodes }: { nodes: DecisionNode[] }) {
   );
 }
 
+function MatSizeRow({
+  profile,
+  values,
+  onChange,
+}: {
+  profile: SizeProfile;
+  values: Record<DecorStyle, number>;
+  onChange: (profile: SizeProfile, decorStyle: DecorStyle, value: string) => void;
+}) {
+  return (
+    <>
+      <span>{sizeProfileLabels[profile]}</span>
+      {decorStyles.map((decorStyle) => (
+        <label key={decorStyle}>
+          <span>{decorStyleLabels[decorStyle]}</span>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            step="1"
+            value={values[decorStyle]}
+            onChange={(event) => onChange(profile, decorStyle, event.target.value)}
+          />
+        </label>
+      ))}
+    </>
+  );
+}
+
 function frameSpec(variant: Recommendation["variants"][number] | null) {
   if (!variant) return "—";
   return `${variant.frame.width_mm} мм, ${materialName(variant.frame.material)}, ${variant.frame.name}`;
@@ -683,6 +824,27 @@ function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | unde
 
 function formatMetric(value: number | undefined) {
   return typeof value === "number" ? String(value) : "—";
+}
+
+function cloneMatSizeConfig(config: MatSizeConfig): MatSizeConfig {
+  return {
+    percentages: {
+      small: { ...config.percentages.small },
+      medium: { ...config.percentages.medium },
+      large: { ...config.percentages.large },
+      extra_large: { ...config.percentages.extra_large },
+    },
+    max_mm: {
+      small: { ...config.max_mm.small },
+      medium: { ...config.max_mm.medium },
+      large: { ...config.max_mm.large },
+      extra_large: { ...config.max_mm.extra_large },
+    },
+  };
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 function readImageInfo(file: File): Promise<ImageInfo> {
