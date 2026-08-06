@@ -519,12 +519,12 @@ def normalize_artwork_type(value):
 
 
 def classify_size_profile(width, height):
-    long_side = max(width, height)
-    if long_side > 900:
+    short_side = min(width, height)
+    if short_side > 700:
         return "extra_large"
-    if long_side > 600:
+    if short_side > 500:
         return "large"
-    if long_side > 300:
+    if short_side > 300:
         return "medium"
     return "small"
 
