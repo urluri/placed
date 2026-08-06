@@ -49,7 +49,7 @@ POSTER_SIZE_PROFILE_VOTES = {
 MAT_SIZE_PERCENTAGES = {
     "small": {"standard": 0.35, "modern": 0.45, "signature": 0.55},
     "medium": {"standard": 0.20, "modern": 0.30, "signature": 0.35},
-    "large": {"standard": 0.20, "modern": 0.25, "signature": 0.30},
+    "large": {"standard": 0.15, "modern": 0.20, "signature": 0.25},
     "extra_large": {"standard": 0.20, "modern": 0.25, "signature": 0.30},
 }
 
