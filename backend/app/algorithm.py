@@ -57,7 +57,7 @@ MAT_SIZE_MAX_MM = {
     "small": {"standard": None, "modern": None, "signature": None},
     "medium": {"standard": None, "modern": None, "signature": None},
     "large": {"standard": None, "modern": None, "signature": None},
-    "extra_large": {"standard": 120, "modern": 140, "signature": 160},
+    "extra_large": {"standard": 70, "modern": 80, "signature": 90},
 }
 
 DEFAULT_MAT_COLOR = {

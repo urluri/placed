@@ -63,7 +63,7 @@ const defaultMatSizeConfig: MatSizeConfig = {
     small: { standard: "", modern: "", signature: "" },
     medium: { standard: "", modern: "", signature: "" },
     large: { standard: "", modern: "", signature: "" },
-    extra_large: { standard: "120", modern: "140", signature: "160" },
+    extra_large: { standard: "70", modern: "80", signature: "90" },
   },
 };
 
