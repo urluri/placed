@@ -21,6 +21,8 @@ ARTWORK_TYPE_LABELS = {
     "poster": "постер",
     "photo": "фото",
     "watercolor": "акварель",
+    "engraving": "гравюра",
+    "botanical": "ботаническая иллюстрация",
     "canvas": "холст",
     "volumetric": "объемная работа",
 }
@@ -28,6 +30,8 @@ ARTWORK_TYPE_LABELS = {
 CONSTRUCTIVE_RULES = {
     "watercolor": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": False},
     "photo": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": False},
+    "engraving": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": False},
+    "botanical": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": False},
     "poster": {"glass_required": True, "glass_type": "regular", "mat": "vote", "shadow_box": False},
     "canvas": {"glass_required": False, "glass_type": "none", "mat": "never", "shadow_box": False},
     "volumetric": {"glass_required": True, "glass_type": "museum", "mat": "always", "shadow_box": True},
@@ -47,17 +51,17 @@ POSTER_SIZE_PROFILE_VOTES = {
 }
 
 MAT_SIZE_PERCENTAGES = {
-    "small": {"standard": 0.35, "modern": 0.45, "signature": 0.55},
-    "medium": {"standard": 0.25, "modern": 0.35, "signature": 0.40},
-    "large": {"standard": 0.15, "modern": 0.20, "signature": 0.25},
-    "extra_large": {"standard": 0.10, "modern": 0.15, "signature": 0.20},
+    "small": {"standard": 0.35, "modern": 0.35, "signature": 0.45},
+    "medium": {"standard": 0.25, "modern": 0.25, "signature": 0.35},
+    "large": {"standard": 0.15, "modern": 0.15, "signature": 0.20},
+    "extra_large": {"standard": 0.10, "modern": 0.10, "signature": 0.15},
 }
 
 MAT_SIZE_MAX_MM = {
     "small": {"standard": None, "modern": None, "signature": None},
     "medium": {"standard": None, "modern": None, "signature": None},
     "large": {"standard": None, "modern": None, "signature": None},
-    "extra_large": {"standard": 70, "modern": 80, "signature": 90},
+    "extra_large": {"standard": 70, "modern": 70, "signature": 80},
 }
 
 DEFAULT_MAT_COLOR = {
@@ -565,6 +569,11 @@ def normalize_artwork_type(value):
         "photo": "photo",
         "акварель": "watercolor",
         "watercolor": "watercolor",
+        "гравюра": "engraving",
+        "engraving": "engraving",
+        "ботаническая иллюстрация": "botanical",
+        "ботаника": "botanical",
+        "botanical": "botanical",
         "холст": "canvas",
         "canvas": "canvas",
         "объемная": "volumetric",

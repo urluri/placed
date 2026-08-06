@@ -21,6 +21,8 @@ const artworkOptions: Array<{ value: ArtworkType; label: string }> = [
   { value: "poster", label: "Постер" },
   { value: "photo", label: "Фото" },
   { value: "watercolor", label: "Акварель" },
+  { value: "engraving", label: "Гравюра" },
+  { value: "botanical", label: "Ботаническая иллюстрация" },
   { value: "canvas", label: "Холст" },
   { value: "volumetric", label: "Объёмная" },
 ];
@@ -54,16 +56,16 @@ const decorStyleLabels: Record<DecorStyle, string> = {
 
 const defaultMatSizeConfig: MatSizeConfig = {
   percentages: {
-    small: { standard: "35", modern: "45", signature: "55" },
-    medium: { standard: "25", modern: "35", signature: "40" },
-    large: { standard: "15", modern: "20", signature: "25" },
-    extra_large: { standard: "10", modern: "15", signature: "20" },
+    small: { standard: "35", modern: "35", signature: "45" },
+    medium: { standard: "25", modern: "25", signature: "35" },
+    large: { standard: "15", modern: "15", signature: "20" },
+    extra_large: { standard: "10", modern: "10", signature: "15" },
   },
   max_mm: {
     small: { standard: "", modern: "", signature: "" },
     medium: { standard: "", modern: "", signature: "" },
     large: { standard: "", modern: "", signature: "" },
-    extra_large: { standard: "70", modern: "80", signature: "90" },
+    extra_large: { standard: "70", modern: "70", signature: "80" },
   },
 };
 

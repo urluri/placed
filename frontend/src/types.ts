@@ -1,4 +1,4 @@
-export type ArtworkType = "poster" | "photo" | "watercolor" | "canvas" | "volumetric";
+export type ArtworkType = "poster" | "photo" | "watercolor" | "engraving" | "botanical" | "canvas" | "volumetric";
 export type InteriorStyle =
   | "minimal"
   | "scandi"
