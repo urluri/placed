@@ -50,9 +50,12 @@ def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
 
     left, top, right, bottom = aperture_rect
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle(
-        [left - left_reveal, top - top_reveal, right + right_reveal, bottom + bottom_reveal],
-        fill=color,
-    )
-    draw.rectangle([left, top, right, bottom], fill=color)
+    if left_reveal > 0:
+        draw.rectangle([left - left_reveal, top - top_reveal, left, bottom + bottom_reveal], fill=color)
+    if top_reveal > 0:
+        draw.rectangle([left, top - top_reveal, right, top], fill=color)
+    if right_reveal > 0:
+        draw.rectangle([right, top - top_reveal, right + right_reveal, bottom + bottom_reveal], fill=color)
+    if bottom_reveal > 0:
+        draw.rectangle([left, bottom, right, bottom + bottom_reveal], fill=color)
     return canvas

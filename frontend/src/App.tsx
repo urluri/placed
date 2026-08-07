@@ -39,6 +39,7 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 ];
 
 const decorStyles: DecorStyle[] = ["standard", "signature"];
+const matSizeDecorStyles: DecorStyle[] = ["standard"];
 const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
 
 const sizeProfileLabels: Record<SizeProfile, string> = {
@@ -55,16 +56,16 @@ const decorStyleLabels: Record<DecorStyle, string> = {
 
 const defaultMatSizeConfig: MatSizeConfig = {
   percentages: {
-    small: { standard: "35", signature: "40" },
-    medium: { standard: "25", signature: "30" },
-    large: { standard: "15", signature: "20" },
-    extra_large: { standard: "10", signature: "15" },
+    small: { standard: "35", signature: "35" },
+    medium: { standard: "25", signature: "25" },
+    large: { standard: "15", signature: "15" },
+    extra_large: { standard: "10", signature: "10" },
   },
   max_mm: {
     small: { standard: "", signature: "" },
     medium: { standard: "", signature: "" },
     large: { standard: "", signature: "" },
-    extra_large: { standard: "70", signature: "80" },
+    extra_large: { standard: "70", signature: "70" },
   },
 };
 
@@ -671,7 +672,7 @@ export default function App() {
               </div>
               <div className="mat-size-grid" role="group" aria-label="Таблица размеров паспарту">
                 <span />
-                {decorStyles.map((decorStyle) => (
+                {matSizeDecorStyles.map((decorStyle) => (
                   <strong key={decorStyle}>{decorStyleLabels[decorStyle]}</strong>
                 ))}
                 {sizeProfiles.map((profile) => (
@@ -685,7 +686,7 @@ export default function App() {
               </div>
               <div className="mat-limit-grid" role="group" aria-label="Ограничения паспарту для очень большого профиля">
                 <span>Максимум, мм</span>
-                {decorStyles.map((decorStyle) => (
+                {matSizeDecorStyles.map((decorStyle) => (
                   <label key={decorStyle}>
                     <span>{decorStyleLabels[decorStyle]}</span>
                     <input
@@ -937,7 +938,7 @@ function MatSizeRow({
   return (
     <>
       <span>{sizeProfileLabels[profile]}</span>
-      {decorStyles.map((decorStyle) => (
+      {matSizeDecorStyles.map((decorStyle) => (
         <label key={decorStyle}>
           <span>{decorStyleLabels[decorStyle]}</span>
           <input

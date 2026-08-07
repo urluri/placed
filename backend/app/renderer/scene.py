@@ -24,6 +24,7 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     mat_right = mm_to_px(geometry.get("mat_right", 0))
     mat_top = mm_to_px(geometry.get("mat_top", 0))
     mat_bottom = mm_to_px(geometry.get("mat_bottom", 0))
+    overlap = mm_to_px(geometry.get("overlap", 0))
     inner_reveal_left = mm_to_px(geometry.get("inner_reveal_left", geometry.get("inner_reveal", 0)))
     inner_reveal_right = mm_to_px(geometry.get("inner_reveal_right", geometry.get("inner_reveal", 0)))
     inner_reveal_top = mm_to_px(geometry.get("inner_reveal_top", geometry.get("inner_reveal", 0)))
@@ -37,52 +38,60 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
 
     artwork = artwork.resize((art_w, art_h), Image.LANCZOS)
 
-    mat_outer_w = art_w + mat_left + mat_right
-    mat_outer_h = art_h + mat_top + mat_bottom
+    window_w = art_w - 2 * overlap if has_mat else art_w
+    window_h = art_h - 2 * overlap if has_mat else art_h
+    mat_outer_w = window_w + mat_left + mat_right
+    mat_outer_h = window_h + mat_top + mat_bottom
     picture_w = mat_outer_w + frame * 2
     picture_h = mat_outer_h + frame * 2
 
     outer_rect = (0, 0, picture_w - 1, picture_h - 1)
     mat_rect = (frame, frame, frame + mat_outer_w, frame + mat_outer_h)
-    art_rect = (
+    window_rect = (
         frame + mat_left,
         frame + mat_top,
-        frame + mat_left + art_w,
-        frame + mat_top + art_h,
+        frame + mat_left + window_w,
+        frame + mat_top + window_h,
+    )
+    art_rect = (
+        window_rect[0] - overlap,
+        window_rect[1] - overlap,
+        window_rect[0] - overlap + art_w,
+        window_rect[1] - overlap + art_h,
     )
 
     canvas = Image.new("RGB", (picture_w, picture_h), frame_color)
     canvas = draw_frame(canvas, outer_rect, frame, frame_color)
+    canvas.paste(artwork, (art_rect[0], art_rect[1]))
 
     if has_mat:
         mat_px = max(1, min(mat_left, mat_right, mat_top, mat_bottom))
         if has_inner_reveal:
             top_aperture_rect = (
-                art_rect[0] - inner_reveal_left,
-                art_rect[1] - inner_reveal_top,
-                art_rect[2] + inner_reveal_right,
-                art_rect[3] + inner_reveal_bottom,
+                window_rect[0] - inner_reveal_left,
+                window_rect[1] - inner_reveal_top,
+                window_rect[2] + inner_reveal_right,
+                window_rect[3] + inner_reveal_bottom,
             )
             canvas = draw_mat(canvas, mat_rect, top_aperture_rect, mat_px, mat_color)
             canvas = draw_inner_reveal(
                 canvas,
-                art_rect,
+                window_rect,
                 (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
                 inner_mat_color,
             )
         else:
-            canvas = draw_mat(canvas, mat_rect, art_rect, mat_px, mat_color)
-            canvas = add_inner_occlusion(canvas, art_rect, blur=7, opacity=44, spread=max(4, mat_px // 14))
+            canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)
+            canvas = add_inner_occlusion(canvas, window_rect, blur=7, opacity=44, spread=max(4, mat_px // 14))
     else:
         canvas = add_inner_occlusion(canvas, art_rect, blur=5, opacity=32, spread=max(3, frame // 8))
 
-    canvas.paste(artwork, (art_rect[0], art_rect[1]))
     if not has_inner_reveal:
-        canvas = add_contact_shadow(canvas, art_rect, blur=4, opacity=24)
+        canvas = add_contact_shadow(canvas, window_rect, blur=4, opacity=24)
 
     if glass_type and glass_type != "none":
         opacity = 12 if glass_type == "museum" else 16
-        canvas = add_glass_effect(canvas, art_rect, opacity=opacity)
+        canvas = add_glass_effect(canvas, window_rect, opacity=opacity)
 
     canvas = add_global_lighting(canvas, strength=0.045)
     canvas = add_vignette(canvas, strength=0.045)

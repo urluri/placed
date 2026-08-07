@@ -554,7 +554,7 @@ legend,
 
 .mat-size-grid {
   display: grid;
-  grid-template-columns: 92px repeat(3, minmax(0, 1fr));
+  grid-template-columns: 92px minmax(0, 1fr);
   gap: 7px;
   align-items: center;
 }
@@ -591,7 +591,7 @@ legend,
 
 .mat-limit-grid {
   display: grid;
-  grid-template-columns: 92px repeat(3, minmax(0, 1fr));
+  grid-template-columns: 92px minmax(0, 1fr);
   gap: 7px;
   align-items: end;
 }
@@ -870,7 +870,9 @@ legend,
   border-radius: 7px;
   background: var(--ink);
   color: #fff;
+  font-size: 13px;
   font-weight: 800;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -1713,7 +1715,7 @@ body {
 
 .mat-size-grid,
 .mat-limit-grid {
-  grid-template-columns: 92px repeat(2, minmax(0, 1fr));
+  grid-template-columns: 92px minmax(0, 1fr);
 }
 
 .variant-tabs {

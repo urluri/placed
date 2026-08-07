@@ -51,20 +51,21 @@ POSTER_SIZE_PROFILE_VOTES = {
 }
 
 MAT_SIZE_PERCENTAGES = {
-    "small": {"standard": 0.35, "signature": 0.40},
-    "medium": {"standard": 0.25, "signature": 0.30},
-    "large": {"standard": 0.15, "signature": 0.20},
-    "extra_large": {"standard": 0.10, "signature": 0.15},
+    "small": {"standard": 0.35, "signature": 0.35},
+    "medium": {"standard": 0.25, "signature": 0.25},
+    "large": {"standard": 0.15, "signature": 0.15},
+    "extra_large": {"standard": 0.10, "signature": 0.10},
 }
 
 MAT_SIZE_MAX_MM = {
     "small": {"standard": None, "signature": None},
     "medium": {"standard": None, "signature": None},
     "large": {"standard": None, "signature": None},
-    "extra_large": {"standard": 70, "signature": 80},
+    "extra_large": {"standard": 70, "signature": 70},
 }
 
 SIGNATURE_INNER_MAT_RATIO = 0.8
+MAT_WINDOW_OVERLAP_MM = 5
 
 PLACED_PALETTE = {
     "PW001": {"id": "PW001", "name": "Museum White", "hex": "#F7F6F2", "family": "white", "role": "base_white"},
@@ -388,7 +389,8 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
         )
 
     mat_size_config = normalize_mat_size_config(mat_size_config)
-    base_size = mat_base_size(width, height, decor_style, size_profile, mat_size_config)
+    size_style = mat_size_style_for_geometry(decor_style)
+    base_size = mat_base_size(width, height, size_style, size_profile, mat_size_config)
     bottom_size = int(round(base_size * 1.1))
     inner_color = signature_inner_mat_color(image_analysis) if decor_style == DecorStyle.signature.value else None
     inner_reveal_left = signature_inner_reveal(base_size) if inner_color else 0
@@ -404,7 +406,7 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
         right_mm=base_size,
         top_mm=base_size,
         bottom_mm=bottom_size,
-        overlap_mm=0,
+        overlap_mm=MAT_WINDOW_OVERLAP_MM,
         inner_reveal_mm=inner_reveal_top,
         inner_reveal_left_mm=inner_reveal_left,
         inner_reveal_right_mm=inner_reveal_right,
@@ -416,6 +418,12 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
 def signature_inner_reveal(outer_field_mm):
     reveal = int(round(outer_field_mm * (1 - SIGNATURE_INNER_MAT_RATIO)))
     return max(1, reveal)
+
+
+def mat_size_style_for_geometry(decor_style):
+    if decor_style == DecorStyle.signature.value:
+        return DecorStyle.standard.value
+    return decor_style
 
 
 def mat_base_size(width, height, decor_style, size_profile, mat_size_config=None):
@@ -636,17 +644,19 @@ def mat_reason(mat, decor_style, size_profile, mat_size_config=None):
     if not mat.enabled:
         return "Паспарту не используется."
     mat_size_config = normalize_mat_size_config(mat_size_config)
-    percentage = int(round(mat_size_config["percentages"][size_profile][decor_style] * 100))
-    max_size = mat_size_config["max_mm"][size_profile][decor_style]
+    size_style = mat_size_style_for_geometry(decor_style)
+    percentage = int(round(mat_size_config["percentages"][size_profile][size_style] * 100))
+    max_size = mat_size_config["max_mm"][size_profile][size_style]
     limit_note = f", ограничение {max_size} мм" if max_size is not None else ""
     base_reason = (
-        f"Размер паспарту: верх и боковые края {mat.left_mm} мм "
+        f"Размер паспарту: окно меньше изображения на {mat.overlap_mm} мм с каждой стороны; "
+        f"верх и боковые края {mat.left_mm} мм "
         f"({percentage}% от меньшей стороны работы{limit_note}), нижний край {mat.bottom_mm} мм."
     )
     if decor_style != DecorStyle.signature.value:
         return base_reason
     return (
-        f"{base_reason} Для Signature добавлено нижнее паспарту: видимая внутренняя полоса "
+        f"{base_reason} Для Signature общий размер поля совпадает со Standard; нижнее паспарту занимает внутренние 20% поля: "
         f"{mat.inner_reveal_left_mm}/{mat.inner_reveal_top_mm}/{mat.inner_reveal_right_mm}/{mat.inner_reveal_bottom_mm} мм."
     )
 
@@ -655,13 +665,18 @@ def mat_facts(mat, decor_style, size_profile, width, height, mat_size_config=Non
     if not mat.enabled:
         return ["Паспарту отключено, размер не рассчитывается."]
     mat_size_config = normalize_mat_size_config(mat_size_config)
-    percentage = int(round(mat_size_config["percentages"][size_profile][decor_style] * 100))
-    raw_size = int(round(min(width, height) * mat_size_config["percentages"][size_profile][decor_style]))
-    max_size = mat_size_config["max_mm"][size_profile][decor_style]
+    size_style = mat_size_style_for_geometry(decor_style)
+    percentage = int(round(mat_size_config["percentages"][size_profile][size_style] * 100))
+    raw_size = int(round(min(width, height) * mat_size_config["percentages"][size_profile][size_style]))
+    max_size = mat_size_config["max_mm"][size_profile][size_style]
+    window_width = width - 2 * mat.overlap_mm
+    window_height = height - 2 * mat.overlap_mm
     facts = [
         f"Меньшая сторона работы: {min(width, height)} мм.",
         f"Размерный профиль: {SIZE_PROFILE_LABELS[size_profile]}.",
         f"Вариант оформления: {decor_style}.",
+        f"Окно паспарту: {window_width} x {window_height} мм.",
+        f"Нахлест паспарту на изображение: {mat.overlap_mm} мм с каждой стороны.",
         f"Процент по таблице: {percentage}%.",
         f"Размер по проценту до ограничения: {raw_size} мм.",
         f"Левый/правый/верхний край: {mat.left_mm} мм.",
@@ -673,7 +688,8 @@ def mat_facts(mat, decor_style, size_profile, width, height, mat_size_config=Non
     if decor_style == DecorStyle.signature.value:
         facts.extend(
             [
-                "Signature: нижнее паспарту считается как 80% от соответствующих полей верхнего.",
+                "Signature: окно нижнего паспарту совпадает с окном Standard.",
+                "Signature: общий размер поля совпадает со Standard; верхнее паспарту сокращено до внешних 80%, нижнее раскрытие занимает внутренние 20%.",
                 (
                     "Видимая внутренняя полоса нижнего паспарту: "
                     f"{mat.inner_reveal_left_mm}/{mat.inner_reveal_top_mm}/"
@@ -689,8 +705,8 @@ def build_geometry(width, height, frame_width, mat, size_profile):
     if mat.enabled:
         window_width = width - 2 * mat.overlap_mm
         window_height = height - 2 * mat.overlap_mm
-        mat_outer_width = width + mat.left_mm + mat.right_mm
-        mat_outer_height = height + mat.top_mm + mat.bottom_mm
+        mat_outer_width = window_width + mat.left_mm + mat.right_mm
+        mat_outer_height = window_height + mat.top_mm + mat.bottom_mm
     else:
         window_width = width
         window_height = height
@@ -719,6 +735,7 @@ def renderer_geometry(spec):
         "mat_right": mat["right_mm"] if mat and mat["enabled"] else 0,
         "mat_top": mat["top_mm"] if mat and mat["enabled"] else 0,
         "mat_bottom": mat["bottom_mm"] if mat and mat["enabled"] else 0,
+        "overlap": mat["overlap_mm"] if mat and mat["enabled"] else 0,
         "inner_reveal": mat["inner_reveal_mm"] if mat and mat["enabled"] else 0,
         "inner_reveal_left": mat["inner_reveal_left_mm"] if mat and mat["enabled"] else 0,
         "inner_reveal_right": mat["inner_reveal_right_mm"] if mat and mat["enabled"] else 0,
