@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { recommend, renderPreview } from "./api";
@@ -382,6 +382,8 @@ export default function App() {
             onClick={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
           >
             <span className="theme-switch-track" aria-hidden="true">
+              <span className="theme-switch-symbol theme-switch-sun">☀</span>
+              <span className="theme-switch-symbol theme-switch-moon">☾</span>
               <span className="theme-switch-thumb" />
             </span>
           </button>
@@ -599,13 +601,22 @@ export default function App() {
       <section className="preview-stage" aria-label="Превью оформления">
         <div className="preview-toolbar">
           <div className="preview-meta">
-            <span className="preview-dimensions">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</span>
-            <strong>{decorStyleLabels[selectedDecorStyle]}</strong>
-            <small>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</small>
-            <output className="size-badge" aria-label={`Размерный профиль: ${sizeProfileLabel}`} title={`Размерный профиль: ${sizeProfileLabel}`}>
-              <span aria-hidden="true">□</span>
-              {sizeProfileShort}
-            </output>
+            <div className="preview-meta-row">
+              <span>Размер</span>
+              <strong className="preview-dimensions">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</strong>
+              <output className="size-badge" aria-label={`Размерный профиль: ${sizeProfileLabel}`} title={`Размерный профиль: ${sizeProfileLabel}`}>
+                <span className="size-badge-icon" aria-hidden="true" />
+                {sizeProfileShort}
+              </output>
+            </div>
+            <div className="preview-meta-row">
+              <span>Исполнение</span>
+              <strong>{decorStyleLabels[selectedDecorStyle]}</strong>
+            </div>
+            <div className="preview-meta-row">
+              <span>Интерьер</span>
+              <strong>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</strong>
+            </div>
           </div>
           <div className="preview-mode-panel">
             <nav className="variant-tabs" aria-label="Варианты оформления">
@@ -641,7 +652,10 @@ export default function App() {
               aria-label="Скачать превью"
               title="Скачать превью"
             >
-              <span aria-hidden="true">↓</span>
+              <span className="download-icon" aria-hidden="true">
+                <span className="download-icon-arrow" />
+                <span className="download-icon-tray" />
+              </span>
             </button>
           </div>
         </div>
@@ -726,20 +740,22 @@ function SelectField<T extends string>({
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
 }) {
+  const selectId = useId();
+
   return (
-    <label className="select-field">
-      <span className="field-label">
-        {label}
+    <div className="select-field">
+      <div className="field-label-row">
+        <label htmlFor={selectId}>{label}</label>
         {tooltip && <TooltipHint text={tooltip} />}
-      </span>
-      <select value={value} onChange={(event) => onChange(event.target.value as T)}>
+      </div>
+      <select id={selectId} value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }
 
