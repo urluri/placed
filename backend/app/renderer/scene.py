@@ -33,6 +33,7 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     inner_mat_color = tuple(geometry.get("inner_mat_color", mat_color))
     glass_type = geometry.get("glass", "none")
     has_mat = any((mat_left, mat_right, mat_top, mat_bottom))
+    has_inner_reveal = any((inner_reveal_left, inner_reveal_right, inner_reveal_top, inner_reveal_bottom))
 
     artwork = artwork.resize((art_w, art_h), Image.LANCZOS)
 
@@ -55,7 +56,6 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
 
     if has_mat:
         mat_px = max(1, min(mat_left, mat_right, mat_top, mat_bottom))
-        has_inner_reveal = any((inner_reveal_left, inner_reveal_right, inner_reveal_top, inner_reveal_bottom))
         if has_inner_reveal:
             top_aperture_rect = (
                 art_rect[0] - inner_reveal_left,
@@ -72,12 +72,13 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
             )
         else:
             canvas = draw_mat(canvas, mat_rect, art_rect, mat_px, mat_color)
-        canvas = add_inner_occlusion(canvas, art_rect, blur=7, opacity=44, spread=max(4, mat_px // 14))
+            canvas = add_inner_occlusion(canvas, art_rect, blur=7, opacity=44, spread=max(4, mat_px // 14))
     else:
         canvas = add_inner_occlusion(canvas, art_rect, blur=5, opacity=32, spread=max(3, frame // 8))
 
     canvas.paste(artwork, (art_rect[0], art_rect[1]))
-    canvas = add_contact_shadow(canvas, art_rect, blur=4, opacity=24)
+    if not has_inner_reveal:
+        canvas = add_contact_shadow(canvas, art_rect, blur=4, opacity=24)
 
     if glass_type and glass_type != "none":
         opacity = 12 if glass_type == "museum" else 16
