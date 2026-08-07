@@ -80,6 +80,7 @@ async def render_preview(
     interiorStyle: str = Form("minimal"),
     decorStyle: str = Form("standard"),
     rotateArtwork: bool = Form(False),
+    rotationDegrees: int = Form(0),
     matSizeConfig: str | None = Form(None),
     spec: str | None = Form(None),
     image: UploadFile | None = File(None),
@@ -108,7 +109,7 @@ async def render_preview(
                     heightMm,
                     geometry,
                     output_path=str(Path(tmp_dir) / "preview.jpg"),
-                    rotate_image=rotateArtwork,
+                    rotation_degrees=normalize_rotation(rotationDegrees, rotateArtwork),
                 )
 
         buffer = io.BytesIO()
@@ -132,6 +133,12 @@ def parse_json_field(value: str | None):
     if not value:
         return None
     return json.loads(value)
+
+
+def normalize_rotation(rotation_degrees: int, rotate_artwork: bool):
+    if rotation_degrees in (-90, 0, 90):
+        return rotation_degrees
+    return 90 if rotate_artwork else 0
 
 
 async def uploaded_or_default_image(uploaded: UploadFile | None):

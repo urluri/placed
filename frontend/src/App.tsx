@@ -136,7 +136,7 @@ export default function App() {
     artworkType: "poster",
     interiorStyle: "minimal",
     image: null,
-    rotateArtwork: false,
+    rotationDegrees: 0,
     matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig),
   });
   const [selectedDecorStyle, setSelectedDecorStyle] = useState<DecorStyle>("standard");
@@ -172,6 +172,9 @@ export default function App() {
   const currentPrintQuality = form.imageInfo
     ? printQualityFor(form.imageInfo, dimensionNumber(form.widthMm), dimensionNumber(form.heightMm))
     : null;
+  const sizeProfile = selectedVariant?.geometry.size_profile;
+  const sizeProfileLabel = sizeProfileName(sizeProfile);
+  const sizeProfileShort = sizeProfileAbbreviation(sizeProfile);
   const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
     ? { backgroundImage: `url(${interiorScene.src})` }
     : undefined;
@@ -368,24 +371,24 @@ export default function App() {
         <div className="brand-row">
           <div>
             <p className="eyebrow">Placed MVP</p>
-            <h1>Подбор багета</h1>
           </div>
-          <div className="brand-actions">
-            <button
-              type="button"
-              className="theme-toggle"
-              aria-pressed={themeMode === "dark"}
-              title={themeMode === "dark" ? "Включить светлую тему" : "Включить темную тему"}
-              onClick={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
-            >
-              <span className="theme-toggle-icon" aria-hidden="true" />
-              <span>{themeMode === "dark" ? "Светлая" : "Темная"}</span>
-            </button>
-            <output className="status-pill">{sizeProfileName(selectedVariant?.geometry.size_profile)}</output>
-          </div>
+          <button
+            type="button"
+            className="theme-switch"
+            role="switch"
+            aria-checked={themeMode === "dark"}
+            aria-label={themeMode === "dark" ? "Включить светлую тему" : "Включить темную тему"}
+            title={themeMode === "dark" ? "Светлая тема" : "Темная тема"}
+            onClick={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
+          >
+            <span className="theme-switch-track" aria-hidden="true">
+              <span className="theme-switch-thumb" />
+            </span>
+          </button>
         </div>
 
         <form className="config-form">
+          <div className="menu-section">
           <div className="compact-upload">
             <button
               type="button"
@@ -411,11 +414,12 @@ export default function App() {
               <small>{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
             </div>
           </div>
+          </div>
 
-          <div className="size-source-panel">
+          <div className="menu-section size-source-panel">
             <div className="section-label-row">
               <span>Размер работы</span>
-              <TooltipHint text="Если это цифровой файл, можно рассчитать размер печати по пикселям. Если работа уже существует физически, задайте размер вручную." />
+              <TooltipHint text={"Файл: размер по пикселям и PPI.\nВручную: реальный размер в мм."} />
             </div>
             <div className="segmented-control" aria-label="Источник физического размера">
               <button
@@ -444,9 +448,6 @@ export default function App() {
                 <strong>{currentPrintQuality ? currentPrintQuality.label : "Качество не рассчитано"}</strong>
               </div>
             )}
-            {!form.imageInfo && (
-              <p className="size-mode-hint">Загрузите изображение, чтобы рассчитать размер печати автоматически.</p>
-            )}
             {form.imageInfo && form.sizeSource === "from_file" && (
               <div className="print-presets" aria-label="Размеры печати по качеству">
                 {printSizePresets.map((preset) => {
@@ -469,7 +470,7 @@ export default function App() {
             )}
           </div>
 
-          <fieldset className="dimensions">
+          <fieldset className="menu-section dimensions">
             <legend>
               Физические размеры
               {form.sizeSource === "manual" && form.imageInfo && (
@@ -510,17 +511,33 @@ export default function App() {
             </label>
           </fieldset>
 
-          <label className="rotate-toggle">
-            <input
-              type="checkbox"
-              checked={form.rotateArtwork}
-              onChange={(event) => updateForm({ rotateArtwork: event.target.checked })}
-            />
-            <span>Развернуть изображение на 90°</span>
-          </label>
+          <div className="menu-section inline-controls" aria-label="Поворот изображения">
+            <span className="section-caption">Поворот</span>
+            <button
+              type="button"
+              className={`icon-button ${form.rotationDegrees === -90 ? "is-active" : ""}`}
+              aria-pressed={form.rotationDegrees === -90}
+              aria-label="Повернуть против часовой стрелки"
+              title="Повернуть против часовой стрелки"
+              onClick={() => updateForm({ rotationDegrees: form.rotationDegrees === -90 ? 0 : -90 })}
+            >
+              <span aria-hidden="true">↺</span>
+            </button>
+            <button
+              type="button"
+              className={`icon-button ${form.rotationDegrees === 90 ? "is-active" : ""}`}
+              aria-pressed={form.rotationDegrees === 90}
+              aria-label="Повернуть по часовой стрелке"
+              title="Повернуть по часовой стрелке"
+              onClick={() => updateForm({ rotationDegrees: form.rotationDegrees === 90 ? 0 : 90 })}
+            >
+              <span aria-hidden="true">↻</span>
+            </button>
+          </div>
 
           <SelectField
             label="Тип работы"
+            tooltip="Материал влияет на стекло, паспарту и shadow box."
             value={form.artworkType}
             options={artworkOptions}
             onChange={(artworkType) => updateForm({ artworkType })}
@@ -528,6 +545,7 @@ export default function App() {
 
           <SelectField
             label="Стиль интерьера"
+            tooltip="Сейчас выбирает интерьерную сцену для превью."
             value={form.interiorStyle}
             options={interiorOptions}
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
@@ -581,9 +599,13 @@ export default function App() {
       <section className="preview-stage" aria-label="Превью оформления">
         <div className="preview-toolbar">
           <div className="preview-meta">
-            <span>{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</span>
-            <strong>{selectedDecorStyle.toUpperCase()}</strong>
+            <span className="preview-dimensions">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</span>
+            <strong>{decorStyleLabels[selectedDecorStyle]}</strong>
             <small>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</small>
+            <output className="size-badge" aria-label={`Размерный профиль: ${sizeProfileLabel}`} title={`Размерный профиль: ${sizeProfileLabel}`}>
+              <span aria-hidden="true">□</span>
+              {sizeProfileShort}
+            </output>
           </div>
           <div className="preview-mode-panel">
             <nav className="variant-tabs" aria-label="Варианты оформления">
@@ -611,8 +633,15 @@ export default function App() {
             <button type="button" className="apply-button" onClick={applyRender} disabled={isRendering}>
               {isRendering ? "Применяю" : "Применить"}
             </button>
-            <button type="button" onClick={() => downloadPreview(previewUrl, selectedDecorStyle)} disabled={!previewUrl}>
-              Скачать превью
+            <button
+              type="button"
+              className="icon-action"
+              onClick={() => downloadPreview(previewUrl, selectedDecorStyle)}
+              disabled={!previewUrl}
+              aria-label="Скачать превью"
+              title="Скачать превью"
+            >
+              <span aria-hidden="true">↓</span>
             </button>
           </div>
         </div>
@@ -686,18 +715,23 @@ export default function App() {
 
 function SelectField<T extends string>({
   label,
+  tooltip,
   value,
   options,
   onChange,
 }: {
   label: string;
+  tooltip?: string;
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
 }) {
   return (
     <label className="select-field">
-      <span>{label}</span>
+      <span className="field-label">
+        {label}
+        {tooltip && <TooltipHint text={tooltip} />}
+      </span>
       <select value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -711,7 +745,7 @@ function SelectField<T extends string>({
 
 function TooltipHint({ text }: { text: string }) {
   return (
-    <span className="tooltip-hint" tabIndex={0} title={text} aria-label={text}>
+    <span className="tooltip-hint" tabIndex={0} data-tooltip={text} aria-label={text}>
       ?
     </span>
   );
@@ -833,6 +867,16 @@ function sizeProfileName(value?: string) {
     extra_large: "очень большой",
   };
   return names[value ?? ""] ?? "средний";
+}
+
+function sizeProfileAbbreviation(value?: string) {
+  const names: Record<string, string> = {
+    small: "S",
+    medium: "M",
+    large: "L",
+    extra_large: "XL",
+  };
+  return names[value ?? ""] ?? "M";
 }
 
 function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | undefined) {

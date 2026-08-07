@@ -12,10 +12,10 @@ TECHNICAL_FRAME_COLOR = (0, 0, 0)
 DEFAULT_MAT_COLOR = (255, 255, 240)
 
 
-def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", rotate_image=False):
+def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", rotation_degrees=0):
     artwork = Image.open(image_path).convert("RGB")
-    if rotate_image:
-        artwork = artwork.rotate(90, expand=True)
+    if rotation_degrees:
+        artwork = artwork.rotate(rotation_degrees, expand=True)
 
     art_w = mm_to_px(img_w_mm)
     art_h = mm_to_px(img_h_mm)

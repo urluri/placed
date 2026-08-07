@@ -153,6 +153,6 @@ export type FormState = {
   artworkType: ArtworkType;
   interiorStyle: InteriorStyle;
   image: File | null;
-  rotateArtwork: boolean;
+  rotationDegrees: -90 | 0 | 90;
   matSizeConfig: MatSizeConfig;
 };

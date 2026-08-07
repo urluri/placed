@@ -1,45 +1,45 @@
 :root {
   color-scheme: light;
-  --ink: #201f1c;
-  --muted: #777169;
-  --soft: #9a9288;
-  --line: #ded8ce;
-  --line-strong: #c9c0b4;
-  --paper: #f4f1eb;
-  --panel: rgba(255, 254, 251, 0.92);
-  --panel-solid: #fffefa;
-  --field: #f3eee6;
-  --control: #fbf8f2;
-  --control-hover: #fffdfa;
-  --accent: #2b6c60;
-  --accent-soft: #e1eee9;
+  --ink: #242523;
+  --muted: #6f736e;
+  --soft: #90958d;
+  --line: #d8d9d4;
+  --line-strong: #bfc4bc;
+  --paper: #f7f6f2;
+  --panel: rgba(247, 246, 242, 0.92);
+  --panel-solid: #f7f6f2;
+  --field: #f1f0ec;
+  --control: #ffffff;
+  --control-hover: #f3f7f4;
+  --accent: #5f8177;
+  --accent-soft: #e4ede8;
   --accent-ink: #ffffff;
-  --stage: #ddd8cf;
-  --stage-deep: #cbc4b9;
+  --stage: #e5e4e0;
+  --stage-deep: #cfcbc5;
   --danger: #9d3e36;
-  --shadow: 0 22px 54px rgba(45, 39, 31, 0.14);
-  --shadow-soft: 0 10px 28px rgba(45, 39, 31, 0.1);
+  --shadow: 0 22px 54px rgba(49, 55, 50, 0.13);
+  --shadow-soft: 0 10px 28px rgba(49, 55, 50, 0.09);
   --radius: 8px;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #f2eee6;
-  --muted: #aaa298;
-  --soft: #81796f;
-  --line: #3d3832;
-  --line-strong: #50483f;
-  --paper: #141311;
-  --panel: rgba(28, 26, 23, 0.94);
-  --panel-solid: #1d1b18;
-  --field: #24211d;
-  --control: #23201c;
-  --control-hover: #2b2721;
-  --accent: #8cc9b8;
-  --accent-soft: rgba(140, 201, 184, 0.14);
-  --accent-ink: #10221d;
-  --stage: #1b1a18;
-  --stage-deep: #11100f;
+  --ink: #f3f2ed;
+  --muted: #b1b5ad;
+  --soft: #7e837b;
+  --line: #3e433d;
+  --line-strong: #596158;
+  --paper: #171916;
+  --panel: rgba(28, 31, 28, 0.94);
+  --panel-solid: #1d211d;
+  --field: #252a25;
+  --control: #232822;
+  --control-hover: #2d342d;
+  --accent: #a7b39c;
+  --accent-soft: rgba(167, 179, 156, 0.16);
+  --accent-ink: #172016;
+  --stage: #20241f;
+  --stage-deep: #111410;
   --danger: #e19086;
   --shadow: 0 24px 64px rgba(0, 0, 0, 0.36);
   --shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.28);
@@ -1275,7 +1275,8 @@ legend,
 
 .plain-preview {
   background:
-    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--panel-solid) 72%, transparent), transparent 45%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-solid) 66%, transparent), transparent 48%),
+    linear-gradient(90deg, color-mix(in srgb, var(--panel-solid) 24%, transparent), transparent 36%),
     linear-gradient(180deg, color-mix(in srgb, var(--stage) 86%, var(--panel-solid)), var(--stage-deep));
 }
 
@@ -1337,7 +1338,8 @@ legend,
 
 .app-shell[data-theme="dark"] .plain-preview {
   background:
-    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.08), transparent 45%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), transparent 46%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045), transparent 34%),
     linear-gradient(180deg, #211f1c, var(--stage-deep));
 }
 
@@ -1355,5 +1357,305 @@ legend,
 
   .brand-row h1 {
     max-width: none;
+  }
+}
+
+/* Modernized control surface */
+body {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-solid) 28%, transparent), transparent 42%),
+    var(--paper);
+}
+
+.app-shell {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--stage) 28%, transparent), transparent 44%),
+    var(--paper);
+}
+
+.control-panel {
+  gap: 16px;
+  padding: 20px;
+}
+
+.brand-row {
+  min-height: 38px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.brand-row h1 {
+  display: none;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+}
+
+.theme-switch {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.theme-switch-track {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--control);
+  box-shadow: inset 0 1px 2px rgba(30, 34, 30, 0.08);
+}
+
+.theme-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+
+.theme-switch[aria-checked="true"] .theme-switch-track {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
+}
+
+.theme-switch[aria-checked="true"] .theme-switch-thumb {
+  transform: translateX(20px);
+  background: var(--ink);
+}
+
+.config-form {
+  gap: 0;
+}
+
+.menu-section,
+.select-field,
+.debug-panel {
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.menu-section:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.select-field {
+  display: grid;
+  gap: 8px;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tooltip-hint {
+  position: relative;
+  background: var(--control);
+  z-index: 3;
+}
+
+.tooltip-hint::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 218px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: var(--shadow-soft);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: left;
+  white-space: pre-line;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.tooltip-hint:hover::after,
+.tooltip-hint:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.size-mode-hint {
+  display: none;
+}
+
+.inline-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-caption {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.icon-button,
+.icon-action {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--control);
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.icon-button:hover,
+.icon-action:hover {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  color: var(--accent);
+  background: var(--control-hover);
+}
+
+.icon-button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mat-size-grid,
+.mat-limit-grid {
+  grid-template-columns: 92px repeat(2, minmax(0, 1fr));
+}
+
+.variant-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preview-toolbar {
+  grid-template-columns: minmax(210px, 280px) minmax(280px, 390px) auto;
+}
+
+.preview-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 10px;
+  align-items: center;
+}
+
+.preview-meta .preview-dimensions {
+  color: var(--muted);
+}
+
+.preview-meta strong {
+  margin-top: 0;
+  grid-column: 1;
+}
+
+.preview-meta small {
+  grid-column: 1;
+}
+
+.size-badge {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 46px;
+  min-height: 34px;
+  justify-content: center;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.size-badge span {
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.preview-mode-panel {
+  justify-self: center;
+  width: min(390px, 100%);
+}
+
+.preview-actions {
+  flex-wrap: nowrap;
+}
+
+.preview-actions .icon-action {
+  flex: 0 0 auto;
+  min-height: 40px;
+  width: 42px;
+  border-color: var(--line);
+  background: var(--control);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.preview-actions .icon-action:hover {
+  background: var(--control-hover);
+  color: var(--accent);
+}
+
+.preview-actions .icon-action:disabled,
+.preview-actions .icon-action:disabled:hover {
+  background: var(--control);
+  color: var(--soft);
+  opacity: 0.45;
+}
+
+.rotate-toggle {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .preview-mode-panel {
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 520px) {
+  .theme-switch {
+    margin-left: auto;
+  }
+
+  .preview-meta {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .preview-actions .icon-action {
+    flex: 0 0 42px;
   }
 }
