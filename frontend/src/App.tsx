@@ -378,7 +378,6 @@ export default function App() {
             role="switch"
             aria-checked={themeMode === "dark"}
             aria-label={themeMode === "dark" ? "Включить светлую тему" : "Включить темную тему"}
-            title={themeMode === "dark" ? "Светлая тема" : "Темная тема"}
             onClick={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
           >
             <span className="theme-switch-track" aria-hidden="true">
@@ -395,7 +394,6 @@ export default function App() {
             <button
               type="button"
               className="icon-upload"
-              title="Загрузить изображение"
               aria-label="Загрузить изображение"
               onClick={() => uploadInputRef.current?.click()}
             >
@@ -421,14 +419,12 @@ export default function App() {
           <div className="menu-section size-source-panel">
             <div className="section-label-row">
               <span>Размер работы</span>
-              <TooltipHint text={"Файл: размер по пикселям и PPI.\nВручную: реальный размер в мм."} />
             </div>
             <div className="segmented-control" aria-label="Источник физического размера">
               <button
                 type="button"
                 className={form.sizeSource === "from_file" ? "is-active" : ""}
                 disabled={!form.imageInfo}
-                title={form.imageInfo ? "Размер будет рассчитан по пикселям файла и выбранному качеству печати." : "Сначала загрузите изображение."}
                 onClick={() => handleSizeSourceChange("from_file")}
               >
                 Рассчитать по файлу
@@ -436,7 +432,6 @@ export default function App() {
               <button
                 type="button"
                 className={form.sizeSource === "manual" ? "is-active" : ""}
-                title="Введите реальный физический размер работы в миллиметрах."
                 onClick={() => handleSizeSourceChange("manual")}
               >
                 Задать вручную
@@ -480,7 +475,6 @@ export default function App() {
                   type="button"
                   className={`aspect-toggle ${form.lockAspect ? "is-active" : ""}`}
                   aria-pressed={form.lockAspect}
-                  title="При изменении одной стороны вторая пересчитывается по пропорциям загруженного файла."
                   onClick={() => updateForm({ lockAspect: !form.lockAspect })}
                 >
                   {form.lockAspect ? "Сохранять пропорции" : "Свободные пропорции"}
@@ -520,7 +514,6 @@ export default function App() {
               className={`icon-button ${form.rotationDegrees === -90 ? "is-active" : ""}`}
               aria-pressed={form.rotationDegrees === -90}
               aria-label="Повернуть против часовой стрелки"
-              title="Повернуть против часовой стрелки"
               onClick={() => updateForm({ rotationDegrees: form.rotationDegrees === -90 ? 0 : -90 })}
             >
               <span aria-hidden="true">↺</span>
@@ -530,7 +523,6 @@ export default function App() {
               className={`icon-button ${form.rotationDegrees === 90 ? "is-active" : ""}`}
               aria-pressed={form.rotationDegrees === 90}
               aria-label="Повернуть по часовой стрелке"
-              title="Повернуть по часовой стрелке"
               onClick={() => updateForm({ rotationDegrees: form.rotationDegrees === 90 ? 0 : 90 })}
             >
               <span aria-hidden="true">↻</span>
@@ -539,7 +531,6 @@ export default function App() {
 
           <SelectField
             label="Тип работы"
-            tooltip="Материал влияет на стекло, паспарту и shadow box."
             value={form.artworkType}
             options={artworkOptions}
             onChange={(artworkType) => updateForm({ artworkType })}
@@ -547,7 +538,6 @@ export default function App() {
 
           <SelectField
             label="Стиль интерьера"
-            tooltip="Сейчас выбирает интерьерную сцену для превью."
             value={form.interiorStyle}
             options={interiorOptions}
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
@@ -604,7 +594,7 @@ export default function App() {
             <div className="preview-meta-row">
               <span>Размер</span>
               <strong className="preview-dimensions">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</strong>
-              <output className="size-badge" aria-label={`Размерный профиль: ${sizeProfileLabel}`} title={`Размерный профиль: ${sizeProfileLabel}`}>
+              <output className="size-badge" aria-label={`Размерный профиль: ${sizeProfileLabel}`}>
                 <span className="size-badge-icon" aria-hidden="true" />
                 {sizeProfileShort}
               </output>
@@ -646,16 +636,11 @@ export default function App() {
             </button>
             <button
               type="button"
-              className="icon-action"
+              className="download-button"
               onClick={() => downloadPreview(previewUrl, selectedDecorStyle)}
               disabled={!previewUrl}
-              aria-label="Скачать превью"
-              title="Скачать превью"
             >
-              <span className="download-icon" aria-hidden="true">
-                <span className="download-icon-arrow" />
-                <span className="download-icon-tray" />
-              </span>
+              Скачать превью
             </button>
           </div>
         </div>
@@ -729,13 +714,11 @@ export default function App() {
 
 function SelectField<T extends string>({
   label,
-  tooltip,
   value,
   options,
   onChange,
 }: {
   label: string;
-  tooltip?: string;
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
@@ -746,7 +729,6 @@ function SelectField<T extends string>({
     <div className="select-field">
       <div className="field-label-row">
         <label htmlFor={selectId}>{label}</label>
-        {tooltip && <TooltipHint text={tooltip} />}
       </div>
       <select id={selectId} value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
@@ -756,14 +738,6 @@ function SelectField<T extends string>({
         ))}
       </select>
     </div>
-  );
-}
-
-function TooltipHint({ text }: { text: string }) {
-  return (
-    <span className="tooltip-hint" tabIndex={0} data-tooltip={text} aria-label={text}>
-      ?
-    </span>
   );
 }
 
