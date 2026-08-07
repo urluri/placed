@@ -229,6 +229,98 @@ legend,
   font-size: 12px;
 }
 
+.image-history-menu {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfaf7;
+  overflow: hidden;
+}
+
+.image-history-menu summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.image-history-menu summary::after {
+  content: "+";
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.image-history-menu[open] summary::after {
+  content: "-";
+}
+
+.image-history-list {
+  display: grid;
+  gap: 4px;
+  max-height: 280px;
+  padding: 0 6px 6px;
+  overflow: auto;
+}
+
+.image-history-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 54px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.image-history-item:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: var(--control-hover);
+}
+
+.image-history-item img {
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--field);
+}
+
+.image-history-item span,
+.image-history-item strong,
+.image-history-item small {
+  display: block;
+  min-width: 0;
+}
+
+.image-history-item strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-history-item small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
 .size-source-panel {
   display: grid;
   gap: 9px;
@@ -1121,6 +1213,7 @@ legend,
 }
 
 .icon-upload,
+.image-history-menu,
 .segmented-control,
 .file-size-hint,
 .print-presets button,
@@ -1147,6 +1240,7 @@ legend,
 }
 
 .icon-upload:hover,
+.image-history-item:hover,
 .print-presets button:hover,
 .select-field select:hover,
 .interior-toggle:hover,
@@ -1334,6 +1428,7 @@ legend,
 .render-surface,
 .result-panel,
 .debug-panel,
+.image-history-menu,
 .select-field select,
 .segmented-control,
 .file-size-hint,

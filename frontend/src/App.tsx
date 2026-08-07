@@ -124,6 +124,22 @@ const interiorScenes: Record<
 };
 
 type ThemeMode = "light" | "dark";
+type ImageHistoryItem = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  updatedAt: number;
+  thumbnail: string;
+};
+type StoredImageHistoryItem = ImageHistoryItem & {
+  blob: Blob;
+  lastModified: number;
+};
+
+const IMAGE_HISTORY_LIMIT = 15;
+const IMAGE_HISTORY_DB = "placed-image-history";
+const IMAGE_HISTORY_STORE = "images";
 
 export default function App() {
   const [form, setForm] = useState<FormState>({
@@ -146,6 +162,7 @@ export default function App() {
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
+  const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "light";
     const savedTheme = window.localStorage.getItem("placed-theme");
@@ -154,6 +171,20 @@ export default function App() {
   });
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const requestId = useRef(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    void loadImageHistory()
+      .then((items) => {
+        if (isMounted) setImageHistory(items);
+      })
+      .catch(() => {
+        if (isMounted) setImageHistory([]);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -209,6 +240,10 @@ export default function App() {
       return;
     }
 
+    await applyImageFile(file, true);
+  };
+
+  const applyImageFile = async (file: File, shouldSaveToHistory: boolean) => {
     try {
       const imageInfo = await readImageInfo(file);
       const recommendedSize = sizeFromPpi(imageInfo, 300);
@@ -221,9 +256,39 @@ export default function App() {
         widthMm: String(recommendedSize.widthMm),
         heightMm: String(recommendedSize.heightMm),
       });
+
+      if (shouldSaveToHistory) {
+        saveImageToHistory(file)
+          .then(setImageHistory)
+          .catch(() => {
+            setRenderState("Изображение загружено, но история недоступна");
+          });
+      }
     } catch {
       updateForm({ image: file, imageInfo: null, sizeSource: "manual" });
       setRenderState("Не удалось прочитать размер файла");
+    }
+  };
+
+  const handleHistorySelect = async (id: string) => {
+    try {
+      const storedImage = await getStoredImage(id);
+      if (!storedImage) {
+        setImageHistory(await loadImageHistory());
+        setRenderState("Изображение не найдено в истории");
+        return;
+      }
+
+      const file = new File([storedImage.blob], storedImage.name, {
+        type: storedImage.type || storedImage.blob.type || "application/octet-stream",
+        lastModified: storedImage.lastModified || storedImage.updatedAt,
+      });
+
+      await touchHistoryImage(storedImage);
+      setImageHistory(await loadImageHistory());
+      await applyImageFile(file, false);
+    } catch {
+      setRenderState("Не удалось открыть изображение из истории");
     }
   };
 
@@ -390,30 +455,53 @@ export default function App() {
 
         <form className="config-form">
           <div className="menu-section">
-          <div className="compact-upload">
-            <button
-              type="button"
-              className="icon-upload"
-              aria-label="Загрузить изображение"
-              onClick={() => uploadInputRef.current?.click()}
-            >
-              <span aria-hidden="true">+</span>
-            </button>
-            <input
-              ref={uploadInputRef}
-              id="artUpload"
-              type="file"
-              accept="image/*"
-              onChange={(event) => {
-                void handleImageUpload(event.target.files?.[0] ?? null);
-                event.currentTarget.value = "";
-              }}
-            />
-            <div className="upload-summary">
-              <strong>{form.image?.name ?? "Загрузить изображение"}</strong>
-              <small>{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
+            <div className="compact-upload">
+              <button
+                type="button"
+                className="icon-upload"
+                aria-label="Загрузить изображение"
+                onClick={() => uploadInputRef.current?.click()}
+              >
+                <span aria-hidden="true">+</span>
+              </button>
+              <input
+                ref={uploadInputRef}
+                id="artUpload"
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  void handleImageUpload(event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <div className="upload-summary">
+                <strong>{form.image?.name ?? "Загрузить изображение"}</strong>
+                <small>{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
+              </div>
             </div>
-          </div>
+            {imageHistory.length > 0 && (
+              <details className="image-history-menu">
+                <summary>Ранее загруженные</summary>
+                <div className="image-history-list">
+                  {imageHistory.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="image-history-item"
+                      onClick={() => {
+                        void handleHistorySelect(item.id);
+                      }}
+                    >
+                      <img src={item.thumbnail} alt="" />
+                      <span>
+                        <strong>{item.name}</strong>
+                        <small>{Math.round(item.size / 1024)} КБ</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
 
           <div className="menu-section size-source-panel">
@@ -906,6 +994,158 @@ function cloneMatSizeConfig(config: MatSizeConfig): MatSizeConfig {
       extra_large: { ...config.max_mm.extra_large },
     },
   };
+}
+
+async function loadImageHistory(): Promise<ImageHistoryItem[]> {
+  const db = await openImageHistoryDb();
+  const transaction = db.transaction(IMAGE_HISTORY_STORE, "readonly");
+  const store = transaction.objectStore(IMAGE_HISTORY_STORE);
+  const records = await requestResult<StoredImageHistoryItem[]>(store.getAll());
+  db.close();
+
+  return records
+    .sort((first, second) => second.updatedAt - first.updatedAt)
+    .slice(0, IMAGE_HISTORY_LIMIT)
+    .map(publicHistoryItem);
+}
+
+async function saveImageToHistory(file: File): Promise<ImageHistoryItem[]> {
+  const db = await openImageHistoryDb();
+  const now = Date.now();
+  const record: StoredImageHistoryItem = {
+    id: imageHistoryId(file),
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: file.lastModified,
+    updatedAt: now,
+    thumbnail: await createImageThumbnail(file),
+    blob: file,
+  };
+
+  const writeTransaction = db.transaction(IMAGE_HISTORY_STORE, "readwrite");
+  const writeStore = writeTransaction.objectStore(IMAGE_HISTORY_STORE);
+  writeStore.put(record);
+  await transactionComplete(writeTransaction);
+
+  const readTransaction = db.transaction(IMAGE_HISTORY_STORE, "readonly");
+  const readStore = readTransaction.objectStore(IMAGE_HISTORY_STORE);
+  const records = await requestResult<StoredImageHistoryItem[]>(readStore.getAll());
+  const sortedRecords = records.sort((first, second) => second.updatedAt - first.updatedAt);
+  await transactionComplete(readTransaction);
+
+  if (sortedRecords.length > IMAGE_HISTORY_LIMIT) {
+    const cleanupTransaction = db.transaction(IMAGE_HISTORY_STORE, "readwrite");
+    const cleanupStore = cleanupTransaction.objectStore(IMAGE_HISTORY_STORE);
+    for (const item of sortedRecords.slice(IMAGE_HISTORY_LIMIT)) {
+      cleanupStore.delete(item.id);
+    }
+    await transactionComplete(cleanupTransaction);
+  }
+
+  db.close();
+  return sortedRecords.slice(0, IMAGE_HISTORY_LIMIT).map(publicHistoryItem);
+}
+
+async function getStoredImage(id: string): Promise<StoredImageHistoryItem | null> {
+  const db = await openImageHistoryDb();
+  const transaction = db.transaction(IMAGE_HISTORY_STORE, "readonly");
+  const store = transaction.objectStore(IMAGE_HISTORY_STORE);
+  const record = await requestResult<StoredImageHistoryItem | undefined>(store.get(id));
+  db.close();
+  return record ?? null;
+}
+
+async function touchHistoryImage(item: StoredImageHistoryItem) {
+  const db = await openImageHistoryDb();
+  const transaction = db.transaction(IMAGE_HISTORY_STORE, "readwrite");
+  const store = transaction.objectStore(IMAGE_HISTORY_STORE);
+  store.put({ ...item, updatedAt: Date.now() });
+  await transactionComplete(transaction);
+  db.close();
+}
+
+function openImageHistoryDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("IndexedDB is unavailable"));
+      return;
+    }
+
+    const request = indexedDB.open(IMAGE_HISTORY_DB, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(IMAGE_HISTORY_STORE)) {
+        db.createObjectStore(IMAGE_HISTORY_STORE, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Image history is unavailable"));
+  });
+}
+
+function requestResult<T>(request: IDBRequest): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result as T);
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
+  });
+}
+
+function transactionComplete(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+  });
+}
+
+function publicHistoryItem(item: StoredImageHistoryItem): ImageHistoryItem {
+  return {
+    id: item.id,
+    name: item.name,
+    size: item.size,
+    type: item.type,
+    updatedAt: item.updatedAt,
+    thumbnail: item.thumbnail,
+  };
+}
+
+function imageHistoryId(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function createImageThumbnail(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      const size = 72;
+      const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
+      const width = Math.round(image.naturalWidth * scale);
+      const height = Math.round(image.naturalHeight * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Canvas is unavailable"));
+        return;
+      }
+
+      context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Image thumbnail is unavailable"));
+    };
+    image.src = objectUrl;
+  });
 }
 
 function readImageInfo(file: File): Promise<ImageInfo> {
