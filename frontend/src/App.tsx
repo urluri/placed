@@ -157,7 +157,8 @@ export default function App() {
   });
   const [selectedDecorStyle, setSelectedDecorStyle] = useState<DecorStyle>("standard");
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewUrls, setPreviewUrls] = useState<Partial<Record<DecorStyle, string>>>({});
+  const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
@@ -195,6 +196,10 @@ export default function App() {
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
   }, [recommendation, selectedDecorStyle]);
+  const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
+  const hasInputChanges = appliedInputSignature !== currentInputSignature;
+  const currentPreviewUrl = previewUrls[selectedDecorStyle] ?? "";
+  const isApplyDisabled = isRendering || !hasInputChanges;
   const imageAnalysis = recommendation?.image_analysis ?? null;
   const interiorScene = interiorScenes[form.interiorStyle];
   const interiorArtworkScale = selectedVariant
@@ -218,9 +223,9 @@ export default function App() {
     : undefined;
 
   const clearPreview = () => {
-    setPreviewUrl((previousUrl) => {
-      if (previousUrl) URL.revokeObjectURL(previousUrl);
-      return "";
+    setPreviewUrls((previousUrls) => {
+      revokePreviewUrls(previousUrls);
+      return {};
     });
   };
 
@@ -348,12 +353,8 @@ export default function App() {
   };
 
   const handleDecorStyleChange = (decorStyle: DecorStyle) => {
-    requestId.current += 1;
-    setIsRendering(false);
     setSelectedDecorStyle(decorStyle);
     setShowDecisionTree(false);
-    clearPreview();
-    setRenderState("Нажмите «Применить»");
   };
 
   const handleMatPercentageChange = (profile: SizeProfile, decorStyle: DecorStyle, value: string) => {
@@ -410,14 +411,42 @@ export default function App() {
         return;
       }
 
-      setRenderState("Готовлю рендер");
-      const blob = await renderPreview(form, selectedDecorStyle, nextVariant);
-      if (id !== requestId.current) return;
-      const objectUrl = URL.createObjectURL(blob);
-      setPreviewUrl((previousUrl) => {
-        if (previousUrl) URL.revokeObjectURL(previousUrl);
-        return objectUrl;
+      setRenderState("Готовлю рендеры");
+      const renderResults = await Promise.allSettled(
+        decorStyles.map(async (decorStyle) => {
+          const variant = nextRecommendation.variants.find((item) => item.decor_style === decorStyle) ?? null;
+          if (!variant) return null;
+          const blob = await renderPreview(form, decorStyle, variant);
+          return [decorStyle, URL.createObjectURL(blob)] as const;
+        }),
+      );
+      const renderedPreviews = renderResults
+        .filter((result): result is PromiseFulfilledResult<readonly [DecorStyle, string] | null> => result.status === "fulfilled")
+        .map((result) => result.value);
+      const failedRender = renderResults.find((result) => result.status === "rejected");
+      if (failedRender) {
+        for (const item of renderedPreviews) {
+          if (item) URL.revokeObjectURL(item[1]);
+        }
+        throw failedRender.reason;
+      }
+      if (id !== requestId.current) {
+        for (const item of renderedPreviews) {
+          if (item) URL.revokeObjectURL(item[1]);
+        }
+        return;
+      }
+
+      const nextPreviewUrls: Partial<Record<DecorStyle, string>> = {};
+      for (const item of renderedPreviews) {
+        if (item) nextPreviewUrls[item[0]] = item[1];
+      }
+
+      setPreviewUrls((previousUrls) => {
+        revokePreviewUrls(previousUrls);
+        return nextPreviewUrls;
       });
+      setAppliedInputSignature(currentInputSignature);
       setRenderState("Готово");
       window.setTimeout(() => {
         if (id === requestId.current) setRenderState("");
@@ -719,14 +748,19 @@ export default function App() {
             </button>
           </div>
           <div className="preview-actions">
-            <button type="button" className="apply-button" onClick={applyRender} disabled={isRendering}>
-              {isRendering ? "Применяю" : "Применить"}
-            </button>
+            <span
+              className="apply-button-wrap"
+              data-disabled-hint={!isRendering && !hasInputChanges ? "Ничего не было изменено" : undefined}
+            >
+              <button type="button" className="apply-button" onClick={applyRender} disabled={isApplyDisabled}>
+                {isRendering ? "Применяю" : "Применить"}
+              </button>
+            </span>
             <button
               type="button"
               className="download-button"
-              onClick={() => downloadPreview(previewUrl, selectedDecorStyle)}
-              disabled={!previewUrl}
+              onClick={() => downloadPreview(currentPreviewUrl, selectedDecorStyle)}
+              disabled={!currentPreviewUrl}
             >
               Скачать превью
             </button>
@@ -736,10 +770,10 @@ export default function App() {
           className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"}`}
           style={previewSurfaceStyle}
         >
-          {previewUrl && (
+          {currentPreviewUrl && (
             <img
               className="framed-art-preview"
-              src={previewUrl}
+              src={currentPreviewUrl}
               alt="Превью оформления"
               style={previewImageStyle}
             />
@@ -994,6 +1028,35 @@ function cloneMatSizeConfig(config: MatSizeConfig): MatSizeConfig {
       extra_large: { ...config.max_mm.extra_large },
     },
   };
+}
+
+function formInputSignature(form: FormState) {
+  return JSON.stringify({
+    image: form.image
+      ? {
+          name: form.image.name,
+          size: form.image.size,
+          type: form.image.type,
+          lastModified: form.image.lastModified,
+        }
+      : null,
+    widthMm: form.widthMm,
+    heightMm: form.heightMm,
+    sizeSource: form.sizeSource,
+    printPpi: form.printPpi,
+    lockAspect: form.lockAspect,
+    imageInfo: form.imageInfo,
+    artworkType: form.artworkType,
+    interiorStyle: form.interiorStyle,
+    rotationDegrees: form.rotationDegrees,
+    matSizeConfig: form.matSizeConfig,
+  });
+}
+
+function revokePreviewUrls(previewUrls: Partial<Record<DecorStyle, string>>) {
+  for (const previewUrl of Object.values(previewUrls)) {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }
 }
 
 async function loadImageHistory(): Promise<ImageHistoryItem[]> {
