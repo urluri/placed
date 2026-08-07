@@ -56,14 +56,29 @@ def draw_mat(canvas, mat_rect, aperture_rect, mat_px, base=MAT_BASE):
 
 
 def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
-    if reveal_px <= 0:
+    if isinstance(reveal_px, (tuple, list)):
+        left_reveal, top_reveal, right_reveal, bottom_reveal = [max(0, int(value)) for value in reveal_px]
+    else:
+        reveal = max(0, int(reveal_px))
+        left_reveal = top_reveal = right_reveal = bottom_reveal = reveal
+
+    if max(left_reveal, top_reveal, right_reveal, bottom_reveal) <= 0:
         return canvas
 
     left, top, right, bottom = aperture_rect
     draw = ImageDraw.Draw(canvas)
-    for i in range(reveal_px):
-        draw.rectangle(
-            [left - i - 1, top - i - 1, right + i, bottom + i],
-            outline=color,
-        )
+    draw.rectangle(
+        [left - left_reveal, top - top_reveal, right + right_reveal, bottom + bottom_reveal],
+        fill=color,
+    )
+    draw.rectangle([left, top, right, bottom], fill=color)
+
+    bevel = min(max(1, mm_to_px(0.6)), max(left_reveal, top_reveal, right_reveal, bottom_reveal))
+    for i in range(bevel):
+        low = adjust_color(color, 0.78 + i * 0.04)
+        high = adjust_color(color, 1.08 - i * 0.03)
+        draw.line([(left - i - 1, top - i - 1), (right + i, top - i - 1)], fill=low)
+        draw.line([(left - i - 1, top - i - 1), (left - i - 1, bottom + i)], fill=low)
+        draw.line([(left - i - 1, bottom + i), (right + i, bottom + i)], fill=high)
+        draw.line([(right + i, top - i - 1), (right + i, bottom + i)], fill=high)
     return canvas

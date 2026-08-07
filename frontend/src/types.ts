@@ -69,6 +69,10 @@ export type MatSpec = {
   bottom_mm: number;
   overlap_mm: number;
   inner_reveal_mm: number;
+  inner_reveal_left_mm: number;
+  inner_reveal_right_mm: number;
+  inner_reveal_top_mm: number;
+  inner_reveal_bottom_mm: number;
 };
 
 export type FrameSpec = {

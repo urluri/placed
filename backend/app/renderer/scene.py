@@ -3,7 +3,7 @@ from PIL import Image
 from .frame import draw_frame
 from .glass import add_glass_effect
 from .lighting import add_global_lighting
-from .mat import draw_mat
+from .mat import draw_inner_reveal, draw_mat
 from .postprocess import add_chromatic_aberration, add_film_grain, add_vignette, color_grade
 from .shadows import add_contact_shadow, add_inner_occlusion
 from .utils import mm_to_px
@@ -24,8 +24,13 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     mat_right = mm_to_px(geometry.get("mat_right", 0))
     mat_top = mm_to_px(geometry.get("mat_top", 0))
     mat_bottom = mm_to_px(geometry.get("mat_bottom", 0))
+    inner_reveal_left = mm_to_px(geometry.get("inner_reveal_left", geometry.get("inner_reveal", 0)))
+    inner_reveal_right = mm_to_px(geometry.get("inner_reveal_right", geometry.get("inner_reveal", 0)))
+    inner_reveal_top = mm_to_px(geometry.get("inner_reveal_top", geometry.get("inner_reveal", 0)))
+    inner_reveal_bottom = mm_to_px(geometry.get("inner_reveal_bottom", geometry.get("inner_reveal", 0)))
     frame_color = tuple(geometry.get("frame_color", TECHNICAL_FRAME_COLOR))
     mat_color = tuple(geometry.get("mat_color", DEFAULT_MAT_COLOR))
+    inner_mat_color = tuple(geometry.get("inner_mat_color", mat_color))
     glass_type = geometry.get("glass", "none")
     has_mat = any((mat_left, mat_right, mat_top, mat_bottom))
 
@@ -50,7 +55,23 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
 
     if has_mat:
         mat_px = max(1, min(mat_left, mat_right, mat_top, mat_bottom))
-        canvas = draw_mat(canvas, mat_rect, art_rect, mat_px, mat_color)
+        has_inner_reveal = any((inner_reveal_left, inner_reveal_right, inner_reveal_top, inner_reveal_bottom))
+        if has_inner_reveal:
+            top_aperture_rect = (
+                art_rect[0] - inner_reveal_left,
+                art_rect[1] - inner_reveal_top,
+                art_rect[2] + inner_reveal_right,
+                art_rect[3] + inner_reveal_bottom,
+            )
+            canvas = draw_mat(canvas, mat_rect, top_aperture_rect, mat_px, mat_color)
+            canvas = draw_inner_reveal(
+                canvas,
+                art_rect,
+                (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
+                inner_mat_color,
+            )
+        else:
+            canvas = draw_mat(canvas, mat_rect, art_rect, mat_px, mat_color)
         canvas = add_inner_occlusion(canvas, art_rect, blur=7, opacity=44, spread=max(4, mat_px // 14))
     else:
         canvas = add_inner_occlusion(canvas, art_rect, blur=5, opacity=32, spread=max(3, frame // 8))

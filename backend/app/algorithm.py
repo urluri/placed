@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass
 from enum import Enum
+from math import sqrt
 
 from .image_analysis import analyze_image
 
@@ -63,6 +64,8 @@ MAT_SIZE_MAX_MM = {
     "extra_large": {"standard": 70, "signature": 80},
 }
 
+SIGNATURE_INNER_MAT_RATIO = 0.8
+
 PLACED_PALETTE = {
     "PW001": {"id": "PW001", "name": "Museum White", "hex": "#F7F6F2", "family": "white", "role": "base_white"},
     "PW002": {"id": "PW002", "name": "Gallery White", "hex": "#F3F2ED", "family": "white", "role": "base_white"},
@@ -82,6 +85,7 @@ PLACED_PALETTE = {
     "PG108": {"id": "PG108", "name": "Dove Grey", "hex": "#C5C2BB", "family": "grey", "role": "soft_neutral"},
     "PG201": {"id": "PG201", "name": "Graphite", "hex": "#55575B", "family": "grey", "role": "deep_neutral"},
     "PG202": {"id": "PG202", "name": "Charcoal", "hex": "#4A4A4C", "family": "grey", "role": "deep_neutral"},
+    "PG203": {"id": "PG203", "name": "Slate", "hex": "#666A73", "family": "grey", "role": "deep_neutral"},
     "PG204": {"id": "PG204", "name": "Basalt", "hex": "#5F625D", "family": "grey", "role": "deep_neutral"},
     "PG205": {"id": "PG205", "name": "Iron Grey", "hex": "#707070", "family": "grey", "role": "deep_neutral"},
     "PG206": {"id": "PG206", "name": "Anthracite", "hex": "#383A3D", "family": "grey", "role": "deep_neutral"},
@@ -93,17 +97,36 @@ PLACED_PALETTE = {
     "PB306": {"id": "PB306", "name": "Oatmeal", "hex": "#D8CBB8", "family": "beige", "role": "soft_neutral"},
     "PB307": {"id": "PB307", "name": "Mushroom", "hex": "#B8AA9C", "family": "beige", "role": "soft_neutral"},
     "PB308": {"id": "PB308", "name": "Camel", "hex": "#B6946A", "family": "beige", "role": "soft_neutral"},
+    "PE401": {"id": "PE401", "name": "Terracotta", "hex": "#B76545", "family": "earth", "role": "deep_color"},
+    "PE402": {"id": "PE402", "name": "Burnt Clay", "hex": "#A75A40", "family": "earth", "role": "deep_color"},
+    "PE403": {"id": "PE403", "name": "Rust", "hex": "#964B35", "family": "earth", "role": "deep_color"},
+    "PE404": {"id": "PE404", "name": "Cinnamon", "hex": "#A26A4A", "family": "earth", "role": "deep_color"},
+    "PE405": {"id": "PE405", "name": "Umber", "hex": "#7C5A46", "family": "earth", "role": "deep_color"},
+    "PE406": {"id": "PE406", "name": "Cocoa", "hex": "#6B4E3D", "family": "earth", "role": "deep_color"},
+    "PE407": {"id": "PE407", "name": "Mocha", "hex": "#7A6756", "family": "earth", "role": "deep_color"},
+    "PE408": {"id": "PE408", "name": "Chestnut", "hex": "#77523D", "family": "earth", "role": "deep_color"},
     "PG501": {"id": "PG501", "name": "Sage", "hex": "#A7B39C", "family": "green", "role": "soft_color"},
     "PG502": {"id": "PG502", "name": "Olive Grey", "hex": "#8E9378", "family": "green", "role": "soft_color"},
+    "PG503": {"id": "PG503", "name": "Moss", "hex": "#707A58", "family": "green", "role": "deep_color"},
     "PG504": {"id": "PG504", "name": "Eucalyptus", "hex": "#8FA89B", "family": "green", "role": "soft_color"},
+    "PG505": {"id": "PG505", "name": "Forest Mist", "hex": "#6E7C6A", "family": "green", "role": "deep_color"},
     "PG506": {"id": "PG506", "name": "Khaki", "hex": "#8C8762", "family": "green", "role": "soft_color"},
     "PG507": {"id": "PG507", "name": "Lichen", "hex": "#B2B59A", "family": "green", "role": "soft_color"},
+    "PG508": {"id": "PG508", "name": "Dusty Olive", "hex": "#7A785C", "family": "green", "role": "deep_color"},
     "PB601": {"id": "PB601", "name": "Dusty Blue", "hex": "#8FA7B5", "family": "blue", "role": "soft_color"},
     "PB602": {"id": "PB602", "name": "Mist Blue", "hex": "#B5C2C9", "family": "blue", "role": "soft_color"},
     "PB603": {"id": "PB603", "name": "Steel Blue", "hex": "#758A98", "family": "blue", "role": "soft_color"},
     "PB604": {"id": "PB604", "name": "Blue Grey", "hex": "#8B99A3", "family": "blue", "role": "soft_color"},
+    "PB605": {"id": "PB605", "name": "Smoke Blue", "hex": "#6D7D89", "family": "blue", "role": "deep_color"},
+    "PB606": {"id": "PB606", "name": "Slate Blue", "hex": "#667789", "family": "blue", "role": "deep_color"},
     "PB607": {"id": "PB607", "name": "Ocean Mist", "hex": "#A8BCC3", "family": "blue", "role": "soft_color"},
     "PB608": {"id": "PB608", "name": "Ice Blue", "hex": "#D7E2E7", "family": "blue", "role": "soft_color"},
+    "PN701": {"id": "PN701", "name": "Navy Grey", "hex": "#45556A", "family": "navy", "role": "deep_color"},
+    "PN702": {"id": "PN702", "name": "Deep Indigo", "hex": "#3E4A63", "family": "navy", "role": "deep_color"},
+    "PN703": {"id": "PN703", "name": "Midnight Blue", "hex": "#2F3A4A", "family": "navy", "role": "deep_color"},
+    "PN704": {"id": "PN704", "name": "Denim", "hex": "#5C718A", "family": "navy", "role": "deep_color"},
+    "PN705": {"id": "PN705", "name": "Petrol Blue", "hex": "#4A6672", "family": "navy", "role": "deep_color"},
+    "PN706": {"id": "PN706", "name": "Ink Blue", "hex": "#35485A", "family": "navy", "role": "deep_color"},
     "PR801": {"id": "PR801", "name": "Dusty Rose", "hex": "#C49A96", "family": "rose", "role": "soft_color"},
     "PR802": {"id": "PR802", "name": "Blush", "hex": "#D9BBB3", "family": "rose", "role": "soft_color"},
     "PR803": {"id": "PR803", "name": "Nude Pink", "hex": "#D8B3A5", "family": "rose", "role": "soft_color"},
@@ -113,6 +136,13 @@ PLACED_PALETTE = {
     "PV901": {"id": "PV901", "name": "Lavender Grey", "hex": "#B4A9B9", "family": "violet", "role": "soft_color"},
     "PV902": {"id": "PV902", "name": "Heather", "hex": "#A58FA5", "family": "violet", "role": "soft_color"},
     "PV903": {"id": "PV903", "name": "Dusty Lilac", "hex": "#9D8BA7", "family": "violet", "role": "soft_color"},
+    "PV904": {"id": "PV904", "name": "Plum Grey", "hex": "#746675", "family": "violet", "role": "deep_color"},
+    "PV905": {"id": "PV905", "name": "Aubergine", "hex": "#5E4A57", "family": "violet", "role": "deep_color"},
+    "PY1001": {"id": "PY1001", "name": "Sand Yellow", "hex": "#D6BE78", "family": "yellow", "role": "accent"},
+    "PY1002": {"id": "PY1002", "name": "Wheat", "hex": "#D3B57C", "family": "yellow", "role": "accent"},
+    "PY1003": {"id": "PY1003", "name": "Ochre", "hex": "#C39A49", "family": "yellow", "role": "accent"},
+    "PY1004": {"id": "PY1004", "name": "Honey", "hex": "#C28B3A", "family": "yellow", "role": "accent"},
+    "PY1005": {"id": "PY1005", "name": "Mustard Grey", "hex": "#9F8A4C", "family": "yellow", "role": "accent"},
 }
 
 DEFAULT_MAT_COLOR = PLACED_PALETTE["PW004"]
@@ -148,6 +178,10 @@ class MatSpec:
     bottom_mm: int
     overlap_mm: int
     inner_reveal_mm: int = 0
+    inner_reveal_left_mm: int = 0
+    inner_reveal_right_mm: int = 0
+    inner_reveal_top_mm: int = 0
+    inner_reveal_bottom_mm: int = 0
 
 
 @dataclass
@@ -224,9 +258,6 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
     mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis, mat_size_config)
     glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
-    warnings = []
-    if mat.enabled and decor_style == DecorStyle.signature.value:
-        warnings.append("Цвет паспарту для Signature временно зафиксирован как Ivory.")
 
     return DecorationSpec(
         decor_style=decor_style,
@@ -242,7 +273,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
             mat_reason(mat, decor_style, size_profile, mat_size_config) if mat.enabled else "Паспарту не используется.",
             f"Багет пока технический: черная рама {frame.width_mm} мм.",
         ],
-        warnings=warnings,
+        warnings=[],
         decision_tree=[
             {
                 "title": "Входные данные",
@@ -350,21 +381,41 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
             bottom_mm=0,
             overlap_mm=0,
             inner_reveal_mm=0,
+            inner_reveal_left_mm=0,
+            inner_reveal_right_mm=0,
+            inner_reveal_top_mm=0,
+            inner_reveal_bottom_mm=0,
         )
 
     mat_size_config = normalize_mat_size_config(mat_size_config)
     base_size = mat_base_size(width, height, decor_style, size_profile, mat_size_config)
+    bottom_size = int(round(base_size * 1.1))
+    inner_color = signature_inner_mat_color(image_analysis) if decor_style == DecorStyle.signature.value else None
+    inner_reveal_left = signature_inner_reveal(base_size) if inner_color else 0
+    inner_reveal_right = signature_inner_reveal(base_size) if inner_color else 0
+    inner_reveal_top = signature_inner_reveal(base_size) if inner_color else 0
+    inner_reveal_bottom = signature_inner_reveal(bottom_size) if inner_color else 0
+
     return MatSpec(
         enabled=True,
         outer_color=mat_color_for_variant(decor_style, image_analysis),
-        inner_color=None,
+        inner_color=inner_color,
         left_mm=base_size,
         right_mm=base_size,
         top_mm=base_size,
-        bottom_mm=int(round(base_size * 1.1)),
+        bottom_mm=bottom_size,
         overlap_mm=0,
-        inner_reveal_mm=0,
+        inner_reveal_mm=inner_reveal_top,
+        inner_reveal_left_mm=inner_reveal_left,
+        inner_reveal_right_mm=inner_reveal_right,
+        inner_reveal_top_mm=inner_reveal_top,
+        inner_reveal_bottom_mm=inner_reveal_bottom,
     )
+
+
+def signature_inner_reveal(outer_field_mm):
+    reveal = int(round(outer_field_mm * (1 - SIGNATURE_INNER_MAT_RATIO)))
+    return max(1, reveal)
 
 
 def mat_base_size(width, height, decor_style, size_profile, mat_size_config=None):
@@ -426,9 +477,7 @@ def mat_color_ivory():
 
 
 def mat_color_for_variant(decor_style, image_analysis):
-    if decor_style == DecorStyle.standard.value:
-        return standard_mat_color(image_analysis)
-    return mat_color_ivory()
+    return standard_mat_color(image_analysis)
 
 
 def standard_mat_color(image_analysis):
@@ -444,6 +493,97 @@ def standard_mat_color(image_analysis):
     return public_palette_color(MAT_COLOR_OPTIONS["museum_white"])
 
 
+def signature_inner_mat_color(image_analysis):
+    target_lab = signature_inner_target_lab(image_analysis)
+    if target_lab is None:
+        return mat_color_ivory()
+
+    return public_palette_color(nearest_palette_color(target_lab))
+
+
+def signature_inner_target_lab(image_analysis):
+    accent = image_analysis.get("palette", {}).get("accent", {})
+    selected = accent.get("selected") if isinstance(accent, dict) else None
+    if not selected:
+        return None
+
+    lab = color_lab(selected)
+    if lab is None:
+        return None
+
+    lightness = image_analysis.get("lightness")
+    l_value, a_value, b_value = lab
+    if lightness == "светлый":
+        l_value -= 15
+    elif lightness == "темный":
+        l_value += 15
+
+    return (clamp_float(l_value, 0, 100), a_value * 0.5, b_value * 0.5)
+
+
+def nearest_palette_color(target_lab):
+    candidates = list(PLACED_PALETTE.values())
+    candidates.sort(key=lambda color: (delta_e(target_lab, palette_lab(color)), palette_chroma(color)))
+    return candidates[0]
+
+
+def color_lab(color):
+    lab = color.get("lab")
+    if isinstance(lab, (list, tuple)) and len(lab) == 3:
+        return tuple(float(value) for value in lab)
+
+    rgb = color.get("rgb")
+    if isinstance(rgb, (list, tuple)) and len(rgb) == 3:
+        return rgb_to_lab(tuple(int(value) for value in rgb))
+
+    hex_value = color.get("hex")
+    if hex_value:
+        return rgb_to_lab(hex_to_rgb(hex_value))
+
+    return None
+
+
+def palette_lab(color):
+    return rgb_to_lab(hex_to_rgb(color["hex"]))
+
+
+def palette_chroma(color):
+    _l, a_value, b_value = palette_lab(color)
+    return sqrt(a_value * a_value + b_value * b_value)
+
+
+def delta_e(first_lab, second_lab):
+    return sqrt(sum((first_lab[index] - second_lab[index]) ** 2 for index in range(3)))
+
+
+def rgb_to_lab(rgb):
+    r_value, g_value, b_value = [srgb_channel_to_linear(channel / 255) for channel in rgb]
+    x_value = (r_value * 0.4124 + g_value * 0.3576 + b_value * 0.1805) / 0.95047
+    y_value = (r_value * 0.2126 + g_value * 0.7152 + b_value * 0.0722) / 1.0
+    z_value = (r_value * 0.0193 + g_value * 0.1192 + b_value * 0.9505) / 1.08883
+
+    fx = lab_pivot(x_value)
+    fy = lab_pivot(y_value)
+    fz = lab_pivot(z_value)
+    return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+
+
+def srgb_channel_to_linear(value):
+    if value <= 0.04045:
+        return value / 12.92
+    return ((value + 0.055) / 1.055) ** 2.4
+
+
+def lab_pivot(value):
+    if value > 0.008856:
+        return value ** (1 / 3)
+    return (7.787 * value) + (16 / 116)
+
+
+def clamp_float(value, low, high):
+    return max(low, min(high, float(value)))
+
+
 def public_palette_color(color):
     return {"id": color["id"], "name": color["name"], "hex": color["hex"]}
 
@@ -453,7 +593,11 @@ def mat_color_reason(mat, decor_style, image_analysis):
         return "Цвет паспарту не рассчитывается."
     if decor_style == DecorStyle.standard.value:
         return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
-    return f"Signature: отдельное цветовое правило еще не задано, временно используется {mat.outer_color['name']} ({mat.outer_color['hex']})."
+    return (
+        f"Signature: верхнее паспарту выбрано как Standard - {mat.outer_color['name']} ({mat.outer_color['hex']}); "
+        f"нижнее паспарту выбрано от акцентного цвета через ближайший оттенок палитры placed - "
+        f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
+    )
 
 
 def color_facts(mat, decor_style, image_analysis):
@@ -468,13 +612,23 @@ def color_facts(mat, decor_style, image_analysis):
             f"Монохромность: {image_analysis.get('monochrome')}.",
             f"Температура изображения: {image_analysis.get('temperature')}.",
             f"Светлота изображения: {image_analysis.get('lightness')}.",
-            f"Итоговый цвет паспарту: {mat.outer_color['name']} ({mat.outer_color['hex']}).",
+            f"Цвет верхнего паспарту: {mat.outer_color['name']} ({mat.outer_color['hex']}).",
         ]
     )
     if decor_style == DecorStyle.standard.value:
         facts.append("Для Standard применена таблица из `Цвет паспарту.md`; монохромное изображение имеет приоритет над температурой и светлотой.")
     else:
-        facts.append("Для Signature цветовое правило еще не задано, поэтому используется временный Ivory.")
+        accent = image_analysis.get("palette", {}).get("accent", {})
+        selected = accent.get("selected") if isinstance(accent, dict) else None
+        facts.append(f"Акцентный цвет: {color_fact(selected) if selected else 'не найден'}.")
+        facts.append("Насыщенность расчетного цвета нижнего паспарту уменьшена на 50%.")
+        if image_analysis.get("lightness") == "светлый":
+            facts.append("Изображение светлое: светлота расчетного цвета нижнего паспарту уменьшена на 15.")
+        elif image_analysis.get("lightness") == "темный":
+            facts.append("Изображение темное: светлота расчетного цвета нижнего паспарту увеличена на 15.")
+        else:
+            facts.append("Изображение средней светлоты: светлота расчетного цвета нижнего паспарту не менялась.")
+        facts.append(f"Цвет нижнего паспарту: {mat.inner_color['name']} ({mat.inner_color['hex']}).")
     return facts
 
 
@@ -485,9 +639,15 @@ def mat_reason(mat, decor_style, size_profile, mat_size_config=None):
     percentage = int(round(mat_size_config["percentages"][size_profile][decor_style] * 100))
     max_size = mat_size_config["max_mm"][size_profile][decor_style]
     limit_note = f", ограничение {max_size} мм" if max_size is not None else ""
-    return (
+    base_reason = (
         f"Размер паспарту: верх и боковые края {mat.left_mm} мм "
         f"({percentage}% от меньшей стороны работы{limit_note}), нижний край {mat.bottom_mm} мм."
+    )
+    if decor_style != DecorStyle.signature.value:
+        return base_reason
+    return (
+        f"{base_reason} Для Signature добавлено нижнее паспарту: видимая внутренняя полоса "
+        f"{mat.inner_reveal_left_mm}/{mat.inner_reveal_top_mm}/{mat.inner_reveal_right_mm}/{mat.inner_reveal_bottom_mm} мм."
     )
 
 
@@ -506,10 +666,22 @@ def mat_facts(mat, decor_style, size_profile, width, height, mat_size_config=Non
         f"Размер по проценту до ограничения: {raw_size} мм.",
         f"Левый/правый/верхний край: {mat.left_mm} мм.",
         f"Нижний край: {mat.bottom_mm} мм.",
-        f"Цвет паспарту: {mat.outer_color['name']} ({mat.outer_color['hex']}).",
+        f"Цвет верхнего паспарту: {mat.outer_color['name']} ({mat.outer_color['hex']}).",
     ]
     if max_size is not None:
         facts.insert(5, f"Максимум по таблице: {max_size} мм.")
+    if decor_style == DecorStyle.signature.value:
+        facts.extend(
+            [
+                "Signature: нижнее паспарту считается как 80% от соответствующих полей верхнего.",
+                (
+                    "Видимая внутренняя полоса нижнего паспарту: "
+                    f"{mat.inner_reveal_left_mm}/{mat.inner_reveal_top_mm}/"
+                    f"{mat.inner_reveal_right_mm}/{mat.inner_reveal_bottom_mm} мм."
+                ),
+                f"Цвет нижнего паспарту: {mat.inner_color['name']} ({mat.inner_color['hex']}).",
+            ]
+        )
     return facts
 
 
@@ -548,6 +720,10 @@ def renderer_geometry(spec):
         "mat_top": mat["top_mm"] if mat and mat["enabled"] else 0,
         "mat_bottom": mat["bottom_mm"] if mat and mat["enabled"] else 0,
         "inner_reveal": mat["inner_reveal_mm"] if mat and mat["enabled"] else 0,
+        "inner_reveal_left": mat["inner_reveal_left_mm"] if mat and mat["enabled"] else 0,
+        "inner_reveal_right": mat["inner_reveal_right_mm"] if mat and mat["enabled"] else 0,
+        "inner_reveal_top": mat["inner_reveal_top_mm"] if mat and mat["enabled"] else 0,
+        "inner_reveal_bottom": mat["inner_reveal_bottom_mm"] if mat and mat["enabled"] else 0,
         "frame_color": hex_to_rgb(frame.get("hex", "#2B2925")),
         "glass": spec.get("glass", {}).get("type", "none"),
     }

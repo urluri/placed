@@ -867,8 +867,14 @@ function frameSpec(variant: Recommendation["variants"][number] | null) {
 function matSpec(variant: Recommendation["variants"][number] | null) {
   if (!variant?.mat?.enabled) return "нет";
   const mat = variant.mat;
-  const color = mat.outer_color?.hex ?? "цвет не задан";
-  return `${mat.left_mm}/${mat.top_mm}/${mat.right_mm}/${mat.bottom_mm} мм, ${color}`;
+  const outerColor = mat.outer_color?.hex ?? "цвет не задан";
+  const base = `${mat.left_mm}/${mat.top_mm}/${mat.right_mm}/${mat.bottom_mm} мм, верхнее ${outerColor}`;
+  if (!mat.inner_color) return base;
+
+  return (
+    `${base}; нижнее ${mat.inner_color.hex}, раскрытие ` +
+    `${mat.inner_reveal_left_mm}/${mat.inner_reveal_top_mm}/${mat.inner_reveal_right_mm}/${mat.inner_reveal_bottom_mm} мм`
+  );
 }
 
 function materialName(value?: string) {
