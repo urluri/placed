@@ -1,11 +1,7 @@
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from .utils import adjust_color
-from .utils import mm_to_px
-
 MAT_BASE = (236, 228, 214)
-MAT_BEVEL_MM = 1.5
 
 
 def mat_board_texture(width, height, base=MAT_BASE):
@@ -39,19 +35,6 @@ def draw_mat(canvas, mat_rect, aperture_rect, mat_px, base=MAT_BASE):
     mat_layer.alpha_composite(texture, (left, top))
 
     canvas = Image.alpha_composite(canvas.convert("RGBA"), mat_layer).convert("RGB")
-    draw = ImageDraw.Draw(canvas)
-
-    bevel = max(1, mm_to_px(MAT_BEVEL_MM))
-    for i in range(bevel):
-        t = i / max(1, bevel - 1)
-        high = adjust_color(base, 1.10 - t * 0.04)
-        low = adjust_color(base, 0.82 + t * 0.06)
-
-        draw.line([(a_left - i, a_top - i), (a_right + i, a_top - i)], fill=low)
-        draw.line([(a_left - i, a_top - i), (a_left - i, a_bottom + i)], fill=low)
-        draw.line([(a_left - i, a_bottom + i), (a_right + i, a_bottom + i)], fill=high)
-        draw.line([(a_right + i, a_top - i), (a_right + i, a_bottom + i)], fill=high)
-
     return canvas
 
 
@@ -72,13 +55,4 @@ def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
         fill=color,
     )
     draw.rectangle([left, top, right, bottom], fill=color)
-
-    bevel = min(max(1, mm_to_px(0.6)), max(left_reveal, top_reveal, right_reveal, bottom_reveal))
-    for i in range(bevel):
-        low = adjust_color(color, 0.78 + i * 0.04)
-        high = adjust_color(color, 1.08 - i * 0.03)
-        draw.line([(left - i - 1, top - i - 1), (right + i, top - i - 1)], fill=low)
-        draw.line([(left - i - 1, top - i - 1), (left - i - 1, bottom + i)], fill=low)
-        draw.line([(left - i - 1, bottom + i), (right + i, bottom + i)], fill=high)
-        draw.line([(right + i, top - i - 1), (right + i, bottom + i)], fill=high)
     return canvas
