@@ -84,6 +84,32 @@ PaletteColor:
 | PW007 | Natural Cotton | `#E6DFD2` | white | `base_white` |
 | PW008 | Cream | `#F2E7D3` | white | `base_white` |
 
+## Строго нейтральные
+
+Эта таблица фиксирует оттенки палитры placed, которые можно считать температурно нейтральными. Это не отдельная палитра, а фильтр поверх уже существующих цветов.
+
+Строго нейтральные оттенки нужны для резервных сценариев, где алгоритм не может безопасно использовать цвет изображения и паспарту не должно явно уходить ни в теплый кремовый, ни в холодный сине-серый.
+
+Критерий отбора: низкая цветность в Lab и небольшой сдвиг по оси `b*`.
+
+| Код | Название | HEX | Семейство | Роль |
+| --- | --- | --- | --- | --- |
+| PW001 | Museum White | `#F7F6F2` | white | `base_white` |
+| PW002 | Gallery White | `#F3F2ED` | white | `base_white` |
+| PG101 | Soft Grey | `#E5E4E0` | grey | `soft_neutral` |
+| PG102 | Gallery Grey | `#DBD9D5` | grey | `soft_neutral` |
+| PG103 | Stone Grey | `#CFCBC5` | grey | `soft_neutral` |
+| PG104 | Silver Grey | `#C8C8C6` | grey | `soft_neutral` |
+| PG105 | Ash Grey | `#B8B8B5` | grey | `soft_neutral` |
+| PG106 | Mist Grey | `#D7D6D2` | grey | `soft_neutral` |
+| PG107 | Pearl Grey | `#D0D0CC` | grey | `soft_neutral` |
+| PG108 | Dove Grey | `#C5C2BB` | grey | `soft_neutral` |
+| PG201 | Graphite | `#55575B` | grey | `deep_neutral` |
+| PG202 | Charcoal | `#4A4A4C` | grey | `deep_neutral` |
+| PG204 | Basalt | `#5F625D` | grey | `deep_neutral` |
+| PG205 | Iron Grey | `#707070` | grey | `deep_neutral` |
+| PG206 | Anthracite | `#383A3D` | grey | `deep_neutral` |
+
 ## Светло-серые
 
 | Код | Название | HEX | Семейство | Роль |

@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass
 from enum import Enum
+from math import sqrt
 
 from .image_analysis import analyze_image
 
@@ -51,8 +52,8 @@ POSTER_SIZE_PROFILE_VOTES = {
 }
 
 MAT_SIZE_PERCENTAGES = {
-    "small": {"standard": 0.35, "modern": 0.35, "signature": 0.45},
-    "medium": {"standard": 0.25, "modern": 0.25, "signature": 0.35},
+    "small": {"standard": 0.35, "modern": 0.35, "signature": 0.40},
+    "medium": {"standard": 0.25, "modern": 0.25, "signature": 0.30},
     "large": {"standard": 0.15, "modern": 0.15, "signature": 0.20},
     "extra_large": {"standard": 0.10, "modern": 0.10, "signature": 0.15},
 }
@@ -64,16 +65,83 @@ MAT_SIZE_MAX_MM = {
     "extra_large": {"standard": 70, "modern": 70, "signature": 80},
 }
 
-DEFAULT_MAT_COLOR = {
-    "id": "ivory",
-    "name": "Ivory",
-    "hex": "#FFFFF0",
+PLACED_PALETTE = {
+    "PW001": {"id": "PW001", "name": "Museum White", "hex": "#F7F6F2", "family": "white", "role": "base_white"},
+    "PW002": {"id": "PW002", "name": "Gallery White", "hex": "#F3F2ED", "family": "white", "role": "base_white"},
+    "PW003": {"id": "PW003", "name": "Warm White", "hex": "#F5F1E8", "family": "white", "role": "base_white"},
+    "PW004": {"id": "PW004", "name": "Ivory", "hex": "#EEE6D5", "family": "white", "role": "base_white"},
+    "PW005": {"id": "PW005", "name": "Antique White", "hex": "#E8DFCF", "family": "white", "role": "base_white"},
+    "PW006": {"id": "PW006", "name": "Linen", "hex": "#DDD4C4", "family": "beige", "role": "base_white"},
+    "PW007": {"id": "PW007", "name": "Natural Cotton", "hex": "#E6DFD2", "family": "white", "role": "base_white"},
+    "PW008": {"id": "PW008", "name": "Cream", "hex": "#F2E7D3", "family": "white", "role": "base_white"},
+    "PG101": {"id": "PG101", "name": "Soft Grey", "hex": "#E5E4E0", "family": "grey", "role": "soft_neutral"},
+    "PG102": {"id": "PG102", "name": "Gallery Grey", "hex": "#DBD9D5", "family": "grey", "role": "soft_neutral"},
+    "PG103": {"id": "PG103", "name": "Stone Grey", "hex": "#CFCBC5", "family": "grey", "role": "soft_neutral"},
+    "PG104": {"id": "PG104", "name": "Silver Grey", "hex": "#C8C8C6", "family": "grey", "role": "soft_neutral"},
+    "PG105": {"id": "PG105", "name": "Ash Grey", "hex": "#B8B8B5", "family": "grey", "role": "soft_neutral"},
+    "PG106": {"id": "PG106", "name": "Mist Grey", "hex": "#D7D6D2", "family": "grey", "role": "soft_neutral"},
+    "PG107": {"id": "PG107", "name": "Pearl Grey", "hex": "#D0D0CC", "family": "grey", "role": "soft_neutral"},
+    "PG108": {"id": "PG108", "name": "Dove Grey", "hex": "#C5C2BB", "family": "grey", "role": "soft_neutral"},
+    "PG201": {"id": "PG201", "name": "Graphite", "hex": "#55575B", "family": "grey", "role": "deep_neutral"},
+    "PG202": {"id": "PG202", "name": "Charcoal", "hex": "#4A4A4C", "family": "grey", "role": "deep_neutral"},
+    "PG204": {"id": "PG204", "name": "Basalt", "hex": "#5F625D", "family": "grey", "role": "deep_neutral"},
+    "PG205": {"id": "PG205", "name": "Iron Grey", "hex": "#707070", "family": "grey", "role": "deep_neutral"},
+    "PG206": {"id": "PG206", "name": "Anthracite", "hex": "#383A3D", "family": "grey", "role": "deep_neutral"},
+    "PB301": {"id": "PB301", "name": "Sand", "hex": "#D6C3A5", "family": "beige", "role": "soft_neutral"},
+    "PB302": {"id": "PB302", "name": "Desert Sand", "hex": "#CDB59A", "family": "beige", "role": "soft_neutral"},
+    "PB303": {"id": "PB303", "name": "Beige", "hex": "#D9C6AE", "family": "beige", "role": "soft_neutral"},
+    "PB304": {"id": "PB304", "name": "Taupe", "hex": "#B7A79A", "family": "beige", "role": "soft_neutral"},
+    "PB305": {"id": "PB305", "name": "Clay", "hex": "#B79B84", "family": "beige", "role": "soft_neutral"},
+    "PB306": {"id": "PB306", "name": "Oatmeal", "hex": "#D8CBB8", "family": "beige", "role": "soft_neutral"},
+    "PB307": {"id": "PB307", "name": "Mushroom", "hex": "#B8AA9C", "family": "beige", "role": "soft_neutral"},
+    "PB308": {"id": "PB308", "name": "Camel", "hex": "#B6946A", "family": "beige", "role": "soft_neutral"},
+    "PG501": {"id": "PG501", "name": "Sage", "hex": "#A7B39C", "family": "green", "role": "soft_color"},
+    "PG502": {"id": "PG502", "name": "Olive Grey", "hex": "#8E9378", "family": "green", "role": "soft_color"},
+    "PG504": {"id": "PG504", "name": "Eucalyptus", "hex": "#8FA89B", "family": "green", "role": "soft_color"},
+    "PG506": {"id": "PG506", "name": "Khaki", "hex": "#8C8762", "family": "green", "role": "soft_color"},
+    "PG507": {"id": "PG507", "name": "Lichen", "hex": "#B2B59A", "family": "green", "role": "soft_color"},
+    "PB601": {"id": "PB601", "name": "Dusty Blue", "hex": "#8FA7B5", "family": "blue", "role": "soft_color"},
+    "PB602": {"id": "PB602", "name": "Mist Blue", "hex": "#B5C2C9", "family": "blue", "role": "soft_color"},
+    "PB603": {"id": "PB603", "name": "Steel Blue", "hex": "#758A98", "family": "blue", "role": "soft_color"},
+    "PB604": {"id": "PB604", "name": "Blue Grey", "hex": "#8B99A3", "family": "blue", "role": "soft_color"},
+    "PB607": {"id": "PB607", "name": "Ocean Mist", "hex": "#A8BCC3", "family": "blue", "role": "soft_color"},
+    "PB608": {"id": "PB608", "name": "Ice Blue", "hex": "#D7E2E7", "family": "blue", "role": "soft_color"},
+    "PR801": {"id": "PR801", "name": "Dusty Rose", "hex": "#C49A96", "family": "rose", "role": "soft_color"},
+    "PR802": {"id": "PR802", "name": "Blush", "hex": "#D9BBB3", "family": "rose", "role": "soft_color"},
+    "PR803": {"id": "PR803", "name": "Nude Pink", "hex": "#D8B3A5", "family": "rose", "role": "soft_color"},
+    "PR804": {"id": "PR804", "name": "Mauve", "hex": "#B799A6", "family": "rose", "role": "soft_color"},
+    "PR805": {"id": "PR805", "name": "Old Rose", "hex": "#A97E7A", "family": "rose", "role": "soft_color"},
+    "PR806": {"id": "PR806", "name": "Rose Clay", "hex": "#B98D82", "family": "rose", "role": "soft_color"},
+    "PV901": {"id": "PV901", "name": "Lavender Grey", "hex": "#B4A9B9", "family": "violet", "role": "soft_color"},
+    "PV902": {"id": "PV902", "name": "Heather", "hex": "#A58FA5", "family": "violet", "role": "soft_color"},
+    "PV903": {"id": "PV903", "name": "Dusty Lilac", "hex": "#9D8BA7", "family": "violet", "role": "soft_color"},
 }
 
+STRICT_NEUTRAL_COLOR_IDS = [
+    "PW001",
+    "PW002",
+    "PG101",
+    "PG102",
+    "PG103",
+    "PG104",
+    "PG105",
+    "PG106",
+    "PG107",
+    "PG108",
+]
+
+MODERN_CANDIDATE_COLOR_IDS = [
+    color_id
+    for color_id, color in PLACED_PALETTE.items()
+    if color["role"] in {"base_white", "soft_neutral", "soft_color"}
+]
+
+DEFAULT_MAT_COLOR = PLACED_PALETTE["PW004"]
+
 MAT_COLOR_OPTIONS = {
-    "ivory": {"id": "ivory", "name": "Ivory", "hex": "#EEE6D5"},
-    "warm_white": {"id": "warm-white", "name": "Warm White", "hex": "#F5F1E8"},
-    "museum_white": {"id": "museum-white", "name": "Museum White", "hex": "#F7F6F2"},
+    "ivory": PLACED_PALETTE["PW004"],
+    "warm_white": PLACED_PALETTE["PW003"],
+    "museum_white": PLACED_PALETTE["PW001"],
 }
 
 
@@ -179,8 +247,8 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
     glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
     warnings = []
-    if mat.enabled and decor_style != DecorStyle.standard.value:
-        warnings.append("Цвет паспарту временно зафиксирован как ivory.")
+    if mat.enabled and decor_style == DecorStyle.signature.value:
+        warnings.append("Цвет паспарту для Signature временно зафиксирован как Ivory.")
 
     return DecorationSpec(
         decor_style=decor_style,
@@ -376,34 +444,174 @@ def normalize_optional_mm(value):
 
 
 def mat_color_ivory():
-    return DEFAULT_MAT_COLOR.copy()
+    return public_palette_color(DEFAULT_MAT_COLOR)
 
 
 def mat_color_for_variant(decor_style, image_analysis):
-    if decor_style != DecorStyle.standard.value:
-        return mat_color_ivory()
-    return standard_mat_color(image_analysis)
+    if decor_style == DecorStyle.standard.value:
+        return standard_mat_color(image_analysis)
+    if decor_style == DecorStyle.modern.value:
+        return modern_mat_color(image_analysis)
+    return mat_color_ivory()
 
 
 def standard_mat_color(image_analysis):
     if image_analysis.get("monochrome") == "монохромное":
-        return MAT_COLOR_OPTIONS["museum_white"].copy()
+        return public_palette_color(MAT_COLOR_OPTIONS["museum_white"])
 
     temperature = image_analysis.get("temperature")
     lightness = image_analysis.get("lightness")
     if temperature == "теплый" and lightness == "светлый":
-        return MAT_COLOR_OPTIONS["ivory"].copy()
+        return public_palette_color(MAT_COLOR_OPTIONS["ivory"])
     if temperature == "теплый":
-        return MAT_COLOR_OPTIONS["warm_white"].copy()
-    return MAT_COLOR_OPTIONS["museum_white"].copy()
+        return public_palette_color(MAT_COLOR_OPTIONS["warm_white"])
+    return public_palette_color(MAT_COLOR_OPTIONS["museum_white"])
+
+
+def modern_mat_color(image_analysis):
+    palette = image_analysis.get("palette", {}) if isinstance(image_analysis, dict) else {}
+    primary = palette.get("primary")
+    secondary = palette.get("secondary")
+    accent = palette.get("accent", {})
+    accent_selected = accent.get("selected") if isinstance(accent, dict) else None
+    accent_confidence = accent.get("confidence") if isinstance(accent, dict) else None
+
+    if expressive_modern_source(secondary):
+        source_color = secondary
+    elif accent_confidence != "low" and expressive_modern_source(accent_selected, min_share=0.001):
+        source_color = accent_selected
+    else:
+        target_lab = color_lab(secondary) or color_lab(primary) or palette_lab("PW001")
+        return nearest_palette_color(target_lab, STRICT_NEUTRAL_COLOR_IDS)
+
+    target_lab = modern_target_lab(source_color)
+    candidate = nearest_palette_color(target_lab, MODERN_CANDIDATE_COLOR_IDS, avoid_color=primary)
+
+    if primary and color_distance(color_lab(candidate), color_lab(primary)) < 12:
+        l_value, a_value, b_value = target_lab
+        primary_l = color_lab(primary)[0]
+        shift = 10 if l_value <= primary_l else -10
+        candidate = nearest_palette_color((clamp(l_value + shift, 0, 100), a_value, b_value), MODERN_CANDIDATE_COLOR_IDS, avoid_color=primary)
+
+    return candidate
+
+
+def expressive_modern_source(color, min_share=0.045):
+    if not color:
+        return False
+    family = color.get("family")
+    chroma = float(color.get("chroma") or 0)
+    share = float(color.get("share") or 0)
+    lab = color_lab(color)
+    l_value = lab[0] if lab else 50
+    if share < min_share:
+        return False
+    if family in {"white", "grey", "black"} or chroma < 12:
+        return False
+    if l_value < 26:
+        return False
+    if l_value < 34 and family in {"brown", "navy", "violet", "blue", "magenta"}:
+        return False
+    return True
+
+
+def modern_target_lab(color):
+    l_value, a_value, b_value = color_lab(color)
+    family = color.get("family")
+    desaturation = 0.25 if family in {"red", "orange", "yellow", "rose", "earth"} else 0.35
+    target_l = l_value
+    if color.get("lightness") == "светлый" or l_value >= 68:
+        target_l -= 15
+    elif color.get("lightness") == "темный" or l_value <= 42:
+        target_l += 15
+    return (clamp(target_l, 18, 92), a_value * desaturation, b_value * desaturation)
+
+
+def nearest_palette_color(target_lab, color_ids, avoid_color=None):
+    avoid_lab = color_lab(avoid_color)
+    ranked = []
+    for color_id in color_ids:
+        color = PLACED_PALETTE[color_id]
+        lab = palette_lab(color_id)
+        distance = color_distance(target_lab, lab)
+        if avoid_lab and color_distance(lab, avoid_lab) < 8:
+            distance += 100
+        if color["role"] == "base_white":
+            distance += 2
+        ranked.append((distance, color))
+    ranked.sort(key=lambda item: item[0])
+    return public_palette_color(ranked[0][1])
+
+
+def public_palette_color(color):
+    return {"id": color["id"], "name": color["name"], "hex": color["hex"]}
+
+
+def palette_lab(color_id):
+    return rgb_tuple_to_lab(hex_to_rgb(PLACED_PALETTE[color_id]["hex"]))
+
+
+def color_lab(color):
+    if not color:
+        return None
+    lab = color.get("lab")
+    if isinstance(lab, (list, tuple)) and len(lab) == 3:
+        return tuple(float(value) for value in lab)
+    rgb = color.get("rgb")
+    if isinstance(rgb, (list, tuple)) and len(rgb) == 3:
+        return rgb_tuple_to_lab(tuple(int(value) for value in rgb))
+    hex_value = color.get("hex")
+    if hex_value:
+        return rgb_tuple_to_lab(hex_to_rgb(hex_value))
+    return None
+
+
+def rgb_tuple_to_lab(rgb):
+    red, green, blue = [channel / 255 for channel in rgb]
+    red, green, blue = [srgb_to_linear(channel) for channel in (red, green, blue)]
+    x_value = red * 0.4124564 + green * 0.3575761 + blue * 0.1804375
+    y_value = red * 0.2126729 + green * 0.7151522 + blue * 0.0721750
+    z_value = red * 0.0193339 + green * 0.1191920 + blue * 0.9503041
+    x_value /= 0.95047
+    z_value /= 1.08883
+    fx = lab_f(x_value)
+    fy = lab_f(y_value)
+    fz = lab_f(z_value)
+    return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+
+
+def srgb_to_linear(value):
+    if value <= 0.04045:
+        return value / 12.92
+    return ((value + 0.055) / 1.055) ** 2.4
+
+
+def lab_f(value):
+    epsilon = 216 / 24389
+    kappa = 24389 / 27
+    if value > epsilon:
+        return value ** (1 / 3)
+    return (kappa * value + 16) / 116
+
+
+def color_distance(first_lab, second_lab):
+    if not first_lab or not second_lab:
+        return 999
+    return sqrt(sum((first - second) ** 2 for first, second in zip(first_lab, second_lab)))
+
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
 
 
 def mat_color_reason(mat, decor_style, image_analysis):
     if not mat.enabled:
         return "Цвет паспарту не рассчитывается."
-    if decor_style != DecorStyle.standard.value:
-        return f"{decor_style}: цветовая таблица еще не задана, временно используется {mat.outer_color['name']} ({mat.outer_color['hex']})."
-    return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
+    if decor_style == DecorStyle.standard.value:
+        return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
+    if decor_style == DecorStyle.modern.value:
+        return f"Modern: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) как ближайший спокойный оттенок из палитры placed."
+    return f"Signature: отдельное цветовое правило еще не задано, временно используется {mat.outer_color['name']} ({mat.outer_color['hex']})."
 
 
 def color_facts(mat, decor_style, image_analysis):
@@ -423,8 +631,11 @@ def color_facts(mat, decor_style, image_analysis):
     )
     if decor_style == DecorStyle.standard.value:
         facts.append("Для Standard применена таблица из `Цвет паспарту.md`; монохромное изображение имеет приоритет над температурой и светлотой.")
+    elif decor_style == DecorStyle.modern.value:
+        facts.append("Для Modern используется вторичный цвет изображения; если он нейтральный или тяжелый, алгоритм пробует акцентный цвет.")
+        facts.append("Исходный цвет приглушается и сопоставляется с мягкими ролями палитры placed: base_white, soft_neutral, soft_color.")
     else:
-        facts.append("Для Modern и Signature цветовые правила еще не заданы, поэтому используется временный ivory.")
+        facts.append("Для Signature цветовое правило еще не задано, поэтому используется временный Ivory.")
     return facts
 
 
