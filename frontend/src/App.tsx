@@ -38,7 +38,7 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
   { value: "universal", label: "Не знаю" },
 ];
 
-const decorStyles: DecorStyle[] = ["standard", "modern", "signature"];
+const decorStyles: DecorStyle[] = ["standard", "signature"];
 const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
 
 const sizeProfileLabels: Record<SizeProfile, string> = {
@@ -50,22 +50,21 @@ const sizeProfileLabels: Record<SizeProfile, string> = {
 
 const decorStyleLabels: Record<DecorStyle, string> = {
   standard: "Standard",
-  modern: "Modern",
   signature: "Signature",
 };
 
 const defaultMatSizeConfig: MatSizeConfig = {
   percentages: {
-    small: { standard: "35", modern: "35", signature: "40" },
-    medium: { standard: "25", modern: "25", signature: "30" },
-    large: { standard: "15", modern: "15", signature: "20" },
-    extra_large: { standard: "10", modern: "10", signature: "15" },
+    small: { standard: "35", signature: "40" },
+    medium: { standard: "25", signature: "30" },
+    large: { standard: "15", signature: "20" },
+    extra_large: { standard: "10", signature: "15" },
   },
   max_mm: {
-    small: { standard: "", modern: "", signature: "" },
-    medium: { standard: "", modern: "", signature: "" },
-    large: { standard: "", modern: "", signature: "" },
-    extra_large: { standard: "70", modern: "70", signature: "80" },
+    small: { standard: "", signature: "" },
+    medium: { standard: "", signature: "" },
+    large: { standard: "", signature: "" },
+    extra_large: { standard: "70", signature: "80" },
   },
 };
 

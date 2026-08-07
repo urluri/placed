@@ -8,7 +8,7 @@ export type InteriorStyle =
   | "modern_vintage"
   | "neoclassic"
   | "universal";
-export type DecorStyle = "standard" | "modern" | "signature";
+export type DecorStyle = "standard" | "signature";
 export type SizeSource = "manual" | "from_file";
 export type SizeProfile = "small" | "medium" | "large" | "extra_large";
 
