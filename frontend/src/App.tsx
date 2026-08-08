@@ -51,8 +51,8 @@ const renderingMessages = [
   "Выбираю паспарту",
   "Готовлю рендер",
   "Ой, кое-что забыл",
-  "Сдуваю пыль",
   "Шучу! Почти готово!",
+  "Сдуваю пыль",
 ];
 
 const sizeProfileLabels: Record<SizeProfile, string> = {
