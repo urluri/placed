@@ -41,7 +41,7 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 const decorStyles: DecorStyle[] = ["standard", "signature"];
 const matSizeDecorStyles: DecorStyle[] = ["standard"];
 const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
-const RENDER_STATUS_DURATION_MS = 750;
+const RENDER_STATUS_DURATION_MS = 1250;
 const renderingMessages = [
   "Анализирую картинку",
   "Считаю размеры",
