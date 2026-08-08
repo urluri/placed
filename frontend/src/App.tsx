@@ -41,6 +41,7 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 const decorStyles: DecorStyle[] = ["standard", "signature"];
 const matSizeDecorStyles: DecorStyle[] = ["standard"];
 const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
+const RENDER_STATUS_DURATION_MS = 750;
 const renderingMessages = [
   "Анализирую картинку",
   "Считаю размеры",
@@ -48,8 +49,10 @@ const renderingMessages = [
   "Ищу акценты",
   "Ищу подходящую раму",
   "Выбираю паспарту",
+  "Готовлю рендер",
+  "Ой, кое-что забыл",
   "Сдуваю пыль",
-  "Почти готово",
+  "Шучу! Почти готово!",
 ];
 
 const sizeProfileLabels: Record<SizeProfile, string> = {
@@ -170,7 +173,7 @@ export default function App() {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [previewUrls, setPreviewUrls] = useState<Partial<Record<DecorStyle, string>>>({});
   const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
-  const [renderMessageIndex, setRenderMessageIndex] = useState(0);
+  const [, setRenderMessageIndex] = useState(0);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
@@ -208,17 +211,16 @@ export default function App() {
   useEffect(() => {
     if (!isRendering) return undefined;
 
-    setRenderState(renderingMessages[renderMessageIndex]);
     const timer = window.setInterval(() => {
       setRenderMessageIndex((currentIndex) => {
         const nextIndex = Math.min(currentIndex + 1, renderingMessages.length - 1);
         setRenderState(renderingMessages[nextIndex]);
         return nextIndex;
       });
-    }, 850);
+    }, RENDER_STATUS_DURATION_MS);
 
     return () => window.clearInterval(timer);
-  }, [isRendering, renderMessageIndex]);
+  }, [isRendering]);
 
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
