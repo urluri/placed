@@ -66,8 +66,8 @@ MAT_SIZE_MAX_MM = {
 
 SIGNATURE_INNER_MAT_RATIO = 0.8
 MAT_WINDOW_OVERLAP_MM = 5
-ACCENT_SIMILAR_DELTA_E = 26
-ACCENT_SAME_FAMILY_DELTA_E = 34
+ACCENT_SIMILAR_DELTA_E = 22
+ACCENT_SAME_FAMILY_DELTA_E = 24
 NEUTRAL_COLOR_FAMILIES = {"white", "grey", "black"}
 
 PLACED_PALETTE = {
@@ -510,7 +510,9 @@ def signature_inner_mat_color(image_analysis):
     if target_lab is None:
         return mat_color_ivory()
 
-    return public_palette_color(nearest_palette_color(target_lab))
+    return public_palette_color(
+        nearest_palette_color(target_lab, excluded_families=strategy.get("excluded_families"))
+    )
 
 
 def signature_inner_target_lab(image_analysis):
@@ -545,6 +547,7 @@ def signature_inner_color_strategy(image_analysis):
             "base_color": None,
             "target_lab": None,
             "similarity": {},
+            "excluded_families": signature_anchor_families(palette),
             "reason": "Signature: акцентный цвет не найден, используется резервный Ivory.",
         }
 
@@ -557,6 +560,7 @@ def signature_inner_color_strategy(image_analysis):
             "base_color": base_color,
             "target_lab": adjusted_signature_lab(base_color, image_analysis, complement=False),
             "similarity": accent_similarity(selected, palette),
+            "excluded_families": signature_anchor_families(palette),
             "reason": (
                 "Signature: выбранный акцент нейтральный, поэтому комплементарный цвет не строится; "
                 "для нижнего паспарту используется area-кандидат акцента."
@@ -570,6 +574,7 @@ def signature_inner_color_strategy(image_analysis):
         "base_color": selected,
         "target_lab": adjusted_signature_lab(selected, image_analysis, complement=use_complement),
         "similarity": similarity,
+        "excluded_families": signature_anchor_families(palette),
         "reason": (
             "Signature: акцент близок к основному или вторичному цвету, поэтому нижнее паспарту "
             "использует приглушенный комплементарный цвет."
@@ -596,6 +601,18 @@ def adjusted_signature_lab(color, image_analysis, complement=False):
         l_value += 15
 
     return (clamp_float(l_value, 0, 100), a_value * 0.5, b_value * 0.5)
+
+
+def signature_anchor_families(palette):
+    families = set()
+    if not isinstance(palette, dict):
+        return families
+    for role in ("primary", "secondary"):
+        color = palette.get(role)
+        family = color.get("family") if isinstance(color, dict) else None
+        if family and family not in NEUTRAL_COLOR_FAMILIES:
+            families.add(family)
+    return families
 
 
 def accent_similarity(accent_color, palette):
@@ -657,8 +674,15 @@ def normalize_visual_level(value):
     return "medium"
 
 
-def nearest_palette_color(target_lab):
-    candidates = list(PLACED_PALETTE.values())
+def nearest_palette_color(target_lab, excluded_families=None):
+    excluded_families = set(excluded_families or [])
+    candidates = [
+        color
+        for color in PLACED_PALETTE.values()
+        if color.get("family") not in excluded_families
+    ]
+    if not candidates:
+        candidates = list(PLACED_PALETTE.values())
     candidates.sort(key=lambda color: (delta_e(target_lab, palette_lab(color)), palette_chroma(color)))
     return candidates[0]
 
@@ -774,6 +798,8 @@ def color_facts(mat, decor_style, image_analysis):
             f"вторичный Delta E {format_optional_metric(similarity.get('secondary_delta_e'))}; "
             f"схожий={similarity.get('similar', False)}."
         )
+        excluded_families = ", ".join(sorted(strategy.get("excluded_families") or [])) or "нет"
+        facts.append(f"Исключенные семьи для нижнего паспарту: {excluded_families}.")
         facts.append(f"Акцентный цвет: {color_fact(selected) if selected else 'не найден'}.")
         facts.append("Насыщенность расчетного цвета нижнего паспарту уменьшена на 50%.")
         if image_analysis.get("lightness") == "светлый":

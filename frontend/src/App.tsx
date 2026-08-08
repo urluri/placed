@@ -41,6 +41,16 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 const decorStyles: DecorStyle[] = ["standard", "signature"];
 const matSizeDecorStyles: DecorStyle[] = ["standard"];
 const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
+const renderingMessages = [
+  "Анализирую картинку",
+  "Считаю размеры",
+  "Любуюсь цветами",
+  "Ищу акценты",
+  "Ищу подходящую раму",
+  "Выбираю паспарту",
+  "Сдуваю пыль",
+  "Почти готово",
+];
 
 const sizeProfileLabels: Record<SizeProfile, string> = {
   small: "Малый",
@@ -160,6 +170,7 @@ export default function App() {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [previewUrls, setPreviewUrls] = useState<Partial<Record<DecorStyle, string>>>({});
   const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
+  const [renderMessageIndex, setRenderMessageIndex] = useState(0);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
@@ -193,6 +204,21 @@ export default function App() {
     document.documentElement.style.colorScheme = themeMode;
     window.localStorage.setItem("placed-theme", themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    if (!isRendering) return undefined;
+
+    setRenderState(renderingMessages[renderMessageIndex]);
+    const timer = window.setInterval(() => {
+      setRenderMessageIndex((currentIndex) => {
+        const nextIndex = Math.min(currentIndex + 1, renderingMessages.length - 1);
+        setRenderState(renderingMessages[nextIndex]);
+        return nextIndex;
+      });
+    }, 850);
+
+    return () => window.clearInterval(timer);
+  }, [isRendering, renderMessageIndex]);
 
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
@@ -394,8 +420,9 @@ export default function App() {
 
   const applyRender = async () => {
     const id = ++requestId.current;
+    setRenderMessageIndex(0);
     setIsRendering(true);
-    setRenderState("Считаю варианты");
+    setRenderState(renderingMessages[0]);
 
     try {
       const nextRecommendation = await recommend(form);
@@ -412,7 +439,6 @@ export default function App() {
         return;
       }
 
-      setRenderState("Готовлю рендеры");
       const renderResults = await Promise.allSettled(
         decorStyles.map(async (decorStyle) => {
           const variant = nextRecommendation.variants.find((item) => item.decor_style === decorStyle) ?? null;
@@ -780,7 +806,7 @@ export default function App() {
             />
           )}
           <div className={`render-state ${renderState ? "is-visible" : ""} ${isRendering ? "is-loading" : ""}`}>
-            {isRendering && <span className="loader" aria-hidden="true" />}
+            {isRendering && <FramingLoader />}
             <span>{renderState}</span>
           </div>
         </div>
@@ -870,6 +896,17 @@ function SpecItem({ label, children }: { label: string; children: ReactNode }) {
       <dt>{label}</dt>
       <dd>{children}</dd>
     </div>
+  );
+}
+
+function FramingLoader() {
+  return (
+    <span className="framing-loader" aria-hidden="true">
+      <span className="framing-loader-frame" />
+      <span className="framing-loader-rail framing-loader-rail-top" />
+      <span className="framing-loader-rail framing-loader-rail-bottom" />
+      <span className="framing-loader-tool" />
+    </span>
   );
 }
 

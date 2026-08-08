@@ -1025,40 +1025,125 @@ legend,
 
 .render-state {
   position: absolute;
-  top: 24px;
-  right: 24px;
+  left: 50%;
+  top: 50%;
   display: flex;
+  min-width: min(320px, calc(100% - 48px));
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 7px;
-  background: rgba(29, 27, 24, 0.82);
-  color: #fff;
-  font-size: 13px;
+  justify-content: center;
+  gap: 14px;
+  padding: 15px 18px;
+  border: 1px solid color-mix(in srgb, var(--paper) 18%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ink) 84%, transparent);
+  color: var(--paper);
+  box-shadow: 0 18px 54px rgba(17, 14, 11, 0.28);
+  backdrop-filter: blur(16px);
+  font-size: 14px;
   font-weight: 800;
+  letter-spacing: 0;
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 160ms ease, transform 160ms ease;
+  transform: translate(-50%, -46%) scale(0.98);
+  transition: opacity 180ms ease, transform 180ms ease;
   pointer-events: none;
+  z-index: 5;
 }
 
-.loader {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 800ms linear infinite;
+.framing-loader {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 34px;
+}
+
+.framing-loader-frame {
+  position: absolute;
+  inset: 6px 7px;
+  border: 4px solid #d7b778;
+  box-shadow:
+    inset 0 0 0 2px rgba(31, 24, 17, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.framing-loader-rail {
+  position: absolute;
+  left: 2px;
+  width: 40px;
+  height: 4px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #7a4d2e, #d1a15d, #7a4d2e);
+  transform-origin: center;
+}
+
+.framing-loader-rail-top {
+  top: 2px;
+  animation: frameRailTop 1300ms ease-in-out infinite;
+}
+
+.framing-loader-rail-bottom {
+  bottom: 2px;
+  animation: frameRailBottom 1300ms ease-in-out infinite;
+}
+
+.framing-loader-tool {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 7px;
+  height: 34px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #f4e5c7, #9f7042 58%, #3d2a1f);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
+  transform: rotate(-16deg);
+  animation: frameTool 1300ms ease-in-out infinite;
 }
 
 .render-state.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, -50%) scale(1);
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+@keyframes frameRailTop {
+  0%,
+  100% {
+    transform: translateX(-5px);
+  }
+
+  50% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes frameRailBottom {
+  0%,
+  100% {
+    transform: translateX(5px);
+  }
+
+  50% {
+    transform: translateX(-5px);
+  }
+}
+
+@keyframes frameTool {
+  0% {
+    transform: translateX(0) rotate(-16deg);
+  }
+
+  48% {
+    transform: translateX(29px) rotate(14deg);
+  }
+
+  100% {
+    transform: translateX(0) rotate(-16deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .framing-loader-rail,
+  .framing-loader-tool {
+    animation: none;
   }
 }
 
