@@ -55,6 +55,12 @@ const renderingMessages = [
   "Сдуваю пыль",
 ];
 
+function wait(durationMs: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, durationMs);
+  });
+}
+
 const sizeProfileLabels: Record<SizeProfile, string> = {
   small: "Малый",
   medium: "Средний",
@@ -173,7 +179,6 @@ export default function App() {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [previewUrls, setPreviewUrls] = useState<Partial<Record<DecorStyle, string>>>({});
   const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
-  const [, setRenderMessageIndex] = useState(0);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
@@ -207,20 +212,6 @@ export default function App() {
     document.documentElement.style.colorScheme = themeMode;
     window.localStorage.setItem("placed-theme", themeMode);
   }, [themeMode]);
-
-  useEffect(() => {
-    if (!isRendering) return undefined;
-
-    const timer = window.setInterval(() => {
-      setRenderMessageIndex((currentIndex) => {
-        const nextIndex = Math.min(currentIndex + 1, renderingMessages.length - 1);
-        setRenderState(renderingMessages[nextIndex]);
-        return nextIndex;
-      });
-    }, RENDER_STATUS_DURATION_MS);
-
-    return () => window.clearInterval(timer);
-  }, [isRendering]);
 
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
@@ -420,11 +411,19 @@ export default function App() {
     updateForm({ matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig) });
   };
 
+  const playRenderStatusSequence = async (id: number) => {
+    for (const message of renderingMessages) {
+      if (id !== requestId.current) return false;
+      setRenderState(message);
+      await wait(RENDER_STATUS_DURATION_MS);
+    }
+    return id === requestId.current;
+  };
+
   const applyRender = async () => {
     const id = ++requestId.current;
-    setRenderMessageIndex(0);
     setIsRendering(true);
-    setRenderState(renderingMessages[0]);
+    const statusSequence = playRenderStatusSequence(id);
 
     try {
       const nextRecommendation = await recommend(form);
@@ -434,9 +433,9 @@ export default function App() {
         nextRecommendation.variants[0] ??
         null;
 
-      setRecommendation(nextRecommendation);
-
       if (!nextVariant) {
+        const didFinishStatuses = await statusSequence;
+        if (!didFinishStatuses) return;
         setRenderState("Нет варианта для рендера");
         return;
       }
@@ -471,6 +470,13 @@ export default function App() {
         if (item) nextPreviewUrls[item[0]] = item[1];
       }
 
+      const didFinishStatuses = await statusSequence;
+      if (!didFinishStatuses) {
+        revokePreviewUrls(nextPreviewUrls);
+        return;
+      }
+
+      setRecommendation(nextRecommendation);
       setPreviewUrls((previousUrls) => {
         revokePreviewUrls(previousUrls);
         return nextPreviewUrls;
@@ -481,6 +487,8 @@ export default function App() {
         if (id === requestId.current) setRenderState("");
       }, 900);
     } catch (error) {
+      if (id !== requestId.current) return;
+      await statusSequence;
       if (id !== requestId.current) return;
       setRenderState(error instanceof Error ? error.message : "Ошибка рендера");
     } finally {
