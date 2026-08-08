@@ -66,6 +66,9 @@ MAT_SIZE_MAX_MM = {
 
 SIGNATURE_INNER_MAT_RATIO = 0.8
 MAT_WINDOW_OVERLAP_MM = 5
+ACCENT_SIMILAR_DELTA_E = 26
+ACCENT_SAME_FAMILY_DELTA_E = 34
+NEUTRAL_COLOR_FAMILIES = {"white", "grey", "black"}
 
 PLACED_PALETTE = {
     "PW001": {"id": "PW001", "name": "Museum White", "hex": "#F7F6F2", "family": "white", "role": "base_white"},
@@ -502,7 +505,8 @@ def standard_mat_color(image_analysis):
 
 
 def signature_inner_mat_color(image_analysis):
-    target_lab = signature_inner_target_lab(image_analysis)
+    strategy = signature_inner_color_strategy(image_analysis)
+    target_lab = strategy.get("target_lab")
     if target_lab is None:
         return mat_color_ivory()
 
@@ -510,6 +514,8 @@ def signature_inner_mat_color(image_analysis):
 
 
 def signature_inner_target_lab(image_analysis):
+    return signature_inner_color_strategy(image_analysis).get("target_lab")
+
     accent = image_analysis.get("palette", {}).get("accent", {})
     selected = accent.get("selected") if isinstance(accent, dict) else None
     if not selected:
@@ -527,6 +533,128 @@ def signature_inner_target_lab(image_analysis):
         l_value += 15
 
     return (clamp_float(l_value, 0, 100), a_value * 0.5, b_value * 0.5)
+
+
+def signature_inner_color_strategy(image_analysis):
+    palette = image_analysis.get("palette", {})
+    accent = palette.get("accent", {}) if isinstance(palette, dict) else {}
+    selected = accent.get("selected") if isinstance(accent, dict) else None
+    if not selected:
+        return {
+            "mode": "fallback",
+            "base_color": None,
+            "target_lab": None,
+            "similarity": {},
+            "reason": "Signature: акцентный цвет не найден, используется резервный Ivory.",
+        }
+
+    if is_neutral_color(selected):
+        candidates = accent.get("candidates", {}) if isinstance(accent, dict) else {}
+        area_color = candidates.get("area") if isinstance(candidates, dict) else None
+        base_color = area_color or selected
+        return {
+            "mode": "area_for_neutral",
+            "base_color": base_color,
+            "target_lab": adjusted_signature_lab(base_color, image_analysis, complement=False),
+            "similarity": accent_similarity(selected, palette),
+            "reason": (
+                "Signature: выбранный акцент нейтральный, поэтому комплементарный цвет не строится; "
+                "для нижнего паспарту используется area-кандидат акцента."
+            ),
+        }
+
+    similarity = accent_similarity(selected, palette)
+    use_complement = similarity.get("similar", False)
+    return {
+        "mode": "complement" if use_complement else "accent",
+        "base_color": selected,
+        "target_lab": adjusted_signature_lab(selected, image_analysis, complement=use_complement),
+        "similarity": similarity,
+        "reason": (
+            "Signature: акцент близок к основному или вторичному цвету, поэтому нижнее паспарту "
+            "использует приглушенный комплементарный цвет."
+            if use_complement
+            else "Signature: акцент достаточно самостоятельный, поэтому нижнее паспарту использует приглушенный акцентный цвет."
+        ),
+    }
+
+
+def adjusted_signature_lab(color, image_analysis, complement=False):
+    lab = color_lab(color)
+    if lab is None:
+        return None
+
+    lightness = normalize_visual_level(image_analysis.get("lightness"))
+    l_value, a_value, b_value = lab
+    if complement:
+        a_value = -a_value
+        b_value = -b_value
+
+    if lightness == "light":
+        l_value -= 15
+    elif lightness == "dark":
+        l_value += 15
+
+    return (clamp_float(l_value, 0, 100), a_value * 0.5, b_value * 0.5)
+
+
+def accent_similarity(accent_color, palette):
+    accent_lab = color_lab(accent_color)
+    if accent_lab is None:
+        return {"similar": False, "primary_delta_e": None, "secondary_delta_e": None, "closest_role": None}
+
+    closest_role = None
+    closest_delta = None
+    distances = {}
+    similar = False
+    for role in ("primary", "secondary"):
+        anchor = palette.get(role) if isinstance(palette, dict) else None
+        anchor_lab = color_lab(anchor) if anchor else None
+        if anchor_lab is None:
+            distances[f"{role}_delta_e"] = None
+            continue
+
+        distance = delta_e(accent_lab, anchor_lab)
+        same_family = accent_color.get("family") and accent_color.get("family") == anchor.get("family")
+        role_similar = distance <= ACCENT_SIMILAR_DELTA_E or (
+            same_family and distance <= ACCENT_SAME_FAMILY_DELTA_E
+        )
+        distances[f"{role}_delta_e"] = round(distance, 2)
+        if closest_delta is None or distance < closest_delta:
+            closest_delta = distance
+            closest_role = role
+        similar = similar or role_similar
+
+    return {
+        "similar": similar,
+        "primary_delta_e": distances.get("primary_delta_e"),
+        "secondary_delta_e": distances.get("secondary_delta_e"),
+        "closest_role": closest_role,
+    }
+
+
+def is_neutral_color(color):
+    family = color.get("family")
+    if family in NEUTRAL_COLOR_FAMILIES:
+        return True
+
+    lab = color_lab(color)
+    if lab is None:
+        return False
+    _l_value, a_value, b_value = lab
+    chroma = color.get("chroma")
+    if chroma is None:
+        chroma = sqrt(a_value * a_value + b_value * b_value)
+    return float(chroma) < 10
+
+
+def normalize_visual_level(value):
+    normalized = str(value or "").strip().lower()
+    if normalized in {"light", "светлый", "svetlyy"}:
+        return "light"
+    if normalized in {"dark", "темный", "тёмный", "temnyy"}:
+        return "dark"
+    return "medium"
 
 
 def nearest_palette_color(target_lab):
@@ -592,6 +720,12 @@ def clamp_float(value, low, high):
     return max(low, min(high, float(value)))
 
 
+def format_optional_metric(value):
+    if value is None:
+        return "n/a"
+    return f"{float(value):.2f}"
+
+
 def public_palette_color(color):
     return {"id": color["id"], "name": color["name"], "hex": color["hex"]}
 
@@ -626,8 +760,20 @@ def color_facts(mat, decor_style, image_analysis):
     if decor_style == DecorStyle.standard.value:
         facts.append("Для Standard применена таблица из `Цвет паспарту.md`; монохромное изображение имеет приоритет над температурой и светлотой.")
     else:
+        strategy = signature_inner_color_strategy(image_analysis)
+        similarity = strategy.get("similarity", {})
         accent = image_analysis.get("palette", {}).get("accent", {})
         selected = accent.get("selected") if isinstance(accent, dict) else None
+        facts.append(
+            "Стратегия нижнего паспарту Signature: "
+            f"{strategy.get('mode')}; {strategy.get('reason')}"
+        )
+        facts.append(
+            "Схожесть акцента: "
+            f"основной Delta E {format_optional_metric(similarity.get('primary_delta_e'))}, "
+            f"вторичный Delta E {format_optional_metric(similarity.get('secondary_delta_e'))}; "
+            f"схожий={similarity.get('similar', False)}."
+        )
         facts.append(f"Акцентный цвет: {color_fact(selected) if selected else 'не найден'}.")
         facts.append("Насыщенность расчетного цвета нижнего паспарту уменьшена на 50%.")
         if image_analysis.get("lightness") == "светлый":
