@@ -247,7 +247,7 @@ FRAME_STYLE_ORDER = {
     "japandi": ["light_oak", "oak", "walnut"],
     "modern_vintage": ["walnut", "oak", "dark_walnut"],
     "loft": ["black_aluminum", "dark_walnut", "champagne_aluminum", "silver_aluminum"],
-    "neoclassic": ["walnut", "gold", "silver_aluminum", "dark_walnut"],
+    "neoclassic": ["walnut", "gold", "dark_walnut"],
 }
 
 FRAME_MATERIAL_RULES = {
@@ -289,7 +289,9 @@ FRAME_LIGHTNESS_TONES = {
     "dark": ["dark", "medium"],
 }
 
-FRAME_MONOCHROME_PHOTO_IDS = {"black_aluminum", "black_wood", "white_wood", "silver_aluminum"}
+FRAME_MONOCHROME_IDS = {"black_aluminum", "black_wood", "white_wood", "silver_aluminum"}
+FRAME_MONOCHROME_FALLBACK_ORDER = ["black_aluminum", "black_wood", "white_wood", "silver_aluminum"]
+FRAME_NEOCLASSIC_MONOCHROME_FALLBACK_ORDER = ["black_wood", "white_wood"]
 FRAME_HIGH_CHROMA_IDS = {"black_aluminum", "black_wood", "white_wood", "light_oak", "oak"}
 FRAME_LOFT_LIGHT_WATERCOLOR_IDS = {"black_aluminum", "dark_walnut"}
 
@@ -459,6 +461,9 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
     if normalized_style != "neoclassic":
         candidates = [candidate for candidate in candidates if candidate["id"] != "gold"]
         facts.append("Hard-фильтр: золото исключено вне неоклассики.")
+    else:
+        candidates = [candidate for candidate in candidates if candidate["material"] != "aluminum"]
+        facts.append("Hard-фильтр: в неоклассике исключены алюминиевые рамы.")
 
     if artwork_type in {"canvas", "volumetric"}:
         candidates = [candidate for candidate in candidates if candidate["material"] == "wood"]
@@ -468,12 +473,12 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         candidates = [candidate for candidate in candidates if candidate["id"] != "white_wood"]
         facts.append("Hard-фильтр: для очень большого размера белая деревянная рама исключена.")
 
-    if artwork_type == "photo" and is_monochrome_image(image_analysis):
-        candidates, applied = optional_frame_filter(candidates, FRAME_MONOCHROME_PHOTO_IDS)
+    if is_monochrome_image(image_analysis):
+        candidates, used_fallback = monochrome_frame_candidates(candidates, normalized_style, size_profile)
         facts.append(
-            "Hard-фильтр: черно-белое фото ограничено черными, белыми и серебристыми рамами."
-            if applied
-            else "Hard-фильтр черно-белого фото пропущен: после предыдущих условий не осталось бы кандидатов."
+            "Hard-фильтр: монохромное изображение ограничено черными, белыми и серебристыми рамами."
+            if not used_fallback
+            else "Hard-фильтр: монохромное изображение ограничено черными, белыми и серебристыми рамами; базовый список заменен допустимым резервом."
         )
 
     chroma_level = normalize_level(image_analysis.get("chroma_level"))
@@ -586,6 +591,28 @@ def optional_frame_filter(candidates, allowed_ids):
     if not filtered:
         return candidates, False
     return filtered, True
+
+
+def monochrome_frame_candidates(candidates, normalized_style, size_profile):
+    filtered = [candidate for candidate in candidates if candidate["id"] in FRAME_MONOCHROME_IDS]
+    if filtered:
+        return filtered, False
+
+    fallback_order = (
+        FRAME_NEOCLASSIC_MONOCHROME_FALLBACK_ORDER
+        if normalized_style == "neoclassic"
+        else FRAME_MONOCHROME_FALLBACK_ORDER
+    )
+    fallback = [FRAME_LIBRARY[frame_id] for frame_id in fallback_order]
+    if normalized_style == "neoclassic":
+        fallback = [candidate for candidate in fallback if candidate["material"] != "aluminum"]
+    if size_profile == "extra_large":
+        fallback = [candidate for candidate in fallback if candidate["id"] != "white_wood"]
+    if fallback:
+        return fallback, True
+
+    reserve_id = "black_wood" if normalized_style == "neoclassic" else "black_aluminum"
+    return [FRAME_LIBRARY[reserve_id]], True
 
 
 def filter_by_frame_lightness(candidates, lightness):
