@@ -51,6 +51,44 @@ def draw_mat(canvas, mat_rect, aperture_rect, mat_px, base=MAT_BASE):
     return canvas
 
 
+def draw_aperture_depth(canvas, aperture_rect, mat_px, strength=0.26):
+    left, top, right, bottom = aperture_rect
+    if right <= left or bottom <= top:
+        return canvas
+
+    depth = max(2, min(mat_px // 18, 8))
+    blur = max(1, min(depth, 5))
+    line_alpha = int(42 * strength)
+    shadow_alpha = int(92 * strength)
+    highlight_alpha = int(48 * strength)
+
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # The bevel is intentionally quiet: mat board has thickness, but it should not look like a heavy frame.
+    draw.line([(left, top), (right, top)], fill=(255, 255, 255, highlight_alpha), width=1)
+    draw.line([(left, top), (left, bottom)], fill=(255, 255, 255, highlight_alpha), width=1)
+    draw.line([(left, bottom), (right, bottom)], fill=(0, 0, 0, line_alpha), width=1)
+    draw.line([(right, top), (right, bottom)], fill=(0, 0, 0, line_alpha), width=1)
+
+    shadow_mask = Image.new("L", canvas.size, 0)
+    shadow_draw = ImageDraw.Draw(shadow_mask)
+    shadow_draw.rectangle([left, top, right, bottom], outline=shadow_alpha, width=depth)
+    shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(blur))
+
+    aperture_clip = Image.new("L", canvas.size, 0)
+    clip_draw = ImageDraw.Draw(aperture_clip)
+    clip_draw.rectangle([left, top, right, bottom], fill=255)
+    clipped_shadow = Image.new("L", canvas.size, 0)
+    clipped_shadow.paste(shadow_mask, mask=aperture_clip)
+
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 46))
+    shadow_layer.putalpha(clipped_shadow)
+    overlay = Image.alpha_composite(overlay, shadow_layer)
+
+    return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
+
+
 def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
     if isinstance(reveal_px, (tuple, list)):
         left_reveal, top_reveal, right_reveal, bottom_reveal = [max(0, int(value)) for value in reveal_px]
@@ -62,13 +100,26 @@ def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
         return canvas
 
     left, top, right, bottom = aperture_rect
-    draw = ImageDraw.Draw(canvas)
+    reveal_left = left - left_reveal
+    reveal_top = top - top_reveal
+    reveal_right = right + right_reveal
+    reveal_bottom = bottom + bottom_reveal
+    width = max(1, reveal_right - reveal_left)
+    height = max(1, reveal_bottom - reveal_top)
+
+    reveal_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    texture = mat_board_texture(width, height, color).convert("RGBA")
+    mask = Image.new("L", (width, height), 0)
+    draw_mask = ImageDraw.Draw(mask)
     if left_reveal > 0:
-        draw.rectangle([left - left_reveal, top - top_reveal, left, bottom + bottom_reveal], fill=color)
+        draw_mask.rectangle([0, 0, left - reveal_left, height], fill=255)
     if top_reveal > 0:
-        draw.rectangle([left, top - top_reveal, right, top], fill=color)
+        draw_mask.rectangle([left - reveal_left, 0, right - reveal_left, top - reveal_top], fill=255)
     if right_reveal > 0:
-        draw.rectangle([right, top - top_reveal, right + right_reveal, bottom + bottom_reveal], fill=color)
+        draw_mask.rectangle([right - reveal_left, 0, width, height], fill=255)
     if bottom_reveal > 0:
-        draw.rectangle([left, bottom, right, bottom + bottom_reveal], fill=color)
-    return canvas
+        draw_mask.rectangle([left - reveal_left, bottom - reveal_top, right - reveal_left, height], fill=255)
+
+    texture.putalpha(mask)
+    reveal_layer.alpha_composite(texture, (reveal_left, reveal_top))
+    return Image.alpha_composite(canvas.convert("RGBA"), reveal_layer).convert("RGB")

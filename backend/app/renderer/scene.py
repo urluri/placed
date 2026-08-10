@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFilter
 from .frame import draw_frame
 from .glass import add_glass_effect
 from .lighting import add_global_lighting
-from .mat import draw_inner_reveal, draw_mat
+from .mat import draw_aperture_depth, draw_inner_reveal, draw_mat
 from .postprocess import add_chromatic_aberration, add_film_grain, add_vignette, color_grade
 from .utils import mm_to_px
 
@@ -101,8 +101,11 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
                 (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
                 inner_mat_color,
             )
+            canvas = draw_aperture_depth(canvas, top_aperture_rect, mat_px, strength=0.22)
+            canvas = draw_aperture_depth(canvas, window_rect, mat_px, strength=0.18)
         else:
             canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)
+            canvas = draw_aperture_depth(canvas, window_rect, mat_px, strength=0.22)
 
     canvas = add_frame_cast_shadow(canvas, mat_rect, frame)
 
