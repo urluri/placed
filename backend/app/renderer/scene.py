@@ -5,7 +5,6 @@ from .glass import add_glass_effect
 from .lighting import add_global_lighting
 from .mat import draw_inner_reveal, draw_mat
 from .postprocess import add_chromatic_aberration, add_film_grain, add_vignette, color_grade
-from .shadows import add_contact_shadow, add_inner_occlusion
 from .utils import mm_to_px
 
 TECHNICAL_FRAME_COLOR = (0, 0, 0)
@@ -82,12 +81,6 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
             )
         else:
             canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)
-            canvas = add_inner_occlusion(canvas, window_rect, blur=7, opacity=44, spread=max(4, mat_px // 14))
-    else:
-        canvas = add_inner_occlusion(canvas, art_rect, blur=5, opacity=32, spread=max(3, frame // 8))
-
-    if not has_inner_reveal:
-        canvas = add_contact_shadow(canvas, window_rect, blur=4, opacity=24)
 
     if glass_type and glass_type != "none":
         opacity = 12 if glass_type == "museum" else 16
