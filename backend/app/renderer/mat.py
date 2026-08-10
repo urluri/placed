@@ -5,12 +5,25 @@ MAT_BASE = (236, 228, 214)
 
 
 def mat_board_texture(width, height, base=MAT_BASE):
-    large = np.random.normal(0, 2.2, (height, width))
-    fibers = np.sin(np.mgrid[0:height, 0:width][1] / 11) * 0.8
+    y, x = np.mgrid[0:height, 0:width]
+    cloud = np.random.normal(0, 2.8, (height, width))
+    cloud = np.asarray(
+        Image.fromarray(np.clip(128 + cloud * 10, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2.1))
+    ).astype(np.float32)
+    cloud = (cloud - 128) * 0.18
+
+    horizontal_fibers = np.sin((x + np.sin(y / 29) * 12) / 8.5) * 0.75
+    vertical_fibers = np.sin((y + np.sin(x / 41) * 9) / 17) * 0.35
+    fine = np.random.normal(0, 0.9, (height, width))
+    speckles = (np.random.random((height, width)) > 0.996).astype(np.float32) * np.random.normal(-10, 3, (height, width))
+    texture_value = cloud + horizontal_fibers + vertical_fibers + fine + speckles
+
     arr = np.zeros((height, width, 3), dtype=np.float32)
     arr[:] = base
-    arr += (large + fibers)[:, :, None]
-    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.35))
+    arr += texture_value[:, :, None]
+    arr[:, :, 0] += horizontal_fibers * 0.35
+    arr[:, :, 2] -= horizontal_fibers * 0.18
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.18))
 
 
 def draw_mat(canvas, mat_rect, aperture_rect, mat_px, base=MAT_BASE):

@@ -188,7 +188,7 @@ FRAME_LIBRARY = {
         "material": "aluminum",
         "color_family": "champagne",
         "tone": "light",
-        "hex": "#CBB894",
+        "hex": "#D8B65C",
     },
     "silver_aluminum": {
         "id": "silver_aluminum",

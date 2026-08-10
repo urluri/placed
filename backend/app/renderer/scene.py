@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter
 
 from .frame import draw_frame
 from .glass import add_glass_effect
@@ -9,6 +9,27 @@ from .utils import mm_to_px
 
 TECHNICAL_FRAME_COLOR = (0, 0, 0)
 DEFAULT_MAT_COLOR = (255, 255, 240)
+
+
+def add_frame_cast_shadow(canvas, inner_rect, frame_px):
+    left, top, right, bottom = inner_rect
+    shadow_width = max(3, min(frame_px // 5, 22))
+    blur_radius = max(4, min(frame_px // 6, 20))
+
+    mask = Image.new("L", canvas.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle([left, top, right, bottom], outline=170, width=shadow_width)
+    mask = mask.filter(ImageFilter.GaussianBlur(blur_radius))
+
+    clip = Image.new("L", canvas.size, 0)
+    clip_draw = ImageDraw.Draw(clip)
+    clip_draw.rectangle([left, top, right, bottom], fill=255)
+    clipped_mask = Image.new("L", canvas.size, 0)
+    clipped_mask.paste(mask, mask=clip)
+
+    shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 72))
+    shadow.putalpha(clipped_mask)
+    return Image.alpha_composite(canvas.convert("RGBA"), shadow).convert("RGB")
 
 
 def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", rotation_degrees=0):
@@ -83,15 +104,17 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
         else:
             canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)
 
+    canvas = add_frame_cast_shadow(canvas, mat_rect, frame)
+
     if glass_type and glass_type != "none":
         opacity = 12 if glass_type == "museum" else 16
         canvas = add_glass_effect(canvas, window_rect, opacity=opacity)
 
-    canvas = add_global_lighting(canvas, strength=0.045)
-    canvas = add_vignette(canvas, strength=0.045)
-    canvas = add_film_grain(canvas, sigma=0.9)
-    canvas = add_chromatic_aberration(canvas, offset=1)
+    canvas = add_global_lighting(canvas, strength=0.065)
+    canvas = add_vignette(canvas, strength=0.055)
+    canvas = add_film_grain(canvas, sigma=0.8)
+    canvas = add_chromatic_aberration(canvas, offset=0)
     canvas = color_grade(canvas)
 
-    canvas.save(output_path, quality=95)
+    canvas.save(output_path, quality=96, subsampling=0)
     return canvas
