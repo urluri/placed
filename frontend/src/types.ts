@@ -80,6 +80,7 @@ export type FrameSpec = {
   name: string;
   material: string;
   color_family: string;
+  tone: string;
   width_mm: number;
   depth_mm: number | null;
   profile: string;

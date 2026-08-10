@@ -29,6 +29,7 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     inner_reveal_top = mm_to_px(geometry.get("inner_reveal_top", geometry.get("inner_reveal", 0)))
     inner_reveal_bottom = mm_to_px(geometry.get("inner_reveal_bottom", geometry.get("inner_reveal", 0)))
     frame_color = tuple(geometry.get("frame_color", TECHNICAL_FRAME_COLOR))
+    frame_material = geometry.get("frame_material", "wood")
     mat_color = tuple(geometry.get("mat_color", DEFAULT_MAT_COLOR))
     inner_mat_color = tuple(geometry.get("inner_mat_color", mat_color))
     glass_type = geometry.get("glass", "none")
@@ -60,7 +61,7 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     )
 
     canvas = Image.new("RGB", (picture_w, picture_h), frame_color)
-    canvas = draw_frame(canvas, outer_rect, frame, frame_color)
+    canvas = draw_frame(canvas, outer_rect, frame, frame_color, material=frame_material)
     canvas.paste(artwork, (art_rect[0], art_rect[1]))
 
     if has_mat:

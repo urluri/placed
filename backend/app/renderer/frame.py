@@ -21,6 +21,21 @@ def wood_texture(width, height, base=FRAME_BASE):
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
 
 
+def aluminum_texture(width, height, base):
+    y, x = np.mgrid[0:height, 0:width]
+    brushed = np.sin((x + y * 0.08) / 14) * 1.8
+    fine = np.random.normal(0, 0.9, (height, width))
+    highlight = np.sin((x - y * 0.18) / 120) * 2.2
+    noise = brushed + fine + highlight
+
+    arr = np.zeros((height, width, 3), dtype=np.float32)
+    arr[:] = base
+    arr[:, :, 0] += noise
+    arr[:, :, 1] += noise
+    arr[:, :, 2] += noise
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
 def bevel_color(color, factor):
     if factor <= 1:
         return adjust_color(color, factor)
@@ -29,7 +44,7 @@ def bevel_color(color, factor):
     return tuple(int(channel + (255 - channel) * amount) for channel in color)
 
 
-def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE):
+def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood"):
     left, top, right, bottom = outer_rect
     width = right - left
     height = bottom - top
@@ -41,7 +56,10 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE):
     )
 
     frame_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    texture = wood_texture(width, height, base).convert("RGBA")
+    if material == "aluminum":
+        texture = aluminum_texture(width, height, base).convert("RGBA")
+    else:
+        texture = wood_texture(width, height, base).convert("RGBA")
 
     mask = Image.new("L", (width, height), 0)
     mask_draw = ImageDraw.Draw(mask)
@@ -61,11 +79,15 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE):
     canvas = Image.alpha_composite(canvas.convert("RGBA"), frame_layer).convert("RGB")
     draw = ImageDraw.Draw(canvas)
 
-    bevel_layers = max(8, min(26, frame_px // 8))
+    bevel_layers = max(6, min(18 if material == "aluminum" else 26, frame_px // 8))
     for i in range(bevel_layers):
         t = i / max(1, bevel_layers - 1)
-        light = 1.42 - t * 0.38
-        dark = 0.58 + t * 0.20
+        if material == "aluminum":
+            light = 1.24 - t * 0.16
+            dark = 0.78 + t * 0.12
+        else:
+            light = 1.42 - t * 0.38
+            dark = 0.58 + t * 0.20
 
         current_bottom = bottom - i
         draw.line([(left + i, top + i), (right - i, top + i)], fill=bevel_color(base, light))
@@ -74,11 +96,15 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE):
         draw.line([(right - i, top + i), (right - i, current_bottom)], fill=bevel_color(base, dark))
 
     inner_left, inner_top, inner_right, inner_bottom = inner_rect
-    inner_layers = max(5, min(18, frame_px // 10))
+    inner_layers = max(4, min(12 if material == "aluminum" else 18, frame_px // 10))
     for i in range(inner_layers):
         t = i / max(1, inner_layers - 1)
-        light = 1.16 - t * 0.13
-        dark = 0.66 + t * 0.18
+        if material == "aluminum":
+            light = 1.08 - t * 0.06
+            dark = 0.82 + t * 0.08
+        else:
+            light = 1.16 - t * 0.13
+            dark = 0.66 + t * 0.18
         draw.line([(inner_left - i, inner_top - i), (inner_right + i, inner_top - i)], fill=bevel_color(base, dark))
         draw.line([(inner_left - i, inner_top - i), (inner_left - i, inner_bottom + i)], fill=bevel_color(base, dark))
         draw.line([(inner_left - i, inner_bottom + i), (inner_right + i, inner_bottom + i)], fill=bevel_color(base, light))

@@ -157,6 +157,142 @@ MAT_COLOR_OPTIONS = {
     "museum_white": PLACED_PALETTE["PW001"],
 }
 
+FRAME_LIBRARY = {
+    "black_aluminum": {
+        "id": "black_aluminum",
+        "name": "Черный алюминий",
+        "material": "aluminum",
+        "color_family": "black",
+        "tone": "dark",
+        "hex": "#111111",
+    },
+    "black_wood": {
+        "id": "black_wood",
+        "name": "Черное дерево",
+        "material": "wood",
+        "color_family": "black",
+        "tone": "dark",
+        "hex": "#111111",
+    },
+    "white_wood": {
+        "id": "white_wood",
+        "name": "Белое дерево",
+        "material": "wood",
+        "color_family": "white",
+        "tone": "light",
+        "hex": "#F4F1EA",
+    },
+    "champagne_aluminum": {
+        "id": "champagne_aluminum",
+        "name": "Шампань",
+        "material": "aluminum",
+        "color_family": "champagne",
+        "tone": "light",
+        "hex": "#CBB894",
+    },
+    "silver_aluminum": {
+        "id": "silver_aluminum",
+        "name": "Серебро",
+        "material": "aluminum",
+        "color_family": "silver",
+        "tone": "light",
+        "hex": "#BFC3C7",
+    },
+    "light_oak": {
+        "id": "light_oak",
+        "name": "Светлый дуб",
+        "material": "wood",
+        "color_family": "oak",
+        "tone": "light",
+        "hex": "#D4B789",
+    },
+    "oak": {
+        "id": "oak",
+        "name": "Дуб",
+        "material": "wood",
+        "color_family": "oak",
+        "tone": "medium",
+        "hex": "#A6753F",
+    },
+    "walnut": {
+        "id": "walnut",
+        "name": "Орех",
+        "material": "wood",
+        "color_family": "walnut",
+        "tone": "medium",
+        "hex": "#6F4A2D",
+    },
+    "dark_walnut": {
+        "id": "dark_walnut",
+        "name": "Темный орех",
+        "material": "wood",
+        "color_family": "walnut",
+        "tone": "dark",
+        "hex": "#3B281D",
+    },
+    "gold": {
+        "id": "gold",
+        "name": "Золото",
+        "material": "wood",
+        "color_family": "gold",
+        "tone": "medium",
+        "hex": "#C3A15A",
+    },
+}
+
+FRAME_STYLE_ORDER = {
+    "minimal": ["black_aluminum", "white_wood", "champagne_aluminum", "silver_aluminum"],
+    "contemporary": ["black_aluminum", "champagne_aluminum", "walnut", "white_wood", "light_oak", "silver_aluminum"],
+    "scandi": ["light_oak", "white_wood", "oak", "champagne_aluminum", "black_wood"],
+    "japandi": ["light_oak", "oak", "walnut"],
+    "modern_vintage": ["walnut", "oak", "dark_walnut"],
+    "loft": ["black_aluminum", "dark_walnut", "champagne_aluminum", "silver_aluminum"],
+    "neoclassic": ["walnut", "gold", "silver_aluminum", "dark_walnut"],
+}
+
+FRAME_MATERIAL_RULES = {
+    "poster": ("aluminum", "wood"),
+    "photo": ("aluminum", "wood"),
+    "watercolor": ("wood", "aluminum"),
+    "engraving": ("wood", "aluminum"),
+    "botanical": ("wood", "aluminum"),
+    "canvas": ("wood", None),
+    "volumetric": ("wood", None),
+}
+
+FRAME_WIDTHS_MM = {
+    "small": {
+        "low": {"wood": 15, "aluminum": 10},
+        "medium": {"wood": 15, "aluminum": 10},
+        "high": {"wood": 20, "aluminum": 12},
+    },
+    "medium": {
+        "low": {"wood": 15, "aluminum": 10},
+        "medium": {"wood": 20, "aluminum": 12},
+        "high": {"wood": 20, "aluminum": 12},
+    },
+    "large": {
+        "low": {"wood": 20, "aluminum": 12},
+        "medium": {"wood": 30, "aluminum": 15},
+        "high": {"wood": 30, "aluminum": 15},
+    },
+    "extra_large": {
+        "low": {"wood": 30, "aluminum": 15},
+        "medium": {"wood": 40, "aluminum": 20},
+        "high": {"wood": 50, "aluminum": 20},
+    },
+}
+
+FRAME_LIGHTNESS_TONES = {
+    "light": ["light"],
+    "medium": ["medium"],
+    "dark": ["dark", "medium"],
+}
+
+FRAME_MONOCHROME_PHOTO_IDS = {"black_aluminum", "black_wood", "white_wood", "silver_aluminum"}
+FRAME_HIGH_CHROMA_IDS = {"black_aluminum", "black_wood", "white_wood", "light_oak", "oak"}
+FRAME_LOFT_LIGHT_WATERCOLOR_IDS = {"black_aluminum", "dark_walnut"}
+
 
 @dataclass
 class FrameOption:
@@ -164,6 +300,7 @@ class FrameOption:
     name: str
     material: str
     color_family: str
+    tone: str
     width_mm: int
     depth_mm: int | None
     profile: str
@@ -249,16 +386,8 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
     normalized_type = normalize_artwork_type(artwork_type)
     size_profile = classify_size_profile(width, height)
     constructive = constructive_decision(normalized_type, size_profile, image_analysis)
-    frame = FrameOption(
-        id="renderer-placeholder-frame",
-        name="Черная техническая рама",
-        material="wood",
-        color_family="neutral",
-        width_mm=20,
-        depth_mm=24,
-        profile="flat",
-        hex="#000000",
-    )
+    frame_decision = build_frame_decision(normalized_type, interior_style, size_profile, image_analysis)
+    frame = frame_decision["frame"]
     mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis, mat_size_config)
     glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
@@ -275,7 +404,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
         reasons=[
             constructive["reason"],
             mat_reason(mat, decor_style, size_profile, mat_size_config) if mat.enabled else "Паспарту не используется.",
-            f"Багет пока технический: черная рама {frame.width_mm} мм.",
+            frame_decision["reason"],
         ],
         warnings=[],
         decision_tree=[
@@ -302,8 +431,13 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
             },
             {
                 "title": "Расчеты изображения",
-                "result": "Вычислены наблюдаемые характеристики изображения. Они пока не влияют на оформление.",
+                "result": "Вычислены наблюдаемые характеристики изображения для выбора паспарту и рамы.",
                 "facts": analysis_facts(image_analysis),
+            },
+            {
+                "title": "Рама",
+                "result": frame_decision["reason"],
+                "facts": frame_decision["facts"],
             },
             {
                 "title": "Цвета",
@@ -312,6 +446,173 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
             }
         ],
     )
+
+
+def build_frame_decision(artwork_type, interior_style, size_profile, image_analysis):
+    normalized_style = normalize_frame_interior_style(interior_style)
+    candidates = frame_candidates_for_style(normalized_style)
+    facts = [
+        f"Нормализованный стиль интерьера: {normalized_style}.",
+        f"Базовый порядок: {frame_ids(candidates)}.",
+    ]
+
+    if normalized_style != "neoclassic":
+        candidates = [candidate for candidate in candidates if candidate["id"] != "gold"]
+        facts.append("Hard-фильтр: золото исключено вне неоклассики.")
+
+    if artwork_type in {"canvas", "volumetric"}:
+        candidates = [candidate for candidate in candidates if candidate["material"] == "wood"]
+        facts.append(f"Hard-фильтр: для типа «{ARTWORK_TYPE_LABELS.get(artwork_type, artwork_type)}» оставлены только деревянные рамы.")
+
+    if size_profile == "extra_large":
+        candidates = [candidate for candidate in candidates if candidate["id"] != "white_wood"]
+        facts.append("Hard-фильтр: для очень большого размера белая деревянная рама исключена.")
+
+    if artwork_type == "photo" and is_monochrome_image(image_analysis):
+        candidates, applied = optional_frame_filter(candidates, FRAME_MONOCHROME_PHOTO_IDS)
+        facts.append(
+            "Hard-фильтр: черно-белое фото ограничено черными, белыми и серебристыми рамами."
+            if applied
+            else "Hard-фильтр черно-белого фото пропущен: после предыдущих условий не осталось бы кандидатов."
+        )
+
+    chroma_level = normalize_level(image_analysis.get("chroma_level"))
+    if chroma_level == "high":
+        candidates, applied = optional_frame_filter(candidates, FRAME_HIGH_CHROMA_IDS)
+        facts.append(
+            "Hard-фильтр: высокая насыщенность изображения ограничила выбор нейтральными рамами."
+            if applied
+            else "Hard-фильтр высокой насыщенности пропущен: после предыдущих условий не осталось бы кандидатов."
+        )
+
+    lightness = normalize_visual_level(image_analysis.get("lightness"))
+    if normalized_style == "loft" and artwork_type == "watercolor" and lightness == "light":
+        candidates, applied = optional_frame_filter(candidates, FRAME_LOFT_LIGHT_WATERCOLOR_IDS)
+        facts.append(
+            "Hard-фильтр: светлая акварель в лофте ограничена черным алюминием и темным орехом."
+            if applied
+            else "Hard-фильтр светлой акварели в лофте пропущен: после предыдущих условий не осталось бы кандидатов."
+        )
+
+    material_preference, _material_fallback = FRAME_MATERIAL_RULES.get(artwork_type, FRAME_MATERIAL_RULES["poster"])
+    preferred_material_candidates = [
+        candidate for candidate in candidates if candidate["material"] == material_preference
+    ]
+    if preferred_material_candidates:
+        candidates = preferred_material_candidates
+        facts.append(f"Материал по типу работы: выбран приоритет {material_preference}.")
+    else:
+        facts.append(f"Материал по типу работы: приоритет {material_preference} недоступен, оставлен текущий список.")
+
+    lightness_candidates = filter_by_frame_lightness(candidates, lightness)
+    if lightness_candidates:
+        candidates = lightness_candidates
+        facts.append(f"Светлота изображения {lightness}: применен фильтр рамы {frame_ids(candidates)}.")
+    else:
+        facts.append(f"Светлота изображения {lightness}: фильтр отменен, потому что список стал бы пустым.")
+
+    if candidates:
+        selected = candidates[0]
+    else:
+        selected = FRAME_LIBRARY["black_wood" if artwork_type in {"canvas", "volumetric"} else "black_aluminum"]
+        facts.append(f"Резервный выбор: {selected['id']}.")
+
+    occupancy_level = normalize_level(image_analysis.get("frame_occupancy"))
+    width_mm = FRAME_WIDTHS_MM[size_profile][occupancy_level][selected["material"]]
+    profile = frame_profile(selected)
+    depth_mm = frame_depth(width_mm, selected["material"])
+    frame = FrameOption(
+        id=selected["id"],
+        name=selected["name"],
+        material=selected["material"],
+        color_family=selected["color_family"],
+        tone=selected["tone"],
+        width_mm=width_mm,
+        depth_mm=depth_mm,
+        profile=profile,
+        hex=selected["hex"],
+    )
+    facts.extend(
+        [
+            f"Итоговая рама: {frame.name} ({frame.id}), {frame.hex}.",
+            f"Ширина профиля: {width_mm} мм по размерному профилю {size_profile}, заполненности {occupancy_level} и материалу {frame.material}.",
+            f"Профиль: {profile}.",
+        ]
+    )
+
+    return {
+        "frame": frame,
+        "reason": f"Рама выбрана по документу «Рама»: {frame.name}, {frame.width_mm} мм.",
+        "facts": facts,
+    }
+
+
+def normalize_frame_interior_style(value):
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "minimal": "minimal",
+        "minimalism": "minimal",
+        "минимализм": "minimal",
+        "scandi": "scandi",
+        "сканди": "scandi",
+        "japandi": "japandi",
+        "джапанди": "japandi",
+        "contemporary": "contemporary",
+        "современный": "contemporary",
+        "loft": "loft",
+        "лофт": "loft",
+        "modern_vintage": "modern_vintage",
+        "modern-vintage": "modern_vintage",
+        "винтаж": "modern_vintage",
+        "neoclassic": "neoclassic",
+        "неоклассика": "neoclassic",
+        "universal": "contemporary",
+        "универсальный": "contemporary",
+    }
+    return aliases.get(normalized, "contemporary")
+
+
+def frame_candidates_for_style(interior_style):
+    frame_ids_for_style = FRAME_STYLE_ORDER.get(interior_style, FRAME_STYLE_ORDER["contemporary"])
+    return [FRAME_LIBRARY[frame_id] for frame_id in frame_ids_for_style]
+
+
+def frame_ids(candidates):
+    return ", ".join(candidate["id"] for candidate in candidates) if candidates else "нет кандидатов"
+
+
+def optional_frame_filter(candidates, allowed_ids):
+    filtered = [candidate for candidate in candidates if candidate["id"] in allowed_ids]
+    if not filtered:
+        return candidates, False
+    return filtered, True
+
+
+def filter_by_frame_lightness(candidates, lightness):
+    for tone in FRAME_LIGHTNESS_TONES.get(lightness, FRAME_LIGHTNESS_TONES["medium"]):
+        filtered = [candidate for candidate in candidates if candidate["tone"] == tone]
+        if filtered:
+            return filtered
+    return []
+
+
+def is_monochrome_image(image_analysis):
+    raw_value = str(image_analysis.get("monochrome") or "").strip().lower()
+    return raw_value in {"monochrome", "mono", "монохромное", "монохромный", "true", "yes"}
+
+
+def frame_profile(frame):
+    if frame["material"] == "aluminum":
+        return "flat"
+    if frame["id"] == "gold":
+        return "classic"
+    return "natural_wood"
+
+
+def frame_depth(width_mm, material):
+    if material == "aluminum":
+        return max(12, width_mm + 4)
+    return max(20, width_mm + 8)
 
 
 def constructive_decision(artwork_type, size_profile, image_analysis):
@@ -914,6 +1215,8 @@ def renderer_geometry(spec):
         "inner_reveal_top": mat["inner_reveal_top_mm"] if mat and mat["enabled"] else 0,
         "inner_reveal_bottom": mat["inner_reveal_bottom_mm"] if mat and mat["enabled"] else 0,
         "frame_color": hex_to_rgb(frame.get("hex", "#2B2925")),
+        "frame_material": frame.get("material", "wood"),
+        "frame_profile": frame.get("profile", "natural_wood"),
         "glass": spec.get("glass", {}).get("type", "none"),
     }
 
