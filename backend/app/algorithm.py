@@ -204,7 +204,7 @@ FRAME_LIBRARY = {
         "material": "wood",
         "color_family": "oak",
         "tone": "light",
-        "hex": "#D4B789",
+        "hex": "#C2A77E",
     },
     "oak": {
         "id": "oak",
@@ -240,14 +240,74 @@ FRAME_LIBRARY = {
     },
 }
 
-FRAME_STYLE_ORDER = {
-    "minimal": ["black_aluminum", "white_wood", "champagne_aluminum", "silver_aluminum"],
-    "contemporary": ["black_aluminum", "champagne_aluminum", "walnut", "white_wood", "light_oak", "silver_aluminum"],
-    "scandi": ["light_oak", "white_wood", "oak", "champagne_aluminum", "black_wood"],
-    "japandi": ["light_oak", "oak", "walnut"],
-    "modern_vintage": ["walnut", "oak", "dark_walnut"],
-    "loft": ["black_aluminum", "dark_walnut", "champagne_aluminum", "silver_aluminum"],
-    "neoclassic": ["walnut", "gold", "dark_walnut"],
+FRAME_DEFAULT_ORDER = [
+    "black_aluminum",
+    "black_wood",
+    "white_wood",
+    "light_oak",
+    "oak",
+    "walnut",
+    "dark_walnut",
+    "champagne_aluminum",
+    "silver_aluminum",
+    "gold",
+]
+
+FRAME_STYLE_SCORES = {
+    "minimal": {
+        "black_aluminum": 36,
+        "black_wood": 18,
+        "white_wood": 24,
+        "champagne_aluminum": 10,
+        "silver_aluminum": 8,
+        "light_oak": 6,
+    },
+    "contemporary": {
+        "black_aluminum": 38,
+        "black_wood": 24,
+        "walnut": 18,
+        "white_wood": 12,
+        "light_oak": 10,
+        "champagne_aluminum": 8,
+        "silver_aluminum": 4,
+    },
+    "scandi": {
+        "light_oak": 36,
+        "white_wood": 26,
+        "oak": 24,
+        "black_wood": 14,
+        "black_aluminum": 8,
+        "champagne_aluminum": 4,
+    },
+    "japandi": {
+        "light_oak": 36,
+        "oak": 32,
+        "walnut": 26,
+        "dark_walnut": 18,
+        "black_wood": 16,
+        "black_aluminum": 4,
+    },
+    "modern_vintage": {
+        "walnut": 36,
+        "dark_walnut": 32,
+        "oak": 22,
+        "black_wood": 18,
+        "black_aluminum": 6,
+        "gold": 4,
+    },
+    "loft": {
+        "black_aluminum": 42,
+        "black_wood": 28,
+        "dark_walnut": 26,
+        "silver_aluminum": 4,
+    },
+    "neoclassic": {
+        "walnut": 36,
+        "gold": 32,
+        "dark_walnut": 26,
+        "black_wood": 16,
+        "white_wood": 8,
+    },
 }
 
 FRAME_MATERIAL_RULES = {
@@ -283,17 +343,13 @@ FRAME_WIDTHS_MM = {
     },
 }
 
-FRAME_LIGHTNESS_TONES = {
-    "light": ["light"],
-    "medium": ["medium"],
-    "dark": ["dark", "medium"],
-}
-
 FRAME_MONOCHROME_IDS = {"black_aluminum", "black_wood", "white_wood", "silver_aluminum"}
-FRAME_MONOCHROME_FALLBACK_ORDER = ["black_aluminum", "black_wood", "white_wood", "silver_aluminum"]
-FRAME_NEOCLASSIC_MONOCHROME_FALLBACK_ORDER = ["black_wood", "white_wood"]
-FRAME_HIGH_CHROMA_IDS = {"black_aluminum", "black_wood", "white_wood", "light_oak", "oak"}
-FRAME_LOFT_LIGHT_WATERCOLOR_IDS = {"black_aluminum", "dark_walnut"}
+FRAME_NO_SILVER_STYLES = {"japandi", "modern_vintage", "neoclassic"}
+FRAME_NO_CHAMPAGNE_STYLES = {"loft", "japandi", "neoclassic"}
+FRAME_NEUTRAL_COLOR_FAMILIES_FOR_CHROMA = {"black", "white", "oak"}
+FRAME_WOOD_FIRST_STYLES = {"scandi", "japandi", "modern_vintage", "neoclassic"}
+FRAME_BLACK_FIRST_LIGHT_STYLES = {"minimal", "contemporary", "loft"}
+WARM_MAT_COLOR_IDS = {"PW003", "PW004", "PW005", "PW006", "PW007", "PW008"}
 
 
 @dataclass
@@ -452,72 +508,31 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
 
 def build_frame_decision(artwork_type, interior_style, size_profile, image_analysis):
     normalized_style = normalize_frame_interior_style(interior_style)
-    candidates = frame_candidates_for_style(normalized_style)
+    candidates = frame_candidates()
     facts = [
         f"Нормализованный стиль интерьера: {normalized_style}.",
-        f"Базовый порядок: {frame_ids(candidates)}.",
+        f"Стартовый набор рам: {frame_ids(candidates)}.",
     ]
 
-    if normalized_style != "neoclassic":
-        candidates = [candidate for candidate in candidates if candidate["id"] != "gold"]
-        facts.append("Hard-фильтр: золото исключено вне неоклассики.")
-    else:
-        candidates = [candidate for candidate in candidates if candidate["material"] != "aluminum"]
-        facts.append("Hard-фильтр: в неоклассике исключены алюминиевые рамы.")
-
-    if artwork_type in {"canvas", "volumetric"}:
-        candidates = [candidate for candidate in candidates if candidate["material"] == "wood"]
-        facts.append(f"Hard-фильтр: для типа «{ARTWORK_TYPE_LABELS.get(artwork_type, artwork_type)}» оставлены только деревянные рамы.")
-
-    if size_profile == "extra_large":
-        candidates = [candidate for candidate in candidates if candidate["id"] != "white_wood"]
-        facts.append("Hard-фильтр: для очень большого размера белая деревянная рама исключена.")
-
-    if is_monochrome_image(image_analysis):
-        candidates, used_fallback = monochrome_frame_candidates(candidates, normalized_style, size_profile)
-        facts.append(
-            "Hard-фильтр: монохромное изображение ограничено черными, белыми и серебристыми рамами."
-            if not used_fallback
-            else "Hard-фильтр: монохромное изображение ограничено черными, белыми и серебристыми рамами; базовый список заменен допустимым резервом."
-        )
-
-    chroma_level = normalize_level(image_analysis.get("chroma_level"))
-    if chroma_level == "high":
-        candidates, applied = optional_frame_filter(candidates, FRAME_HIGH_CHROMA_IDS)
-        facts.append(
-            "Hard-фильтр: высокая насыщенность изображения ограничила выбор нейтральными рамами."
-            if applied
-            else "Hard-фильтр высокой насыщенности пропущен: после предыдущих условий не осталось бы кандидатов."
-        )
-
+    candidates, hard_facts = apply_frame_hard_rules(candidates, artwork_type, normalized_style, size_profile, image_analysis)
+    facts.extend(hard_facts)
     lightness = normalize_visual_level(image_analysis.get("lightness"))
-    if normalized_style == "loft" and artwork_type == "watercolor" and lightness == "light":
-        candidates, applied = optional_frame_filter(candidates, FRAME_LOFT_LIGHT_WATERCOLOR_IDS)
-        facts.append(
-            "Hard-фильтр: светлая акварель в лофте ограничена черным алюминием и темным орехом."
-            if applied
-            else "Hard-фильтр светлой акварели в лофте пропущен: после предыдущих условий не осталось бы кандидатов."
-        )
-
-    material_preference, _material_fallback = FRAME_MATERIAL_RULES.get(artwork_type, FRAME_MATERIAL_RULES["poster"])
-    preferred_material_candidates = [
-        candidate for candidate in candidates if candidate["material"] == material_preference
-    ]
-    if preferred_material_candidates:
-        candidates = preferred_material_candidates
-        facts.append(f"Материал по типу работы: выбран приоритет {material_preference}.")
-    else:
-        facts.append(f"Материал по типу работы: приоритет {material_preference} недоступен, оставлен текущий список.")
-
-    lightness_candidates = filter_by_frame_lightness(candidates, lightness)
-    if lightness_candidates:
-        candidates = lightness_candidates
-        facts.append(f"Светлота изображения {lightness}: применен фильтр рамы {frame_ids(candidates)}.")
-    else:
-        facts.append(f"Светлота изображения {lightness}: фильтр отменен, потому что список стал бы пустым.")
+    chroma_level = normalize_level(image_analysis.get("chroma_level"))
+    mat_color = standard_mat_color(image_analysis)
+    warm_mat = is_warm_mat_color(mat_color)
+    facts.extend(
+        [
+            f"Кандидаты после hard rules: {frame_ids(candidates)}.",
+            f"Светлота изображения: {lightness}.",
+            f"Насыщенность изображения: {chroma_level}.",
+            f"Паспарту для оценки совместимости: {mat_color['name']} ({mat_color['hex']}), {'теплое' if warm_mat else 'нейтральное/холодное'}.",
+        ]
+    )
 
     if candidates:
-        selected = candidates[0]
+        scored = score_frame_candidates(candidates, artwork_type, normalized_style, size_profile, image_analysis, mat_color)
+        selected = scored[0]["frame"]
+        facts.extend(frame_score_facts(scored))
     else:
         selected = FRAME_LIBRARY["black_wood" if artwork_type in {"canvas", "volumetric"} else "black_aluminum"]
         facts.append(f"Резервный выбор: {selected['id']}.")
@@ -547,7 +562,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
 
     return {
         "frame": frame,
-        "reason": f"Рама выбрана по документу «Рама»: {frame.name}, {frame.width_mm} мм.",
+        "reason": f"Рама выбрана скоринговой моделью из документа «Рама»: {frame.name}, {frame.width_mm} мм.",
         "facts": facts,
     }
 
@@ -577,50 +592,241 @@ def normalize_frame_interior_style(value):
     return aliases.get(normalized, "contemporary")
 
 
-def frame_candidates_for_style(interior_style):
-    frame_ids_for_style = FRAME_STYLE_ORDER.get(interior_style, FRAME_STYLE_ORDER["contemporary"])
-    return [FRAME_LIBRARY[frame_id] for frame_id in frame_ids_for_style]
+def frame_candidates():
+    return [FRAME_LIBRARY[frame_id] for frame_id in FRAME_DEFAULT_ORDER]
 
 
 def frame_ids(candidates):
     return ", ".join(candidate["id"] for candidate in candidates) if candidates else "нет кандидатов"
 
 
-def optional_frame_filter(candidates, allowed_ids):
-    filtered = [candidate for candidate in candidates if candidate["id"] in allowed_ids]
-    if not filtered:
-        return candidates, False
-    return filtered, True
+def apply_frame_hard_rules(candidates, artwork_type, normalized_style, size_profile, image_analysis):
+    facts = []
+    filtered = candidates
 
+    if normalized_style != "neoclassic":
+        filtered = [candidate for candidate in filtered if candidate["id"] != "gold"]
+        facts.append("Hard rule: золото исключено вне неоклассики.")
+    else:
+        filtered = [candidate for candidate in filtered if candidate["material"] != "aluminum"]
+        facts.append("Hard rule: в неоклассике исключены алюминиевые рамы.")
 
-def monochrome_frame_candidates(candidates, normalized_style, size_profile):
-    filtered = [candidate for candidate in candidates if candidate["id"] in FRAME_MONOCHROME_IDS]
-    if filtered:
-        return filtered, False
+    if normalized_style in FRAME_NO_SILVER_STYLES:
+        filtered = [candidate for candidate in filtered if candidate["id"] != "silver_aluminum"]
+        facts.append("Hard rule: серебро исключено для Japandi, Modern Vintage и неоклассики.")
 
-    fallback_order = (
-        FRAME_NEOCLASSIC_MONOCHROME_FALLBACK_ORDER
-        if normalized_style == "neoclassic"
-        else FRAME_MONOCHROME_FALLBACK_ORDER
-    )
-    fallback = [FRAME_LIBRARY[frame_id] for frame_id in fallback_order]
-    if normalized_style == "neoclassic":
-        fallback = [candidate for candidate in fallback if candidate["material"] != "aluminum"]
+    if normalized_style in FRAME_NO_CHAMPAGNE_STYLES:
+        filtered = [candidate for candidate in filtered if candidate["id"] != "champagne_aluminum"]
+        facts.append("Hard rule: шампань исключена для лофта, Japandi и неоклассики.")
+
+    if artwork_type in {"canvas", "volumetric"}:
+        filtered = [candidate for candidate in filtered if candidate["material"] == "wood"]
+        facts.append(f"Hard rule: для типа «{ARTWORK_TYPE_LABELS.get(artwork_type, artwork_type)}» оставлены только деревянные рамы.")
+
     if size_profile == "extra_large":
-        fallback = [candidate for candidate in fallback if candidate["id"] != "white_wood"]
-    if fallback:
-        return fallback, True
+        filtered = [candidate for candidate in filtered if candidate["id"] != "white_wood"]
+        facts.append("Hard rule: для очень большого размера белая деревянная рама исключена.")
 
-    reserve_id = "black_wood" if normalized_style == "neoclassic" else "black_aluminum"
-    return [FRAME_LIBRARY[reserve_id]], True
+    if is_monochrome_image(image_analysis):
+        filtered = [candidate for candidate in filtered if candidate["id"] in FRAME_MONOCHROME_IDS]
+        facts.append("Hard rule: монохромное изображение ограничено черными, белыми и серебристыми рамами.")
+
+    if not filtered:
+        reserve_id = "black_wood" if artwork_type in {"canvas", "volumetric"} or normalized_style == "neoclassic" else "black_aluminum"
+        filtered = [FRAME_LIBRARY[reserve_id]]
+        facts.append(f"Hard rules оставили пустой список; применен резерв {reserve_id}.")
+
+    return filtered, facts
 
 
-def filter_by_frame_lightness(candidates, lightness):
-    for tone in FRAME_LIGHTNESS_TONES.get(lightness, FRAME_LIGHTNESS_TONES["medium"]):
-        filtered = [candidate for candidate in candidates if candidate["tone"] == tone]
-        if filtered:
-            return filtered
-    return []
+def score_frame_candidates(candidates, artwork_type, normalized_style, size_profile, image_analysis, mat_color):
+    scored = []
+    for candidate in candidates:
+        score, details = score_frame_candidate(candidate, artwork_type, normalized_style, size_profile, image_analysis, mat_color)
+        scored.append({"frame": candidate, "score": score, "details": details})
+    scored.sort(key=lambda item: (-item["score"], frame_tie_breaker(item["frame"], normalized_style)))
+    return scored
+
+
+def score_frame_candidate(candidate, artwork_type, normalized_style, size_profile, image_analysis, mat_color):
+    score = 0
+    details = []
+    frame_id = candidate["id"]
+    family = candidate["color_family"]
+    material = candidate["material"]
+    tone = candidate["tone"]
+    lightness = normalize_visual_level(image_analysis.get("lightness"))
+    lightness_band = frame_lightness_band(image_analysis)
+    chroma_level = normalize_level(image_analysis.get("chroma_level"))
+    temperature = normalize_temperature(image_analysis.get("temperature"))
+    warm_mat = is_warm_mat_color(mat_color)
+    monochrome = is_monochrome_image(image_analysis)
+
+    style_score = FRAME_STYLE_SCORES.get(normalized_style, FRAME_STYLE_SCORES["contemporary"]).get(frame_id, 0)
+    score += style_score
+    details.append(f"стиль {normalized_style}: {format_score(style_score)}")
+
+    material_preference, material_fallback = FRAME_MATERIAL_RULES.get(artwork_type, FRAME_MATERIAL_RULES["poster"])
+    material_score = 0
+    if material == material_preference:
+        material_score = 14
+    elif material_fallback and material == material_fallback:
+        material_score = 4
+    else:
+        material_score = -8
+    score += material_score
+    details.append(f"материал для типа работы: {format_score(material_score)}")
+
+    if monochrome:
+        monochrome_score = 34 if family == "black" else 18 if family == "white" else 8 if family == "silver" else -40
+        if normalized_style in FRAME_WOOD_FIRST_STYLES and frame_id == "black_wood":
+            monochrome_score += 8
+        score += monochrome_score
+        details.append(f"монохромность: {format_score(monochrome_score)}")
+
+    light_score = lightness_frame_score(candidate, normalized_style, lightness, lightness_band)
+    score += light_score
+    details.append(f"светлота изображения: {format_score(light_score)}")
+
+    if chroma_level == "high":
+        chroma_score = 20 if family == "black" else 12 if family in FRAME_NEUTRAL_COLOR_FAMILIES_FOR_CHROMA else -10
+        score += chroma_score
+        details.append(f"высокая насыщенность: {format_score(chroma_score)}")
+
+    temperature_score = temperature_frame_score(candidate, temperature)
+    score += temperature_score
+    details.append(f"температура изображения: {format_score(temperature_score)}")
+
+    if warm_mat:
+        mat_score = -34 if family == "silver" else 12 if material == "wood" else 8 if family == "black" else 0
+        score += mat_score
+        details.append(f"теплое паспарту: {format_score(mat_score)}")
+
+    if size_profile == "extra_large" and material == "wood":
+        score += 6
+        details.append("крупный размер и дерево: +6")
+
+    return score, details
+
+
+def lightness_frame_score(candidate, normalized_style, lightness, lightness_band):
+    family = candidate["color_family"]
+    material = candidate["material"]
+    tone = candidate["tone"]
+    score = 0
+
+    if lightness in {"light", "very_light"} or lightness_band == "very_light":
+        if normalized_style in FRAME_BLACK_FIRST_LIGHT_STYLES:
+            if family == "black":
+                score += 34 if lightness_band == "very_light" else 28
+            if material == "wood":
+                score += 8
+            if family in {"white", "silver"}:
+                score -= 18
+        elif normalized_style in FRAME_WOOD_FIRST_STYLES:
+            if material == "wood":
+                score += 24
+            if family == "black":
+                score += 10
+            if family in {"white", "silver"}:
+                score -= 16
+        else:
+            if material == "wood":
+                score += 12
+            if family == "black":
+                score += 14
+            if family == "silver":
+                score -= 12
+    elif lightness == "dark":
+        if tone == "light":
+            score += 12
+        if family == "black":
+            score -= 6
+        if material == "wood" and tone == "medium":
+            score += 8
+    else:
+        if tone == "medium":
+            score += 10
+        if family == "black":
+            score += 8
+
+    return score
+
+
+def temperature_frame_score(candidate, temperature):
+    family = candidate["color_family"]
+    material = candidate["material"]
+    if temperature == "warm":
+        if material == "wood":
+            return 12
+        if family == "champagne":
+            return 8
+        if family == "silver":
+            return -8
+    if temperature == "cold":
+        if family == "black":
+            return 10
+        if family == "silver":
+            return 6
+        if family in {"champagne", "gold"}:
+            return -8
+    return 0
+
+
+def frame_lightness_band(image_analysis):
+    metrics = image_analysis.get("metrics", {})
+    metric_lightness = metrics.get("lightness") if isinstance(metrics, dict) else None
+    try:
+        if metric_lightness is not None and float(metric_lightness) >= 78:
+            return "very_light"
+    except (TypeError, ValueError):
+        pass
+    raw_value = str(image_analysis.get("lightness") or "").strip().lower()
+    if raw_value in {"very_light", "very light", "очень светлый", "очень светлая"}:
+        return "very_light"
+    return normalize_visual_level(image_analysis.get("lightness"))
+
+
+def normalize_temperature(value):
+    normalized = str(value or "").strip().lower()
+    if normalized in {"warm", "теплый", "тёплый", "теплая", "тёплая"}:
+        return "warm"
+    if normalized in {"cold", "cool", "холодный", "холодная"}:
+        return "cold"
+    return "neutral"
+
+
+def is_warm_mat_color(mat_color):
+    color_id = mat_color.get("id") if isinstance(mat_color, dict) else None
+    if color_id in WARM_MAT_COLOR_IDS:
+        return True
+    lab = color_lab(mat_color) if isinstance(mat_color, dict) else None
+    if lab is None:
+        return False
+    _l_value, a_value, b_value = lab
+    return b_value > 6 and a_value > -2
+
+
+def frame_score_facts(scored):
+    facts = []
+    for index, item in enumerate(scored[:4], start=1):
+        frame = item["frame"]
+        facts.append(
+            f"Скоринг {index}: {frame['id']} = {item['score']} баллов "
+            f"({'; '.join(item['details'])})."
+        )
+    return facts
+
+
+def frame_tie_breaker(frame, normalized_style):
+    style_scores = FRAME_STYLE_SCORES.get(normalized_style, FRAME_STYLE_SCORES["contemporary"])
+    style_rank = -style_scores.get(frame["id"], 0)
+    default_rank = FRAME_DEFAULT_ORDER.index(frame["id"]) if frame["id"] in FRAME_DEFAULT_ORDER else 999
+    return (style_rank, default_rank)
+
+
+def format_score(value):
+    return f"+{value}" if value > 0 else str(value)
 
 
 def is_monochrome_image(image_analysis):
@@ -1095,7 +1301,7 @@ def mat_color_reason(mat, decor_style, image_analysis):
 
 
 def color_facts(mat, decor_style, image_analysis):
-    facts = ["Цвет рамы зафиксирован как #000000."]
+    facts = ["Цвет рамы рассчитывается в блоке «Рама» по hard rules и скоринговой модели."]
     if not mat.enabled:
         facts.append("Паспарту не используется, цвет не выбирается.")
         return facts
