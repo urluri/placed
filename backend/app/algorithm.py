@@ -481,16 +481,51 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             else "Hard-фильтр: монохромное изображение ограничено черными, белыми и серебристыми рамами; базовый список заменен допустимым резервом."
         )
 
+    lightness = normalize_visual_level(image_analysis.get("lightness"))
+    temperature = normalize_temperature(image_analysis.get("temperature"))
+    contrast_level = normalize_level(image_analysis.get("contrast"))
+    champagne_exclusion_reasons = []
+    if normalized_style == "loft":
+        champagne_exclusion_reasons.append("стиль loft")
+    if lightness == "dark":
+        champagne_exclusion_reasons.append("темная работа")
+    if temperature == "cold":
+        champagne_exclusion_reasons.append("холодная температура")
+    if champagne_exclusion_reasons:
+        candidates = [candidate for candidate in candidates if candidate["id"] != "champagne_aluminum"]
+        facts.append(f"Hard-фильтр: рама шампань исключена ({', '.join(champagne_exclusion_reasons)}).")
+
+    champagne_rule_active = champagne_frame_rule_applies(
+        normalized_style=normalized_style,
+        lightness=lightness,
+        temperature=temperature,
+        contrast_level=contrast_level,
+        image_analysis=image_analysis,
+    )
+    if not champagne_rule_active and any(candidate["id"] == "champagne_aluminum" for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate["id"] != "champagne_aluminum"]
+        facts.append("Hard-фильтр: условия правила шампани выполнены не полностью, champagne_aluminum исключена.")
+
+    champagne_rule_selected = False
+    if champagne_rule_active and any(candidate["id"] == "champagne_aluminum" for candidate in candidates):
+        candidates = [FRAME_LIBRARY["champagne_aluminum"]]
+        champagne_rule_selected = True
+        facts.append(
+            "Приоритетное правило шампани: светлота light/medium, температура warm/neutral, "
+            "стиль minimal/contemporary и контраст low/medium. Выбрана champagne_aluminum."
+        )
+
     chroma_level = normalize_level(image_analysis.get("chroma_level"))
-    if chroma_level == "high":
+    if chroma_level == "high" and not champagne_rule_selected:
         candidates, applied = optional_frame_filter(candidates, FRAME_HIGH_CHROMA_IDS)
         facts.append(
             "Hard-фильтр: высокая насыщенность изображения ограничила выбор нейтральными рамами."
             if applied
             else "Hard-фильтр высокой насыщенности пропущен: после предыдущих условий не осталось бы кандидатов."
         )
+    elif chroma_level == "high":
+        facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило шампани.")
 
-    lightness = normalize_visual_level(image_analysis.get("lightness"))
     if normalized_style == "loft" and artwork_type == "watercolor" and lightness == "light":
         candidates, applied = optional_frame_filter(candidates, FRAME_LOFT_LIGHT_WATERCOLOR_IDS)
         facts.append(
@@ -499,22 +534,25 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             else "Hard-фильтр светлой акварели в лофте пропущен: после предыдущих условий не осталось бы кандидатов."
         )
 
-    material_preference, _material_fallback = FRAME_MATERIAL_RULES.get(artwork_type, FRAME_MATERIAL_RULES["poster"])
-    preferred_material_candidates = [
-        candidate for candidate in candidates if candidate["material"] == material_preference
-    ]
-    if preferred_material_candidates:
-        candidates = preferred_material_candidates
-        facts.append(f"Материал по типу работы: выбран приоритет {material_preference}.")
+    if champagne_rule_selected:
+        facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму шампань.")
     else:
-        facts.append(f"Материал по типу работы: приоритет {material_preference} недоступен, оставлен текущий список.")
+        material_preference, _material_fallback = FRAME_MATERIAL_RULES.get(artwork_type, FRAME_MATERIAL_RULES["poster"])
+        preferred_material_candidates = [
+            candidate for candidate in candidates if candidate["material"] == material_preference
+        ]
+        if preferred_material_candidates:
+            candidates = preferred_material_candidates
+            facts.append(f"Материал по типу работы: выбран приоритет {material_preference}.")
+        else:
+            facts.append(f"Материал по типу работы: приоритет {material_preference} недоступен, оставлен текущий список.")
 
-    lightness_candidates = filter_by_frame_lightness(candidates, lightness)
-    if lightness_candidates:
-        candidates = lightness_candidates
-        facts.append(f"Светлота изображения {lightness}: применен фильтр рамы {frame_ids(candidates)}.")
-    else:
-        facts.append(f"Светлота изображения {lightness}: фильтр отменен, потому что список стал бы пустым.")
+        lightness_candidates = filter_by_frame_lightness(candidates, lightness)
+        if lightness_candidates:
+            candidates = lightness_candidates
+            facts.append(f"Светлота изображения {lightness}: применен фильтр рамы {frame_ids(candidates)}.")
+        else:
+            facts.append(f"Светлота изображения {lightness}: фильтр отменен, потому что список стал бы пустым.")
 
     if candidates:
         selected = candidates[0]
@@ -626,6 +664,27 @@ def filter_by_frame_lightness(candidates, lightness):
 def is_monochrome_image(image_analysis):
     raw_value = str(image_analysis.get("monochrome") or "").strip().lower()
     return raw_value in {"monochrome", "mono", "монохромное", "монохромный", "true", "yes"}
+
+
+def normalize_temperature(value):
+    normalized = str(value or "").strip().lower()
+    if normalized in {"warm", "теплый", "тёплый", "teplyy"}:
+        return "warm"
+    if normalized in {"cold", "холодный", "holodnyy"}:
+        return "cold"
+    return "neutral"
+
+
+def champagne_frame_rule_applies(normalized_style, lightness, temperature, contrast_level, image_analysis):
+    if normalized_style not in {"minimal", "contemporary"}:
+        return False
+    if is_monochrome_image(image_analysis):
+        return False
+    return (
+        lightness in {"light", "medium"}
+        and temperature in {"warm", "neutral"}
+        and contrast_level in {"low", "medium"}
+    )
 
 
 def frame_profile(frame):
@@ -1059,9 +1118,9 @@ def is_neutral_color(color):
 
 def normalize_visual_level(value):
     normalized = str(value or "").strip().lower()
-    if normalized in {"light", "светлый", "svetlyy"}:
+    if normalized in {"light", "high", "светлый", "светлая", "высокий", "высокая", "svetlyy"}:
         return "light"
-    if normalized in {"dark", "темный", "тёмный", "temnyy"}:
+    if normalized in {"dark", "темный", "тёмный", "темная", "тёмная", "temnyy"}:
         return "dark"
     return "medium"
 
