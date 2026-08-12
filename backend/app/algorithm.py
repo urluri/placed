@@ -242,7 +242,7 @@ FRAME_LIBRARY = {
 
 FRAME_STYLE_ORDER = {
     "minimal": ["black_aluminum", "white_wood", "champagne_aluminum", "silver_aluminum"],
-    "contemporary": ["black_aluminum", "champagne_aluminum", "walnut", "white_wood", "light_oak", "silver_aluminum"],
+    "contemporary": ["black_aluminum", "champagne_aluminum", "walnut", "oak", "white_wood", "light_oak", "silver_aluminum"],
     "scandi": ["light_oak", "white_wood", "oak", "champagne_aluminum", "black_wood"],
     "japandi": ["light_oak", "oak", "walnut"],
     "modern_vintage": ["walnut", "oak", "dark_walnut"],
@@ -302,6 +302,9 @@ WHITE_FRAME_ID = "white_wood"
 SILVER_FRAME_ID = "silver_aluminum"
 SILVER_FRAME_ALLOWED_STYLES = {"minimal", "contemporary"}
 SILVER_FRAME_EXCLUDED_STYLES = {"japandi", "modern_vintage", "neoclassic"}
+OAK_FRAME_ID = "oak"
+OAK_FRAME_ALLOWED_STYLES = {"scandi", "japandi", "contemporary"}
+OAK_FRAME_EXCLUDED_STYLES = {"loft", "neoclassic"}
 LIGHT_OAK_FRAME_ID = "light_oak"
 LIGHT_OAK_FRAME_ALLOWED_STYLES = {"scandi", "japandi"}
 LIGHT_OAK_FRAME_EXCLUDED_STYLES = {"loft", "neoclassic"}
@@ -495,6 +498,59 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
     lightness = normalize_visual_level(image_analysis.get("lightness"))
     temperature = normalize_temperature(image_analysis.get("temperature"))
     contrast_level = normalize_level(image_analysis.get("contrast"))
+    silver_rule_active = silver_frame_rule_applies(
+        normalized_style=normalized_style,
+        temperature=temperature,
+        image_analysis=image_analysis,
+    )
+    silver_exclusion_reasons = silver_frame_exclusion_reasons(
+        normalized_style=normalized_style,
+        temperature=temperature,
+    )
+    if not silver_rule_active and any(candidate["id"] == SILVER_FRAME_ID for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate["id"] != SILVER_FRAME_ID]
+        if silver_exclusion_reasons:
+            facts.append(f"Hard-фильтр: серебряная рама исключена ({', '.join(silver_exclusion_reasons)}).")
+        else:
+            facts.append("Hard-фильтр: условия правила серебряной рамы выполнены не полностью, silver_aluminum исключена.")
+
+    silver_rule_selected = False
+    if silver_rule_active and any(candidate["id"] == SILVER_FRAME_ID for candidate in candidates):
+        candidates = [FRAME_LIBRARY[SILVER_FRAME_ID]]
+        silver_rule_selected = True
+        facts.append(
+            "Приоритетное правило серебряной рамы: монохромное изображение, температура cold/neutral "
+            "и стиль minimal/contemporary. Выбрана silver_aluminum."
+        )
+
+    oak_rule_active = oak_frame_rule_applies(
+        normalized_style=normalized_style,
+        lightness=lightness,
+        temperature=temperature,
+        contrast_level=contrast_level,
+    )
+    oak_exclusion_reasons = oak_frame_exclusion_reasons(
+        normalized_style=normalized_style,
+        lightness=lightness,
+        temperature=temperature,
+        contrast_level=contrast_level,
+    )
+    if not oak_rule_active and any(candidate["id"] == OAK_FRAME_ID for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate["id"] != OAK_FRAME_ID]
+        if oak_exclusion_reasons:
+            facts.append(f"Hard-фильтр: рама дуб исключена ({', '.join(oak_exclusion_reasons)}).")
+        else:
+            facts.append("Hard-фильтр: условия правила дуба выполнены не полностью, oak исключена.")
+
+    oak_rule_selected = False
+    if not silver_rule_selected and oak_rule_active:
+        candidates = [FRAME_LIBRARY[OAK_FRAME_ID]]
+        oak_rule_selected = True
+        facts.append(
+            "Приоритетное правило дуба: стиль scandi/japandi/contemporary, температура warm/neutral "
+            "и светлота medium. Выбрана oak."
+        )
+
     champagne_exclusion_reasons = []
     if normalized_style == "loft":
         champagne_exclusion_reasons.append("стиль loft")
@@ -518,37 +574,12 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         facts.append("Hard-фильтр: условия правила шампани выполнены не полностью, champagne_aluminum исключена.")
 
     champagne_rule_selected = False
-    if champagne_rule_active and any(candidate["id"] == "champagne_aluminum" for candidate in candidates):
+    if not oak_rule_selected and champagne_rule_active and any(candidate["id"] == "champagne_aluminum" for candidate in candidates):
         candidates = [FRAME_LIBRARY["champagne_aluminum"]]
         champagne_rule_selected = True
         facts.append(
             "Приоритетное правило шампани: светлота light/medium, температура warm/neutral, "
             "стиль minimal/contemporary и контраст low/medium. Выбрана champagne_aluminum."
-        )
-
-    silver_rule_active = silver_frame_rule_applies(
-        normalized_style=normalized_style,
-        temperature=temperature,
-        image_analysis=image_analysis,
-    )
-    silver_exclusion_reasons = silver_frame_exclusion_reasons(
-        normalized_style=normalized_style,
-        temperature=temperature,
-    )
-    if not silver_rule_active and any(candidate["id"] == SILVER_FRAME_ID for candidate in candidates):
-        candidates = [candidate for candidate in candidates if candidate["id"] != SILVER_FRAME_ID]
-        if silver_exclusion_reasons:
-            facts.append(f"Hard-фильтр: серебряная рама исключена ({', '.join(silver_exclusion_reasons)}).")
-        else:
-            facts.append("Hard-фильтр: условия правила серебряной рамы выполнены не полностью, silver_aluminum исключена.")
-
-    silver_rule_selected = False
-    if not champagne_rule_selected and silver_rule_active and any(candidate["id"] == SILVER_FRAME_ID for candidate in candidates):
-        candidates = [FRAME_LIBRARY[SILVER_FRAME_ID]]
-        silver_rule_selected = True
-        facts.append(
-            "Приоритетное правило серебряной рамы: монохромное изображение, температура cold/neutral "
-            "и стиль minimal/contemporary. Выбрана silver_aluminum."
         )
 
     black_rule_active = black_frame_rule_applies(
@@ -572,7 +603,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             facts.append("Hard-фильтр: условия правила черной рамы выполнены не полностью, черные рамы исключены.")
 
     black_rule_selected = False
-    if not champagne_rule_selected and not silver_rule_selected and black_rule_active:
+    if not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and black_rule_active:
         black_candidate = black_frame_candidate(artwork_type, candidates)
         if black_candidate:
             candidates = [black_candidate]
@@ -602,7 +633,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             facts.append("Hard-фильтр: условия правила светлого дуба выполнены не полностью, light_oak исключена.")
 
     light_oak_rule_selected = False
-    if not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and light_oak_rule_active:
+    if not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and light_oak_rule_active:
         light_oak_candidate = next((candidate for candidate in candidates if candidate["id"] == LIGHT_OAK_FRAME_ID), None)
         if light_oak_candidate:
             candidates = [light_oak_candidate]
@@ -629,7 +660,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         facts.append(f"Hard-фильтр: белая рама исключена ({', '.join(white_exclusion_reasons)}).")
 
     white_rule_selected = False
-    if not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and white_rule_active:
+    if not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and white_rule_active:
         white_candidate = next((candidate for candidate in candidates if candidate["id"] == WHITE_FRAME_ID), None)
         if white_candidate:
             candidates = [white_candidate]
@@ -639,13 +670,15 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
                 "Выбрана white_wood."
             )
 
-    if chroma_level == "high" and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and not white_rule_selected:
+    if chroma_level == "high" and not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and not white_rule_selected:
         candidates, applied = optional_frame_filter(candidates, FRAME_HIGH_CHROMA_IDS)
         facts.append(
             "Hard-фильтр: высокая насыщенность изображения ограничила выбор нейтральными рамами."
             if applied
             else "Hard-фильтр высокой насыщенности пропущен: после предыдущих условий не осталось бы кандидатов."
         )
+    elif chroma_level == "high" and oak_rule_selected:
+        facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило дуба.")
     elif chroma_level == "high" and champagne_rule_selected:
         facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило шампани.")
     elif chroma_level == "high" and silver_rule_selected:
@@ -665,7 +698,9 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             else "Hard-фильтр светлой акварели в лофте пропущен: после предыдущих условий не осталось бы кандидатов."
         )
 
-    if champagne_rule_selected:
+    if oak_rule_selected:
+        facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму дуб.")
+    elif champagne_rule_selected:
         facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму шампань.")
     elif silver_rule_selected:
         facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало серебряную раму.")
@@ -841,6 +876,25 @@ def silver_frame_rule_applies(normalized_style, temperature, image_analysis):
     if silver_frame_exclusion_reasons(normalized_style, temperature):
         return False
     return is_monochrome_image(image_analysis) and temperature in {"cold", "neutral"}
+
+
+def oak_frame_exclusion_reasons(normalized_style, lightness, temperature, contrast_level):
+    reasons = []
+    if temperature == "cold":
+        reasons.append("холодная температура")
+    if normalized_style in OAK_FRAME_EXCLUDED_STYLES:
+        reasons.append(f"стиль {normalized_style}")
+    if contrast_level == "high":
+        reasons.append("высокий контраст")
+    return reasons
+
+
+def oak_frame_rule_applies(normalized_style, lightness, temperature, contrast_level):
+    if normalized_style not in OAK_FRAME_ALLOWED_STYLES:
+        return False
+    if oak_frame_exclusion_reasons(normalized_style, lightness, temperature, contrast_level):
+        return False
+    return temperature in {"warm", "neutral"} and lightness == "medium"
 
 
 def black_frame_exclusion_reasons(normalized_style, artwork_type, lightness, contrast_level):
