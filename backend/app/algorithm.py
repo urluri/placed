@@ -302,6 +302,9 @@ WHITE_FRAME_ID = "white_wood"
 SILVER_FRAME_ID = "silver_aluminum"
 SILVER_FRAME_ALLOWED_STYLES = {"minimal", "contemporary"}
 SILVER_FRAME_EXCLUDED_STYLES = {"japandi", "modern_vintage", "neoclassic"}
+WALNUT_FRAME_ID = "walnut"
+WALNUT_FRAME_ALLOWED_STYLES = {"modern_vintage", "neoclassic"}
+WALNUT_FRAME_EXCLUDED_STYLES = {"scandi", "minimal"}
 OAK_FRAME_ID = "oak"
 OAK_FRAME_ALLOWED_STYLES = {"scandi", "japandi", "contemporary"}
 OAK_FRAME_EXCLUDED_STYLES = {"loft", "neoclassic"}
@@ -498,6 +501,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
     lightness = normalize_visual_level(image_analysis.get("lightness"))
     temperature = normalize_temperature(image_analysis.get("temperature"))
     contrast_level = normalize_level(image_analysis.get("contrast"))
+    occupancy_level = normalize_level(image_analysis.get("frame_occupancy"))
     silver_rule_active = silver_frame_rule_applies(
         normalized_style=normalized_style,
         temperature=temperature,
@@ -523,6 +527,32 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             "и стиль minimal/contemporary. Выбрана silver_aluminum."
         )
 
+    walnut_rule_active = walnut_frame_rule_applies(
+        normalized_style=normalized_style,
+        temperature=temperature,
+        occupancy_level=occupancy_level,
+    )
+    walnut_exclusion_reasons = walnut_frame_exclusion_reasons(
+        normalized_style=normalized_style,
+        temperature=temperature,
+        occupancy_level=occupancy_level,
+    )
+    if not walnut_rule_active and any(candidate["id"] == WALNUT_FRAME_ID for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate["id"] != WALNUT_FRAME_ID]
+        if walnut_exclusion_reasons:
+            facts.append(f"Hard-фильтр: рама орех исключена ({', '.join(walnut_exclusion_reasons)}).")
+        else:
+            facts.append("Hard-фильтр: условия правила ореха выполнены не полностью, walnut исключена.")
+
+    walnut_rule_selected = False
+    if not silver_rule_selected and walnut_rule_active and any(candidate["id"] == WALNUT_FRAME_ID for candidate in candidates):
+        candidates = [FRAME_LIBRARY[WALNUT_FRAME_ID]]
+        walnut_rule_selected = True
+        facts.append(
+            "Приоритетное правило ореха: стиль modern_vintage/neoclassic, теплая температура "
+            "и заполненность не low. Выбрана walnut."
+        )
+
     oak_rule_active = oak_frame_rule_applies(
         normalized_style=normalized_style,
         lightness=lightness,
@@ -543,7 +573,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             facts.append("Hard-фильтр: условия правила дуба выполнены не полностью, oak исключена.")
 
     oak_rule_selected = False
-    if not silver_rule_selected and oak_rule_active:
+    if not silver_rule_selected and not walnut_rule_selected and oak_rule_active:
         candidates = [FRAME_LIBRARY[OAK_FRAME_ID]]
         oak_rule_selected = True
         facts.append(
@@ -574,7 +604,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         facts.append("Hard-фильтр: условия правила шампани выполнены не полностью, champagne_aluminum исключена.")
 
     champagne_rule_selected = False
-    if not oak_rule_selected and champagne_rule_active and any(candidate["id"] == "champagne_aluminum" for candidate in candidates):
+    if not walnut_rule_selected and not oak_rule_selected and champagne_rule_active and any(candidate["id"] == "champagne_aluminum" for candidate in candidates):
         candidates = [FRAME_LIBRARY["champagne_aluminum"]]
         champagne_rule_selected = True
         facts.append(
@@ -603,7 +633,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             facts.append("Hard-фильтр: условия правила черной рамы выполнены не полностью, черные рамы исключены.")
 
     black_rule_selected = False
-    if not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and black_rule_active:
+    if not walnut_rule_selected and not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and black_rule_active:
         black_candidate = black_frame_candidate(artwork_type, candidates)
         if black_candidate:
             candidates = [black_candidate]
@@ -633,7 +663,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             facts.append("Hard-фильтр: условия правила светлого дуба выполнены не полностью, light_oak исключена.")
 
     light_oak_rule_selected = False
-    if not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and light_oak_rule_active:
+    if not walnut_rule_selected and not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and light_oak_rule_active:
         light_oak_candidate = next((candidate for candidate in candidates if candidate["id"] == LIGHT_OAK_FRAME_ID), None)
         if light_oak_candidate:
             candidates = [light_oak_candidate]
@@ -660,7 +690,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         facts.append(f"Hard-фильтр: белая рама исключена ({', '.join(white_exclusion_reasons)}).")
 
     white_rule_selected = False
-    if not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and white_rule_active:
+    if not walnut_rule_selected and not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and white_rule_active:
         white_candidate = next((candidate for candidate in candidates if candidate["id"] == WHITE_FRAME_ID), None)
         if white_candidate:
             candidates = [white_candidate]
@@ -670,13 +700,15 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
                 "Выбрана white_wood."
             )
 
-    if chroma_level == "high" and not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and not white_rule_selected:
+    if chroma_level == "high" and not walnut_rule_selected and not oak_rule_selected and not champagne_rule_selected and not silver_rule_selected and not black_rule_selected and not light_oak_rule_selected and not white_rule_selected:
         candidates, applied = optional_frame_filter(candidates, FRAME_HIGH_CHROMA_IDS)
         facts.append(
             "Hard-фильтр: высокая насыщенность изображения ограничила выбор нейтральными рамами."
             if applied
             else "Hard-фильтр высокой насыщенности пропущен: после предыдущих условий не осталось бы кандидатов."
         )
+    elif chroma_level == "high" and walnut_rule_selected:
+        facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило ореха.")
     elif chroma_level == "high" and oak_rule_selected:
         facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило дуба.")
     elif chroma_level == "high" and champagne_rule_selected:
@@ -698,7 +730,9 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             else "Hard-фильтр светлой акварели в лофте пропущен: после предыдущих условий не осталось бы кандидатов."
         )
 
-    if oak_rule_selected:
+    if walnut_rule_selected:
+        facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму орех.")
+    elif oak_rule_selected:
         facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму дуб.")
     elif champagne_rule_selected:
         facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму шампань.")
@@ -734,7 +768,6 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         selected = FRAME_LIBRARY["black_wood" if artwork_type in {"canvas", "volumetric"} else "black_aluminum"]
         facts.append(f"Резервный выбор: {selected['id']}.")
 
-    occupancy_level = normalize_level(image_analysis.get("frame_occupancy"))
     width_mm = FRAME_WIDTHS_MM[size_profile][occupancy_level][selected["material"]]
     profile = frame_profile(selected)
     depth_mm = frame_depth(width_mm, selected["material"])
@@ -876,6 +909,25 @@ def silver_frame_rule_applies(normalized_style, temperature, image_analysis):
     if silver_frame_exclusion_reasons(normalized_style, temperature):
         return False
     return is_monochrome_image(image_analysis) and temperature in {"cold", "neutral"}
+
+
+def walnut_frame_exclusion_reasons(normalized_style, temperature, occupancy_level):
+    reasons = []
+    if normalized_style in WALNUT_FRAME_EXCLUDED_STYLES:
+        reasons.append(f"стиль {normalized_style}")
+    if temperature == "cold":
+        reasons.append("холодная температура")
+    if occupancy_level == "low":
+        reasons.append("низкая заполненность")
+    return reasons
+
+
+def walnut_frame_rule_applies(normalized_style, temperature, occupancy_level):
+    if normalized_style not in WALNUT_FRAME_ALLOWED_STYLES:
+        return False
+    if walnut_frame_exclusion_reasons(normalized_style, temperature, occupancy_level):
+        return False
+    return temperature == "warm"
 
 
 def oak_frame_exclusion_reasons(normalized_style, lightness, temperature, contrast_level):
