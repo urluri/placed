@@ -89,6 +89,41 @@ def draw_aperture_depth(canvas, aperture_rect, mat_px, strength=0.26):
     return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
 
 
+def draw_image_window_depth(canvas, aperture_rect, mat_px, strength=0.34):
+    left, top, right, bottom = aperture_rect
+    if right <= left or bottom <= top:
+        return canvas
+
+    depth = max(3, min(mat_px // 14, 11))
+    blur = max(2, min(depth, 6))
+    shadow_alpha = int(120 * strength)
+    line_alpha = int(56 * strength)
+    highlight_alpha = int(64 * strength)
+
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    edge_draw = ImageDraw.Draw(overlay)
+    edge_draw.line([(left, top), (right, top)], fill=(255, 255, 255, highlight_alpha), width=1)
+    edge_draw.line([(left, top), (left, bottom)], fill=(255, 255, 255, highlight_alpha), width=1)
+    edge_draw.line([(left, bottom), (right, bottom)], fill=(0, 0, 0, line_alpha), width=1)
+    edge_draw.line([(right, top), (right, bottom)], fill=(0, 0, 0, line_alpha), width=1)
+
+    shadow_mask = Image.new("L", canvas.size, 0)
+    shadow_draw = ImageDraw.Draw(shadow_mask)
+    shadow_draw.rectangle([left, top, right, bottom], outline=shadow_alpha, width=depth)
+    shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(blur))
+
+    image_clip = Image.new("L", canvas.size, 0)
+    clip_draw = ImageDraw.Draw(image_clip)
+    clip_draw.rectangle([left, top, right, bottom], fill=255)
+    clipped_shadow = Image.new("L", canvas.size, 0)
+    clipped_shadow.paste(shadow_mask, mask=image_clip)
+
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 58))
+    shadow_layer.putalpha(clipped_shadow)
+    overlay = Image.alpha_composite(overlay, shadow_layer)
+    return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
+
+
 def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
     if isinstance(reveal_px, (tuple, list)):
         left_reveal, top_reveal, right_reveal, bottom_reveal = [max(0, int(value)) for value in reveal_px]
