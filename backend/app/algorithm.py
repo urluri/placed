@@ -294,10 +294,6 @@ FRAME_MONOCHROME_FALLBACK_ORDER = ["black_aluminum", "black_wood", "white_wood",
 FRAME_NEOCLASSIC_MONOCHROME_FALLBACK_ORDER = ["black_wood", "white_wood"]
 FRAME_HIGH_CHROMA_IDS = {"black_aluminum", "black_wood", "white_wood", "light_oak", "oak"}
 FRAME_LOFT_LIGHT_WATERCOLOR_IDS = {"black_aluminum"}
-LOWER_MAT_COLD_FRAME_ORDER = ["black_aluminum", "black_wood", "silver_aluminum", "dark_walnut", "white_wood"]
-LOWER_MAT_WARM_FRAME_ORDER = ["champagne_aluminum", "light_oak", "oak", "walnut", "dark_walnut", "white_wood"]
-LOWER_MAT_COLD_FRAME_IDS = set(LOWER_MAT_COLD_FRAME_ORDER)
-LOWER_MAT_WARM_FRAME_IDS = set(LOWER_MAT_WARM_FRAME_ORDER)
 BLACK_FRAME_IDS = {"black_aluminum", "black_wood"}
 BLACK_FRAME_ALLOWED_STYLES = {"minimal", "loft", "contemporary"}
 BLACK_FRAME_EXCLUDED_STYLES = {"scandi", "japandi", "neoclassic"}
@@ -412,9 +408,9 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
     normalized_type = normalize_artwork_type(artwork_type)
     size_profile = classify_size_profile(width, height)
     constructive = constructive_decision(normalized_type, size_profile, image_analysis)
-    mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis, mat_size_config)
-    frame_decision = build_frame_decision(normalized_type, interior_style, size_profile, image_analysis, mat)
+    frame_decision = build_frame_decision(normalized_type, interior_style, size_profile, image_analysis)
     frame = frame_decision["frame"]
+    mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis, mat_size_config)
     glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
 
@@ -474,7 +470,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
     )
 
 
-def build_frame_decision(artwork_type, interior_style, size_profile, image_analysis, mat=None):
+def build_frame_decision(artwork_type, interior_style, size_profile, image_analysis):
     normalized_style = normalize_frame_interior_style(interior_style)
     candidates = frame_candidates_for_style(normalized_style)
     facts = [
@@ -496,30 +492,6 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
     if size_profile == "extra_large":
         candidates = [candidate for candidate in candidates if candidate["id"] != "white_wood"]
         facts.append("Hard-фильтр: для очень большого размера белая деревянная рама исключена.")
-
-    lower_mat_temp = lower_mat_temperature(mat)
-    if lower_mat_temp in {"cold", "warm"}:
-        allowed_order = LOWER_MAT_COLD_FRAME_ORDER if lower_mat_temp == "cold" else LOWER_MAT_WARM_FRAME_ORDER
-        candidates, used_fallback = lower_mat_temperature_candidates(
-            candidates,
-            allowed_order,
-            normalized_style=normalized_style,
-            artwork_type=artwork_type,
-            size_profile=size_profile,
-        )
-        readable_temp = "холодная" if lower_mat_temp == "cold" else "теплая"
-        if used_fallback:
-            facts.append(
-                f"Глобальное ограничение: нижнее паспарту имеет температуру {readable_temp}; "
-                f"в базовом порядке не осталось допустимых рам, поэтому выбран резерв {frame_ids(candidates)}."
-            )
-        else:
-            facts.append(
-                f"Глобальное ограничение: нижнее паспарту имеет температуру {readable_temp}; "
-                f"допустимые рамы {frame_ids(candidates)}."
-            )
-    elif mat and mat.enabled and mat.inner_color:
-        facts.append("Глобальное ограничение нижнего паспарту не применено: температура нижнего паспарту нейтральная.")
 
     if is_monochrome_image(image_analysis):
         candidates, used_fallback = monochrome_frame_candidates(candidates, normalized_style, size_profile)
@@ -639,13 +611,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             facts.append("Hard-фильтр: условия правила дуба выполнены не полностью, oak исключена.")
 
     oak_rule_selected = False
-    if (
-        not silver_rule_selected
-        and not dark_walnut_rule_selected
-        and not walnut_rule_selected
-        and oak_rule_active
-        and any(candidate["id"] == OAK_FRAME_ID for candidate in candidates)
-    ):
+    if not silver_rule_selected and not dark_walnut_rule_selected and not walnut_rule_selected and oak_rule_active:
         candidates = [FRAME_LIBRARY[OAK_FRAME_ID]]
         oak_rule_selected = True
         facts.append(
@@ -799,7 +765,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
     if normalized_style == "loft" and artwork_type == "watercolor" and lightness == "light":
         candidates, applied = optional_frame_filter(candidates, FRAME_LOFT_LIGHT_WATERCOLOR_IDS)
         facts.append(
-            "Hard-фильтр: светлая акварель в лофте ограничена черным алюминием."
+            "Hard-фильтр: светлая акварель в лофте ограничена черным алюминием и темным орехом."
             if applied
             else "Hard-фильтр светлой акварели в лофте пропущен: после предыдущих условий не осталось бы кандидатов."
         )
@@ -840,18 +806,6 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
 
     if candidates:
         selected = candidates[0]
-    elif lower_mat_temp in {"cold", "warm"}:
-        allowed_order = LOWER_MAT_COLD_FRAME_ORDER if lower_mat_temp == "cold" else LOWER_MAT_WARM_FRAME_ORDER
-        fallback_candidates, _used_fallback = lower_mat_temperature_candidates(
-            [],
-            allowed_order,
-            normalized_style=normalized_style,
-            artwork_type=artwork_type,
-            size_profile=size_profile,
-        )
-        selected = fallback_candidates[0]
-        readable_temp = "холодного" if lower_mat_temp == "cold" else "теплого"
-        facts.append(f"Резервный выбор по глобальному ограничению {readable_temp} нижнего паспарту: {selected['id']}.")
     else:
         selected = FRAME_LIBRARY["black_wood" if artwork_type in {"canvas", "volumetric"} else "black_aluminum"]
         facts.append(f"Резервный выбор: {selected['id']}.")
@@ -1085,7 +1039,7 @@ def black_frame_candidate(artwork_type, candidates):
         return by_id[preferred_id]
     if fallback_id in by_id and artwork_type not in {"canvas", "volumetric"}:
         return by_id[fallback_id]
-    return None
+    return FRAME_LIBRARY[preferred_id]
 
 
 def light_oak_frame_exclusion_reasons(normalized_style, lightness, contrast_level):
@@ -1126,56 +1080,6 @@ def white_frame_rule_applies(normalized_style, lightness, contrast_level, chroma
     if white_frame_exclusion_reasons(normalized_style, lightness, contrast_level, chroma_level):
         return False
     return lightness == "light" and contrast_level in {"low", "medium"}
-
-
-def lower_mat_temperature(mat):
-    if not mat or not mat.enabled or not mat.inner_color:
-        return None
-    return color_temperature(mat.inner_color)
-
-
-def lower_mat_temperature_candidates(candidates, allowed_order, normalized_style, artwork_type, size_profile):
-    allowed_ids = set(allowed_order)
-    filtered = [candidate for candidate in candidates if candidate["id"] in allowed_ids]
-    if filtered:
-        return filtered, False
-
-    fallback = [FRAME_LIBRARY[frame_id] for frame_id in allowed_order if frame_id in FRAME_LIBRARY]
-    fallback = apply_noncancelable_frame_constraints(
-        fallback,
-        normalized_style=normalized_style,
-        artwork_type=artwork_type,
-        size_profile=size_profile,
-    )
-    return fallback or [FRAME_LIBRARY["black_wood"]], True
-
-
-def apply_noncancelable_frame_constraints(candidates, normalized_style, artwork_type, size_profile):
-    if normalized_style != "neoclassic":
-        candidates = [candidate for candidate in candidates if candidate["id"] != "gold"]
-    else:
-        candidates = [candidate for candidate in candidates if candidate["material"] != "aluminum"]
-    if artwork_type in {"canvas", "volumetric"}:
-        candidates = [candidate for candidate in candidates if candidate["material"] == "wood"]
-    if size_profile == "extra_large":
-        candidates = [candidate for candidate in candidates if candidate["id"] != "white_wood"]
-    return candidates
-
-
-def color_temperature(color):
-    lab = color_lab(color)
-    if lab is None:
-        return "neutral"
-    _l_value, a_value, b_value = lab
-    return normalize_temperature(classify_color_temperature(b_value + a_value * 0.22))
-
-
-def classify_color_temperature(score):
-    if score >= 7:
-        return "warm"
-    if score <= -5:
-        return "cold"
-    return "neutral"
 
 
 def frame_profile(frame):
