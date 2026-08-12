@@ -294,6 +294,10 @@ FRAME_MONOCHROME_FALLBACK_ORDER = ["black_aluminum", "black_wood", "white_wood",
 FRAME_NEOCLASSIC_MONOCHROME_FALLBACK_ORDER = ["black_wood", "white_wood"]
 FRAME_HIGH_CHROMA_IDS = {"black_aluminum", "black_wood", "white_wood", "light_oak", "oak"}
 FRAME_LOFT_LIGHT_WATERCOLOR_IDS = {"black_aluminum", "dark_walnut"}
+BLACK_FRAME_IDS = {"black_aluminum", "black_wood"}
+BLACK_FRAME_ALLOWED_STYLES = {"minimal", "loft", "contemporary"}
+BLACK_FRAME_EXCLUDED_STYLES = {"scandi", "japandi", "neoclassic"}
+BLACK_FRAME_EXCLUDED_ARTWORK_TYPES = {"watercolor", "botanical"}
 
 
 @dataclass
@@ -515,16 +519,49 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             "стиль minimal/contemporary и контраст low/medium. Выбрана champagne_aluminum."
         )
 
+    black_rule_active = black_frame_rule_applies(
+        normalized_style=normalized_style,
+        artwork_type=artwork_type,
+        lightness=lightness,
+        contrast_level=contrast_level,
+        image_analysis=image_analysis,
+    )
+    black_exclusion_reasons = black_frame_exclusion_reasons(
+        normalized_style=normalized_style,
+        artwork_type=artwork_type,
+        lightness=lightness,
+        contrast_level=contrast_level,
+    )
+    if not black_rule_active and any(candidate["id"] in BLACK_FRAME_IDS for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate["id"] not in BLACK_FRAME_IDS]
+        if black_exclusion_reasons:
+            facts.append(f"Hard-фильтр: черная рама исключена ({', '.join(black_exclusion_reasons)}).")
+        else:
+            facts.append("Hard-фильтр: условия правила черной рамы выполнены не полностью, черные рамы исключены.")
+
+    black_rule_selected = False
+    if not champagne_rule_selected and black_rule_active:
+        black_candidate = black_frame_candidate(artwork_type, candidates)
+        if black_candidate:
+            candidates = [black_candidate]
+            black_rule_selected = True
+            facts.append(
+                "Приоритетное правило черной рамы: стиль minimal/loft/contemporary и "
+                "контраст high, светлота dark или монохромное изображение. Выбрана черная рама."
+            )
+
     chroma_level = normalize_level(image_analysis.get("chroma_level"))
-    if chroma_level == "high" and not champagne_rule_selected:
+    if chroma_level == "high" and not champagne_rule_selected and not black_rule_selected:
         candidates, applied = optional_frame_filter(candidates, FRAME_HIGH_CHROMA_IDS)
         facts.append(
             "Hard-фильтр: высокая насыщенность изображения ограничила выбор нейтральными рамами."
             if applied
             else "Hard-фильтр высокой насыщенности пропущен: после предыдущих условий не осталось бы кандидатов."
         )
-    elif chroma_level == "high":
+    elif chroma_level == "high" and champagne_rule_selected:
         facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило шампани.")
+    elif chroma_level == "high":
+        facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило черной рамы.")
 
     if normalized_style == "loft" and artwork_type == "watercolor" and lightness == "light":
         candidates, applied = optional_frame_filter(candidates, FRAME_LOFT_LIGHT_WATERCOLOR_IDS)
@@ -536,6 +573,8 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
 
     if champagne_rule_selected:
         facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму шампань.")
+    elif black_rule_selected:
+        facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало черную раму.")
     else:
         material_preference, _material_fallback = FRAME_MATERIAL_RULES.get(artwork_type, FRAME_MATERIAL_RULES["poster"])
         preferred_material_candidates = [
@@ -685,6 +724,38 @@ def champagne_frame_rule_applies(normalized_style, lightness, temperature, contr
         and temperature in {"warm", "neutral"}
         and contrast_level in {"low", "medium"}
     )
+
+
+def black_frame_exclusion_reasons(normalized_style, artwork_type, lightness, contrast_level):
+    reasons = []
+    if lightness == "light":
+        reasons.append("высокая светлота")
+    if contrast_level == "low":
+        reasons.append("низкий контраст")
+    if artwork_type in BLACK_FRAME_EXCLUDED_ARTWORK_TYPES:
+        reasons.append(f"тип работы {artwork_type}")
+    if normalized_style in BLACK_FRAME_EXCLUDED_STYLES:
+        reasons.append(f"стиль {normalized_style}")
+    return reasons
+
+
+def black_frame_rule_applies(normalized_style, artwork_type, lightness, contrast_level, image_analysis):
+    if normalized_style not in BLACK_FRAME_ALLOWED_STYLES:
+        return False
+    if black_frame_exclusion_reasons(normalized_style, artwork_type, lightness, contrast_level):
+        return False
+    return contrast_level == "high" or lightness == "dark" or is_monochrome_image(image_analysis)
+
+
+def black_frame_candidate(artwork_type, candidates):
+    preferred_id = "black_wood" if artwork_type in {"canvas", "volumetric", "engraving"} else "black_aluminum"
+    fallback_id = "black_aluminum" if preferred_id == "black_wood" else "black_wood"
+    by_id = {candidate["id"]: candidate for candidate in candidates}
+    if preferred_id in by_id:
+        return by_id[preferred_id]
+    if fallback_id in by_id and artwork_type not in {"canvas", "volumetric"}:
+        return by_id[fallback_id]
+    return FRAME_LIBRARY[preferred_id]
 
 
 def frame_profile(frame):
@@ -1120,7 +1191,7 @@ def normalize_visual_level(value):
     normalized = str(value or "").strip().lower()
     if normalized in {"light", "high", "светлый", "светлая", "высокий", "высокая", "svetlyy"}:
         return "light"
-    if normalized in {"dark", "темный", "тёмный", "темная", "тёмная", "temnyy"}:
+    if normalized in {"dark", "low", "темный", "тёмный", "темная", "тёмная", "низкий", "низкая", "temnyy"}:
         return "dark"
     return "medium"
 
