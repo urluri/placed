@@ -298,6 +298,7 @@ BLACK_FRAME_IDS = {"black_aluminum", "black_wood"}
 BLACK_FRAME_ALLOWED_STYLES = {"minimal", "loft", "contemporary"}
 BLACK_FRAME_EXCLUDED_STYLES = {"scandi", "japandi", "neoclassic"}
 BLACK_FRAME_EXCLUDED_ARTWORK_TYPES = {"watercolor", "botanical"}
+WHITE_FRAME_ID = "white_wood"
 
 
 @dataclass
@@ -551,7 +552,35 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
             )
 
     chroma_level = normalize_level(image_analysis.get("chroma_level"))
-    if chroma_level == "high" and not champagne_rule_selected and not black_rule_selected:
+
+    white_rule_active = white_frame_rule_applies(
+        normalized_style=normalized_style,
+        lightness=lightness,
+        contrast_level=contrast_level,
+        chroma_level=chroma_level,
+    )
+    white_exclusion_reasons = white_frame_exclusion_reasons(
+        normalized_style=normalized_style,
+        lightness=lightness,
+        contrast_level=contrast_level,
+        chroma_level=chroma_level,
+    )
+    if white_exclusion_reasons and any(candidate["id"] == WHITE_FRAME_ID for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate["id"] != WHITE_FRAME_ID]
+        facts.append(f"Hard-фильтр: белая рама исключена ({', '.join(white_exclusion_reasons)}).")
+
+    white_rule_selected = False
+    if not champagne_rule_selected and not black_rule_selected and white_rule_active:
+        white_candidate = next((candidate for candidate in candidates if candidate["id"] == WHITE_FRAME_ID), None)
+        if white_candidate:
+            candidates = [white_candidate]
+            white_rule_selected = True
+            facts.append(
+                "Приоритетное правило белой рамы: светлота light, контраст low/medium и стиль scandi. "
+                "Выбрана white_wood."
+            )
+
+    if chroma_level == "high" and not champagne_rule_selected and not black_rule_selected and not white_rule_selected:
         candidates, applied = optional_frame_filter(candidates, FRAME_HIGH_CHROMA_IDS)
         facts.append(
             "Hard-фильтр: высокая насыщенность изображения ограничила выбор нейтральными рамами."
@@ -560,8 +589,10 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         )
     elif chroma_level == "high" and champagne_rule_selected:
         facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило шампани.")
-    elif chroma_level == "high":
+    elif chroma_level == "high" and black_rule_selected:
         facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило черной рамы.")
+    elif chroma_level == "high":
+        facts.append("Hard-фильтр высокой насыщенности пропущен: активировано приоритетное правило белой рамы.")
 
     if normalized_style == "loft" and artwork_type == "watercolor" and lightness == "light":
         candidates, applied = optional_frame_filter(candidates, FRAME_LOFT_LIGHT_WATERCOLOR_IDS)
@@ -575,6 +606,8 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало раму шампань.")
     elif black_rule_selected:
         facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало черную раму.")
+    elif white_rule_selected:
+        facts.append("Материал и светлота не меняют выбор: приоритетное правило уже зафиксировало белую раму.")
     else:
         material_preference, _material_fallback = FRAME_MATERIAL_RULES.get(artwork_type, FRAME_MATERIAL_RULES["poster"])
         preferred_material_candidates = [
@@ -756,6 +789,27 @@ def black_frame_candidate(artwork_type, candidates):
     if fallback_id in by_id and artwork_type not in {"canvas", "volumetric"}:
         return by_id[fallback_id]
     return FRAME_LIBRARY[preferred_id]
+
+
+def white_frame_exclusion_reasons(normalized_style, lightness, contrast_level, chroma_level):
+    reasons = []
+    if lightness == "dark":
+        reasons.append("низкая светлота")
+    if chroma_level == "high":
+        reasons.append("высокая насыщенность")
+    if contrast_level == "high":
+        reasons.append("высокий контраст")
+    if normalized_style == "loft":
+        reasons.append("стиль loft")
+    return reasons
+
+
+def white_frame_rule_applies(normalized_style, lightness, contrast_level, chroma_level):
+    if normalized_style != "scandi":
+        return False
+    if white_frame_exclusion_reasons(normalized_style, lightness, contrast_level, chroma_level):
+        return False
+    return lightness == "light" and contrast_level in {"low", "medium"}
 
 
 def frame_profile(frame):
