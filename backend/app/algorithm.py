@@ -896,19 +896,32 @@ def signature_inner_color_strategy(image_analysis):
         }
 
     similarity = accent_similarity(selected, palette)
-    use_complement = similarity.get("similar", False)
+    if similarity.get("similar", False):
+        fallback = farthest_accent_candidate(accent, palette, similarity)
+        base_color = fallback.get("color") or selected
+        return {
+            "mode": "distant_accent_candidate",
+            "base_color": base_color,
+            "base_source": fallback.get("source"),
+            "target_lab": adjusted_signature_lab(base_color, image_analysis, complement=False),
+            "similarity": similarity,
+            "excluded_families": signature_anchor_families(palette),
+            "candidate_distances": fallback.get("distances", {}),
+            "reason": (
+                "Signature: выбранный акцент находится в одной цветовой группе с основным или вторичным; "
+                "вместо комплементарного цвета выбран самый дальний подходящий кандидат акцента."
+            ),
+        }
+
     return {
-        "mode": "complement" if use_complement else "accent",
+        "mode": "accent",
         "base_color": selected,
-        "target_lab": adjusted_signature_lab(selected, image_analysis, complement=use_complement),
+        "base_source": accent.get("source"),
+        "target_lab": adjusted_signature_lab(selected, image_analysis, complement=False),
         "similarity": similarity,
         "excluded_families": signature_anchor_families(palette),
-        "reason": (
-            "Signature: акцент близок к основному или вторичному цвету, поэтому нижнее паспарту "
-            "использует приглушенный комплементарный цвет."
-            if use_complement
-            else "Signature: акцент достаточно самостоятельный, поэтому нижнее паспарту использует приглушенный акцентный цвет."
-        ),
+        "candidate_distances": {},
+        "reason": "Signature: акцент достаточно самостоятельный, поэтому нижнее паспарту использует приглушенный акцентный цвет.",
     }
 
 
@@ -943,15 +956,63 @@ def signature_anchor_families(palette):
     return families
 
 
+def farthest_accent_candidate(accent, palette, similarity):
+    candidates = accent.get("candidates", {}) if isinstance(accent, dict) else {}
+    anchor_roles = similarity.get("similar_roles") or [similarity.get("closest_role")]
+    anchor_roles = [role for role in anchor_roles if role in {"primary", "secondary"}]
+    if not anchor_roles:
+        anchor_roles = ["primary", "secondary"]
+
+    anchors = [
+        palette.get(role)
+        for role in anchor_roles
+        if isinstance(palette, dict) and palette.get(role)
+    ]
+    anchor_labs = [color_lab(anchor) for anchor in anchors]
+    anchor_labs = [lab for lab in anchor_labs if lab is not None]
+    if not anchor_labs:
+        return {"color": accent.get("selected"), "source": accent.get("source"), "distances": {}}
+
+    selected_hex = (accent.get("selected") or {}).get("hex")
+    scored = []
+    seen = set()
+    for source, candidate in candidates.items():
+        if not candidate:
+            continue
+        candidate_hex = candidate.get("hex")
+        if not candidate_hex or candidate_hex in seen:
+            continue
+        seen.add(candidate_hex)
+        candidate_lab = color_lab(candidate)
+        if candidate_lab is None:
+            continue
+        distances = [delta_e(candidate_lab, anchor_lab) for anchor_lab in anchor_labs]
+        distance_score = min(distances)
+        source_penalty = 0.01 if candidate_hex == selected_hex else 0
+        scored.append((distance_score - source_penalty, source, candidate, distances))
+
+    if not scored:
+        return {"color": accent.get("selected"), "source": accent.get("source"), "distances": {}}
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    _score, source, candidate, distances = scored[0]
+    distance_map = {
+        role: round(distance, 2)
+        for role, distance in zip(anchor_roles, distances)
+    }
+    return {"color": candidate, "source": source, "distances": distance_map}
+
+
 def accent_similarity(accent_color, palette):
     accent_lab = color_lab(accent_color)
     if accent_lab is None:
-        return {"similar": False, "primary_delta_e": None, "secondary_delta_e": None, "closest_role": None}
+        return {"similar": False, "primary_delta_e": None, "secondary_delta_e": None, "closest_role": None, "similar_roles": []}
 
     closest_role = None
     closest_delta = None
     distances = {}
     similar = False
+    similar_roles = []
     for role in ("primary", "secondary"):
         anchor = palette.get(role) if isinstance(palette, dict) else None
         anchor_lab = color_lab(anchor) if anchor else None
@@ -969,12 +1030,15 @@ def accent_similarity(accent_color, palette):
             closest_delta = distance
             closest_role = role
         similar = similar or role_similar
+        if role_similar:
+            similar_roles.append(role)
 
     return {
         "similar": similar,
         "primary_delta_e": distances.get("primary_delta_e"),
         "secondary_delta_e": distances.get("secondary_delta_e"),
         "closest_role": closest_role,
+        "similar_roles": similar_roles,
     }
 
 
@@ -1124,8 +1188,20 @@ def color_facts(mat, decor_style, image_analysis):
             "Схожесть акцента: "
             f"основной Delta E {format_optional_metric(similarity.get('primary_delta_e'))}, "
             f"вторичный Delta E {format_optional_metric(similarity.get('secondary_delta_e'))}; "
-            f"схожий={similarity.get('similar', False)}."
+            f"схожий={similarity.get('similar', False)}, "
+            f"роли={', '.join(similarity.get('similar_roles') or []) or 'нет'}."
         )
+        base_color = strategy.get("base_color")
+        if base_color:
+            source = strategy.get("base_source") or "selected"
+            facts.append(f"Базовый цвет нижнего паспарту: {color_fact(base_color)}, источник {source}.")
+        candidate_distances = strategy.get("candidate_distances") or {}
+        if candidate_distances:
+            facts.append(
+                "Дистанции выбранного кандидата до конфликтующих цветов: "
+                + ", ".join(f"{role} Delta E {format_optional_metric(distance)}" for role, distance in candidate_distances.items())
+                + "."
+            )
         excluded_families = ", ".join(sorted(strategy.get("excluded_families") or [])) or "нет"
         facts.append(f"Исключенные семьи для нижнего паспарту: {excluded_families}.")
         facts.append(f"Акцентный цвет: {color_fact(selected) if selected else 'не найден'}.")
