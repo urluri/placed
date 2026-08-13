@@ -23,16 +23,16 @@ def wood_material_params(base):
     warmth = r_value - b_value
 
     if lightness > 220:
-        return {"kind": "painted_light", "contrast": 1.7, "pore": 0.9, "ring": 1.2, "ray": 0.9}
+        return {"kind": "painted_light", "contrast": 3.4, "pore": 1.4, "ring": 2.2, "ray": 1.1, "grain": 2.7}
     if lightness < 45:
-        return {"kind": "painted_dark", "contrast": 1.4, "pore": 0.8, "ring": 1.1, "ray": 0.45}
+        return {"kind": "painted_dark", "contrast": 3.0, "pore": 1.3, "ring": 2.0, "ray": 0.5, "grain": 2.3}
     if warmth > 70 and lightness > 155:
-        return {"kind": "light_oak", "contrast": 5.8, "pore": 2.4, "ring": 4.6, "ray": 2.7}
+        return {"kind": "light_oak", "contrast": 12.0, "pore": 5.4, "ring": 8.8, "ray": 5.2, "grain": 9.5}
     if warmth > 55 and lightness > 95:
-        return {"kind": "oak", "contrast": 7.2, "pore": 2.8, "ring": 5.4, "ray": 2.0}
+        return {"kind": "oak", "contrast": 13.5, "pore": 5.8, "ring": 9.6, "ray": 4.2, "grain": 10.5}
     if warmth > 35 and lightness > 55:
-        return {"kind": "walnut", "contrast": 8.4, "pore": 2.1, "ring": 6.6, "ray": 0.7}
-    return {"kind": "dark_walnut", "contrast": 7.4, "pore": 1.8, "ring": 5.7, "ray": 0.45}
+        return {"kind": "walnut", "contrast": 14.2, "pore": 4.6, "ring": 10.6, "ray": 1.1, "grain": 11.4}
+    return {"kind": "dark_walnut", "contrast": 12.2, "pore": 4.0, "ring": 9.2, "ray": 0.7, "grain": 9.6}
 
 
 def blurred_noise(width, height, rng, blur_radius, scale=1.0):
@@ -81,10 +81,33 @@ def wood_texture(width, height, base=FRAME_BASE, frame_px=1, profile="natural_wo
     grain_u = u + u_warp
     grain_v = v + v_warp
 
-    annual = np.sin(grain_u / (18 + rail_width * 0.08) + np.sin(grain_u / 87) * 0.9)
-    secondary = np.sin(grain_u / (7.5 + rail_width * 0.018) + grain_v / 24) * 0.48
-    broad = np.sin(grain_u / (78 + rail_width * 0.18) + np.sin(grain_v / 31) * 0.8) * 0.62
-    fine = rng.normal(0, 0.42, (height, width))
+    annual = np.sin(grain_u / (16 + rail_width * 0.07) + np.sin(grain_u / 82) * 1.1)
+    secondary = np.sin(grain_u / (6.8 + rail_width * 0.016) + grain_v / 24) * 0.58
+    broad = np.sin(grain_u / (68 + rail_width * 0.16) + np.sin(grain_v / 29) * 0.9) * 0.72
+    fine = rng.normal(0, 0.62, (height, width))
+
+    long_grain = np.zeros((height, width), dtype=np.float32)
+    for period in (21, 34, 55, 89):
+        phase = rng.uniform(0, np.pi * 2)
+        drift = np.sin(grain_v / (period * 1.35) + phase) * rng.uniform(0.55, 1.35)
+        long_grain += np.sin(grain_u / period + drift + phase) * rng.uniform(0.55, 1.15)
+    long_grain /= 4
+    long_grain = np.sign(long_grain) * np.abs(long_grain) ** 1.28
+
+    dark_grain = np.clip(np.sin(grain_u / 3.25 + np.sin(grain_v / 11) * 1.25) - 0.72, 0, 1)
+    dark_grain += np.clip(np.sin(grain_u / 6.6 + np.sin(grain_v / 17) * 1.1) - 0.84, 0, 1) * 1.35
+    dark_grain *= np.clip(blurred_noise(width, height, rng, 0.9, 1.8) + 0.8, 0, 1.25)
+
+    crisp_lines = np.zeros((height, width), dtype=np.float32)
+    max_axis = max(width, height)
+    line_count = max(10, min(46, int(max_axis / 17)))
+    for _ in range(line_count):
+        center = rng.uniform(-max_axis * 0.12, max_axis * 1.12)
+        line_width = rng.uniform(1.0, 3.4)
+        wobble = np.sin(grain_v / rng.uniform(18, 58) + rng.uniform(0, np.pi * 2)) * rng.uniform(2.0, 8.0)
+        line = np.exp(-((grain_u + wobble - center) ** 2) / (2 * line_width * line_width))
+        crisp_lines += line * rng.uniform(0.45, 1.0)
+    crisp_lines = np.clip(crisp_lines, 0, 1.35)
 
     pores = np.sin(grain_u / 4.7 + np.sin(grain_v / 9) * 0.9)
     pore_mask = np.clip((pores - 0.72) * 3.3, 0, 1)
@@ -108,8 +131,11 @@ def wood_texture(width, height, base=FRAME_BASE, frame_px=1, profile="natural_wo
         annual * params["ring"]
         + secondary * params["contrast"]
         + broad * params["contrast"] * 0.55
+        + long_grain * params["grain"]
         + fine
         + pore_value
+        - dark_grain * params["pore"] * 1.9
+        - crisp_lines * params["grain"] * 0.85
         + ray_value
         + profile_shadow * 0.9
         + cove
@@ -131,11 +157,21 @@ def wood_texture(width, height, base=FRAME_BASE, frame_px=1, profile="natural_wo
         arr[:, :, 1] += value * 0.62
         arr[:, :, 2] += value * 0.34
 
+    if params["kind"] in {"light_oak", "oak"}:
+        arr[:, :, 0] += long_grain * params["grain"] * 0.28
+        arr[:, :, 1] += long_grain * params["grain"] * 0.12
+        arr[:, :, 2] -= crisp_lines * params["grain"] * 0.18
+    elif params["kind"] in {"walnut", "dark_walnut"}:
+        arr[:, :, 0] += long_grain * params["grain"] * 0.18
+        arr[:, :, 1] -= crisp_lines * params["grain"] * 0.24
+        arr[:, :, 2] -= crisp_lines * params["grain"] * 0.16
+
     corner_softening = np.clip(((x / max(1, width - 1)) * (y / max(1, height - 1))), 0, 1)
     corner_softening *= np.clip(((1 - x / max(1, width - 1)) * (1 - y / max(1, height - 1))), 0, 1)
     arr += corner_softening[:, :, None] * 3.0
 
-    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+    img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+    return img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=135, threshold=1))
 
 
 def aluminum_texture(width, height, base):
