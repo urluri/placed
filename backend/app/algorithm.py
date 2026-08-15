@@ -69,6 +69,9 @@ MAT_WINDOW_OVERLAP_MM = 5
 ACCENT_SIMILAR_DELTA_E = 22
 ACCENT_SAME_FAMILY_DELTA_E = 24
 NEUTRAL_COLOR_FAMILIES = {"white", "grey", "black"}
+INNER_MAT_MIN_L = 25
+INNER_MAT_MAX_DARKER_THAN_IMAGE = 20
+INNER_MAT_GRAPHITE_TARGET_L = 34
 
 PLACED_PALETTE = {
     "PW001": {"id": "PW001", "name": "Museum White", "hex": "#F7F6F2", "family": "white", "role": "base_white"},
@@ -1426,59 +1429,74 @@ def signature_inner_mat_color(image_analysis):
         return mat_color_ivory()
 
     return public_palette_color(
-        nearest_palette_color(target_lab, excluded_families=strategy.get("excluded_families"))
+        nearest_palette_color(
+            target_lab,
+            excluded_families=strategy.get("excluded_families"),
+            allowed_families=strategy.get("allowed_families"),
+            allowed_roles=strategy.get("allowed_roles"),
+        )
     )
 
 
 def signature_inner_target_lab(image_analysis):
     return signature_inner_color_strategy(image_analysis).get("target_lab")
 
-    accent = image_analysis.get("palette", {}).get("accent", {})
-    selected = accent.get("selected") if isinstance(accent, dict) else None
-    if not selected:
-        return None
-
-    lab = color_lab(selected)
-    if lab is None:
-        return None
-
-    lightness = image_analysis.get("lightness")
-    l_value, a_value, b_value = lab
-    if lightness == "светлый":
-        l_value -= 15
-    elif lightness == "темный":
-        l_value += 15
-
-    return (clamp_float(l_value, 0, 100), a_value * 0.5, b_value * 0.5)
-
 
 def signature_inner_color_strategy(image_analysis):
     palette = image_analysis.get("palette", {})
     accent = palette.get("accent", {}) if isinstance(palette, dict) else {}
     selected = accent.get("selected") if isinstance(accent, dict) else None
+    excluded_families = signature_anchor_families(palette)
+    grey_allowed = signature_grey_allowed(image_analysis, palette)
     if not selected:
         return {
             "mode": "fallback",
             "base_color": None,
             "target_lab": None,
             "similarity": {},
-            "excluded_families": signature_anchor_families(palette),
+            "excluded_families": excluded_families,
+            "allowed_families": None,
+            "allowed_roles": None,
+            "adjustments": [],
             "reason": "Signature: акцентный цвет не найден, используется резервный Ivory.",
         }
 
-    if is_neutral_color(selected):
-        candidates = accent.get("candidates", {}) if isinstance(accent, dict) else {}
-        area_color = candidates.get("area") if isinstance(candidates, dict) else None
-        base_color = area_color or selected
+    if is_black_like_color(selected):
+        target_lab, adjustments = graphite_inner_mat_lab(image_analysis)
         return {
-            "mode": "area_for_neutral",
-            "base_color": base_color,
-            "target_lab": adjusted_signature_lab(base_color, image_analysis, complement=False),
+            "mode": "graphite_for_black_accent",
+            "base_color": selected,
+            "target_lab": target_lab,
             "similarity": accent_similarity(selected, palette),
-            "excluded_families": signature_anchor_families(palette),
+            "excluded_families": set(),
+            "allowed_families": {"grey"},
+            "allowed_roles": {"deep_neutral"},
+            "adjustments": adjustments,
+            "grey_allowed": True,
             "reason": (
-                "Signature: выбранный акцент нейтральный, поэтому комплементарный цвет не строится; "
-                "для нижнего паспарту используется area-кандидат акцента."
+                "Signature: акцентный цвет черный или почти черный; черный запрещен для нижнего паспарту, "
+                "поэтому используется графит из палитры placed."
+            ),
+        }
+
+    if is_neutral_color(selected):
+        neutral_choice = signature_neutral_base_color(accent, palette, grey_allowed)
+        base_color = neutral_choice.get("color") or selected
+        target_lab, adjustments = adjusted_signature_lab(base_color, image_analysis)
+        return {
+            "mode": "image_candidate_for_neutral",
+            "base_color": base_color,
+            "base_source": neutral_choice.get("source"),
+            "target_lab": target_lab,
+            "similarity": accent_similarity(selected, palette),
+            "excluded_families": grey_sensitive_excluded_families(excluded_families, grey_allowed, base_color),
+            "allowed_families": None,
+            "allowed_roles": None,
+            "adjustments": adjustments,
+            "grey_allowed": grey_allowed,
+            "reason": (
+                "Signature: выбранный акцент нейтральный, поэтому новый нейтральный цвет не добавляется автоматически; "
+                "для нижнего паспарту используется подходящий цвет-кандидат из изображения."
             ),
         }
 
@@ -1486,49 +1504,232 @@ def signature_inner_color_strategy(image_analysis):
     if similarity.get("similar", False):
         fallback = farthest_accent_candidate(accent, palette, similarity)
         base_color = fallback.get("color") or selected
+        target_lab, adjustments = adjusted_signature_lab(base_color, image_analysis)
         return {
             "mode": "distant_accent_candidate",
             "base_color": base_color,
             "base_source": fallback.get("source"),
-            "target_lab": adjusted_signature_lab(base_color, image_analysis, complement=False),
+            "target_lab": target_lab,
             "similarity": similarity,
-            "excluded_families": signature_anchor_families(palette),
+            "excluded_families": grey_sensitive_excluded_families(excluded_families, grey_allowed, base_color),
+            "allowed_families": None,
+            "allowed_roles": None,
             "candidate_distances": fallback.get("distances", {}),
+            "adjustments": adjustments,
+            "grey_allowed": grey_allowed,
             "reason": (
                 "Signature: выбранный акцент находится в одной цветовой группе с основным или вторичным; "
-                "вместо комплементарного цвета выбран самый дальний подходящий кандидат акцента."
+                "выбран самый дальний подходящий кандидат акцента."
             ),
         }
 
+    target_lab, adjustments = adjusted_signature_lab(selected, image_analysis)
     return {
         "mode": "accent",
         "base_color": selected,
         "base_source": accent.get("source"),
-        "target_lab": adjusted_signature_lab(selected, image_analysis, complement=False),
+        "target_lab": target_lab,
         "similarity": similarity,
-        "excluded_families": signature_anchor_families(palette),
+        "excluded_families": grey_sensitive_excluded_families(excluded_families, grey_allowed, selected),
+        "allowed_families": None,
+        "allowed_roles": None,
         "candidate_distances": {},
+        "adjustments": adjustments,
+        "grey_allowed": grey_allowed,
         "reason": "Signature: акцент достаточно самостоятельный, поэтому нижнее паспарту использует приглушенный акцентный цвет.",
     }
 
 
-def adjusted_signature_lab(color, image_analysis, complement=False):
+def adjusted_signature_lab(color, image_analysis):
     lab = color_lab(color)
     if lab is None:
-        return None
+        return None, []
 
-    lightness = normalize_visual_level(image_analysis.get("lightness"))
     l_value, a_value, b_value = lab
-    if complement:
-        a_value = -a_value
-        b_value = -b_value
+    adjustments = []
+    original_l = l_value
 
-    if lightness == "light":
-        l_value -= 15
-    elif lightness == "dark":
-        l_value += 15
+    if l_value < INNER_MAT_MIN_L:
+        l_value = 38
+        a_value *= 0.82
+        b_value *= 0.82
+        adjustments.append("Акцент темнее L=25: Hue сохранен, цвет осветлен до спокойного диапазона L=30-45, насыщенность снижена.")
+    elif l_value < 40:
+        l_value = min(55, l_value + 20)
+        a_value *= 0.85
+        b_value *= 0.85
+        adjustments.append("Акцент в диапазоне L=25-40: цвет осветлен и немного приглушен.")
+    else:
+        a_value *= 0.84
+        b_value *= 0.84
+        adjustments.append("Акцент светлее L=40: Hue сохранен, насыщенность снижена.")
 
-    return (clamp_float(l_value, 0, 100), a_value * 0.5, b_value * 0.5)
+    image_l = image_lightness_value(image_analysis)
+    l_value, lightness_adjustments = enforce_inner_mat_lightness(l_value, image_l)
+    adjustments.extend(lightness_adjustments)
+
+    l_value, a_value, b_value, contrast_adjustments = reduce_inner_mat_visual_weight(
+        l_value,
+        a_value,
+        b_value,
+        image_analysis,
+        original_l,
+    )
+    adjustments.extend(contrast_adjustments)
+
+    return (clamp_float(l_value, 0, 100), a_value, b_value), adjustments
+
+
+def enforce_inner_mat_lightness(l_value, image_l):
+    adjustments = []
+    minimum_l = INNER_MAT_MIN_L
+    if image_l is not None:
+        minimum_l = max(minimum_l, image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE)
+
+    while l_value < minimum_l:
+        l_value += 5
+        adjustments.append(f"Светлота нижнего паспарту поднята на 5 пунктов до L={round(l_value, 1)}.")
+
+    return clamp_float(l_value, minimum_l, 100), adjustments
+
+
+def reduce_inner_mat_visual_weight(l_value, a_value, b_value, image_analysis, original_l):
+    image_l = image_lightness_value(image_analysis)
+    image_contrast_value = image_contrast_metric(image_analysis)
+    if image_l is None:
+        return l_value, a_value, b_value, []
+
+    max_gap = max(18, image_contrast_value * 0.75)
+    gap = abs(l_value - image_l)
+    if gap <= max_gap:
+        return l_value, a_value, b_value, []
+
+    direction = 1 if l_value > image_l else -1
+    l_value = image_l + direction * max_gap
+    if l_value < image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE:
+        l_value = image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE
+    a_value *= 0.82
+    b_value *= 0.82
+    return (
+        clamp_float(l_value, INNER_MAT_MIN_L, 100),
+        a_value,
+        b_value,
+        [
+            (
+                "Контраст нижнего паспарту с изображением был сильнее внутренних отношений изображения; "
+                f"L скорректирован от исходного акцента L={round(original_l, 1)}, насыщенность снижена."
+            )
+        ],
+    )
+
+
+def graphite_inner_mat_lab(image_analysis):
+    image_l = image_lightness_value(image_analysis)
+    target_l = INNER_MAT_GRAPHITE_TARGET_L
+    if normalize_visual_level(image_analysis.get("lightness")) == "light" and normalize_level(image_analysis.get("contrast")) == "low":
+        target_l = 38
+    if image_l is not None:
+        target_l = max(target_l, min(40, image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE))
+    target_l = clamp_float(target_l, 25, 40)
+    return (target_l, 0, 0), [f"Черный акцент заменен на графитовый диапазон палитры placed: целевая светлота L={round(target_l, 1)}."]
+
+
+def is_black_like_color(color):
+    lab = color_lab(color)
+    if lab is None:
+        return False
+    l_value, a_value, b_value = lab
+    chroma = color.get("chroma")
+    if chroma is None:
+        chroma = sqrt(a_value * a_value + b_value * b_value)
+    return l_value < INNER_MAT_MIN_L and float(chroma) < 12
+
+
+def image_lightness_value(image_analysis):
+    metrics = image_analysis.get("metrics", {}) if isinstance(image_analysis, dict) else {}
+    value = metrics.get("lightness") if isinstance(metrics, dict) else None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        level = normalize_visual_level(image_analysis.get("lightness") if isinstance(image_analysis, dict) else None)
+        return {"light": 72.0, "medium": 52.0, "dark": 32.0}.get(level, 52.0)
+
+
+def image_contrast_metric(image_analysis):
+    metrics = image_analysis.get("metrics", {}) if isinstance(image_analysis, dict) else {}
+    value = metrics.get("contrast") if isinstance(metrics, dict) else None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return {"low": 22.0, "medium": 36.0, "high": 52.0}.get(normalize_level(image_analysis.get("contrast")), 36.0)
+
+
+def signature_grey_allowed(image_analysis, palette):
+    if is_monochrome_image(image_analysis):
+        return True
+    if image_analysis.get("temperature") == "нейтральный":
+        return True
+    grey_present = image_palette_has_grey(palette)
+    if image_analysis.get("temperature") == "теплый":
+        return False
+    if image_analysis.get("temperature") == "холодный":
+        return grey_present
+    return grey_present
+
+
+def image_palette_has_grey(palette):
+    if not isinstance(palette, dict):
+        return False
+    for role in ("primary", "secondary"):
+        color = palette.get(role)
+        if isinstance(color, dict) and color.get("family") == "grey":
+            return True
+    accent = palette.get("accent", {})
+    if isinstance(accent, dict):
+        selected = accent.get("selected")
+        if isinstance(selected, dict) and selected.get("family") == "grey":
+            return True
+        candidates = accent.get("candidates", {})
+        if isinstance(candidates, dict):
+            for color in candidates.values():
+                if isinstance(color, dict) and color.get("family") == "grey":
+                    return True
+    return False
+
+
+def grey_sensitive_excluded_families(base_excluded_families, grey_allowed, base_color):
+    families = set(base_excluded_families or [])
+    if not grey_allowed:
+        families.add("grey")
+    return families
+
+
+def signature_neutral_base_color(accent, palette, grey_allowed):
+    candidates = accent.get("candidates", {}) if isinstance(accent, dict) else {}
+    selected = accent.get("selected") if isinstance(accent, dict) else None
+
+    ordered = []
+    if isinstance(candidates, dict):
+        for source in ("area", "pop", "temperature", "light"):
+            ordered.append((source, candidates.get(source)))
+    ordered.append(("selected", selected))
+
+    if grey_allowed:
+        for source, candidate in ordered:
+            if candidate:
+                return {"source": source, "color": candidate}
+
+    for source, candidate in ordered:
+        if candidate and candidate.get("family") != "grey":
+            return {"source": source, "color": candidate}
+
+    if isinstance(palette, dict):
+        for source in ("secondary", "primary"):
+            candidate = palette.get(source)
+            if isinstance(candidate, dict) and candidate.get("family") != "grey":
+                return {"source": source, "color": candidate}
+
+    return {"source": "selected", "color": selected}
 
 
 def signature_anchor_families(palette):
@@ -1653,12 +1854,16 @@ def normalize_visual_level(value):
     return "medium"
 
 
-def nearest_palette_color(target_lab, excluded_families=None):
+def nearest_palette_color(target_lab, excluded_families=None, allowed_families=None, allowed_roles=None):
     excluded_families = set(excluded_families or [])
+    allowed_families = set(allowed_families or [])
+    allowed_roles = set(allowed_roles or [])
     candidates = [
         color
         for color in PLACED_PALETTE.values()
         if color.get("family") not in excluded_families
+        and (not allowed_families or color.get("family") in allowed_families)
+        and (not allowed_roles or color.get("role") in allowed_roles)
     ]
     if not candidates:
         candidates = list(PLACED_PALETTE.values())
@@ -1740,7 +1945,7 @@ def mat_color_reason(mat, decor_style, image_analysis):
         return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
     return (
         f"Signature: верхнее паспарту выбрано как Standard - {mat.outer_color['name']} ({mat.outer_color['hex']}); "
-        f"нижнее паспарту выбрано от акцентного цвета через ближайший оттенок палитры placed - "
+        f"нижнее паспарту выбрано от смягченного акцентного цвета после проверки светлоты и серого правила - "
         f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
     )
 
@@ -1791,14 +1996,16 @@ def color_facts(mat, decor_style, image_analysis):
             )
         excluded_families = ", ".join(sorted(strategy.get("excluded_families") or [])) or "нет"
         facts.append(f"Исключенные семьи для нижнего паспарту: {excluded_families}.")
+        allowed_families = ", ".join(sorted(strategy.get("allowed_families") or [])) or "все допустимые"
+        allowed_roles = ", ".join(sorted(strategy.get("allowed_roles") or [])) or "все допустимые"
+        facts.append(f"Разрешенные семьи/роли палитры: семьи - {allowed_families}; роли - {allowed_roles}.")
+        facts.append(f"Серый допустим для нижнего паспарту: {'да' if strategy.get('grey_allowed') else 'нет'}.")
         facts.append(f"Акцентный цвет: {color_fact(selected) if selected else 'не найден'}.")
-        facts.append("Насыщенность расчетного цвета нижнего паспарту уменьшена на 50%.")
-        if image_analysis.get("lightness") == "светлый":
-            facts.append("Изображение светлое: светлота расчетного цвета нижнего паспарту уменьшена на 15.")
-        elif image_analysis.get("lightness") == "темный":
-            facts.append("Изображение темное: светлота расчетного цвета нижнего паспарту увеличена на 15.")
-        else:
-            facts.append("Изображение средней светлоты: светлота расчетного цвета нижнего паспарту не менялась.")
+        target_lab = strategy.get("target_lab")
+        if target_lab:
+            facts.append(f"Расчетный LAB нижнего паспарту после коррекций: L={round(target_lab[0], 1)}, a={round(target_lab[1], 1)}, b={round(target_lab[2], 1)}.")
+        for adjustment in strategy.get("adjustments") or []:
+            facts.append(adjustment)
         facts.append(f"Цвет нижнего паспарту: {mat.inner_color['name']} ({mat.inner_color['hex']}).")
     return facts
 
