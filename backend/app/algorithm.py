@@ -2111,6 +2111,7 @@ def renderer_geometry(spec):
         "inner_reveal_top": mat["inner_reveal_top_mm"] if mat and mat["enabled"] else 0,
         "inner_reveal_bottom": mat["inner_reveal_bottom_mm"] if mat and mat["enabled"] else 0,
         "frame_color": hex_to_rgb(frame.get("hex", "#2B2925")),
+        "frame_id": frame.get("id"),
         "frame_material": frame.get("material", "wood"),
         "frame_profile": frame.get("profile", "natural_wood"),
         "glass": spec.get("glass", {}).get("type", "none"),

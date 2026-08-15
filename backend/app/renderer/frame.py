@@ -1,9 +1,20 @@
+from functools import lru_cache
+from pathlib import Path
+
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 from .utils import adjust_color
 
 FRAME_BASE = (112, 98, 82)
+WOOD_TEXTURE_FILES = {
+    "light_oak": "oak_light.jpg",
+    "oak": "oak.jpg",
+    "walnut": "wenge.jpg",
+    "dark_walnut": "wenge_dark.jpg",
+}
+REPO_ROOT = Path(__file__).resolve().parents[3]
+TEXTURE_ROOT = REPO_ROOT / "textures"
 
 
 def stable_seed(width, height, base, salt=0):
@@ -42,6 +53,105 @@ def blurred_noise(width, height, rng, blur_radius, scale=1.0):
     return arr * scale / 48
 
 
+@lru_cache(maxsize=8)
+def load_wood_texture_asset(texture_name):
+    path = TEXTURE_ROOT / texture_name
+    if not path.exists():
+        return None
+    image = Image.open(path).convert("RGB")
+    max_side = max(image.size)
+    if max_side > 2400:
+        scale = 2400 / max_side
+        image = image.resize(
+            (max(1, int(image.width * scale)), max(1, int(image.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+    return image
+
+
+def texture_key_for_frame(frame_id, base):
+    if frame_id in WOOD_TEXTURE_FILES:
+        return frame_id
+    return None
+
+
+def crop_resized_texture(source, width, height, rng, rotate=False):
+    if rotate:
+        source = source.transpose(Image.Transpose.ROTATE_90)
+
+    src_w, src_h = source.size
+    crop_w = min(src_w, max(width * 4, 900))
+    crop_h = min(src_h, max(height * 10, 420))
+    max_x = max(0, src_w - crop_w)
+    max_y = max(0, src_h - crop_h)
+    left = int(rng.integers(0, max_x + 1)) if max_x else 0
+    top = int(rng.integers(0, max_y + 1)) if max_y else 0
+    crop = source.crop((left, top, left + crop_w, top + crop_h))
+    return crop.resize((max(1, width), max(1, height)), Image.Resampling.LANCZOS)
+
+
+def tint_texture_to_frame(texture, base):
+    arr = np.asarray(texture).astype(np.float32)
+    mean = arr.reshape(-1, 3).mean(axis=0)
+    detail = arr - mean
+    target = np.array(base, dtype=np.float32) + detail * 0.92
+    blended = arr * 0.68 + target * 0.32
+    return Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8))
+
+
+def real_wood_texture(width, height, base, frame_px, frame_id):
+    texture_key = texture_key_for_frame(frame_id, base)
+    texture_name = WOOD_TEXTURE_FILES.get(texture_key)
+    source = load_wood_texture_asset(texture_name) if texture_name else None
+    if source is None:
+        return None
+
+    rng = np.random.default_rng(stable_seed(width, height, base, frame_px + 271))
+    rail = max(1, frame_px)
+    result = Image.new("RGB", (width, height), base)
+
+    top = crop_resized_texture(source, width, rail, rng, rotate=True)
+    bottom = crop_resized_texture(source, width, rail, rng, rotate=True)
+    left = crop_resized_texture(source, rail, height, rng, rotate=False)
+    right = crop_resized_texture(source, rail, height, rng, rotate=False)
+
+    top_layer = Image.new("RGB", (width, height), base)
+    bottom_layer = Image.new("RGB", (width, height), base)
+    left_layer = Image.new("RGB", (width, height), base)
+    right_layer = Image.new("RGB", (width, height), base)
+    top_layer.paste(tint_texture_to_frame(top, base), (0, 0))
+    bottom_layer.paste(tint_texture_to_frame(bottom, base), (0, max(0, height - rail)))
+    left_layer.paste(tint_texture_to_frame(left, base), (0, 0))
+    right_layer.paste(tint_texture_to_frame(right, base), (max(0, width - rail), 0))
+
+    masks = wood_rail_masks(width, height, rail)
+    for layer, mask in (
+        (top_layer, masks["top"]),
+        (bottom_layer, masks["bottom"]),
+        (left_layer, masks["left"]),
+        (right_layer, masks["right"]),
+    ):
+        result.paste(layer, (0, 0), mask)
+
+    return result.filter(ImageFilter.UnsharpMask(radius=0.9, percent=85, threshold=2))
+
+
+def wood_rail_masks(width, height, rail):
+    rail = max(1, min(rail, width // 2, height // 2))
+    masks = {}
+    specs = {
+        "top": [(0, 0), (width, 0), (width - rail, rail), (rail, rail)],
+        "bottom": [(0, height), (rail, height - rail), (width - rail, height - rail), (width, height)],
+        "left": [(0, 0), (rail, rail), (rail, height - rail), (0, height)],
+        "right": [(width, 0), (width, height), (width - rail, height - rail), (width - rail, rail)],
+    }
+    for name, polygon in specs.items():
+        mask = Image.new("L", (width, height), 0)
+        ImageDraw.Draw(mask).polygon(polygon, fill=255)
+        masks[name] = mask.filter(ImageFilter.GaussianBlur(0.35))
+    return masks
+
+
 def rail_coordinates(width, height, frame_px):
     y, x = np.mgrid[0:height, 0:width]
     dist_outer = np.minimum.reduce([x, y, width - 1 - x, height - 1 - y])
@@ -63,7 +173,11 @@ def rail_coordinates(width, height, frame_px):
     return x.astype(np.float32), y.astype(np.float32), u, v, dist_outer.astype(np.float32), dist_inner.astype(np.float32)
 
 
-def wood_texture(width, height, base=FRAME_BASE, frame_px=1, profile="natural_wood"):
+def wood_texture(width, height, base=FRAME_BASE, frame_px=1, profile="natural_wood", frame_id=None):
+    real_texture = real_wood_texture(width, height, base, frame_px, frame_id)
+    if real_texture is not None:
+        return real_texture
+
     rng = np.random.default_rng(stable_seed(width, height, base, frame_px))
     params = wood_material_params(base)
     x, y, u, v, dist_outer, dist_inner = rail_coordinates(width, height, frame_px)
@@ -255,7 +369,7 @@ def bevel_color(color, factor):
     return tuple(int(channel + (255 - channel) * amount) for channel in color)
 
 
-def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", profile="flat"):
+def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", profile="flat", frame_id=None):
     left, top, right, bottom = outer_rect
     width = right - left
     height = bottom - top
@@ -270,7 +384,7 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
     if material == "aluminum":
         texture = aluminum_texture(width, height, base).convert("RGBA")
     else:
-        texture = wood_texture(width, height, base, frame_px=frame_px, profile=profile).convert("RGBA")
+        texture = wood_texture(width, height, base, frame_px=frame_px, profile=profile, frame_id=frame_id).convert("RGBA")
     texture = apply_frame_relief(texture.convert("RGB"), frame_px, material, profile).convert("RGBA")
 
     mask = Image.new("L", (width, height), 0)
