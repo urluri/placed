@@ -629,9 +629,9 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
     ):
         candidates = [FRAME_LIBRARY[DARK_WALNUT_FRAME_ID]]
         dark_walnut_rule_selected = True
-        if normalized_style == "neoclassic" and temperature == "cold":
+        if normalized_style in {"modern_vintage", "neoclassic"} and temperature == "cold":
             facts.append(
-                "Приоритетное правило темного ореха: стиль neoclassic и холодная температура. "
+                "Приоритетное правило темного ореха: стиль modern_vintage/neoclassic и холодная температура. "
                 "Выбрана dark_walnut."
             )
         else:
@@ -1039,7 +1039,7 @@ def dark_walnut_frame_exclusion_reasons(normalized_style, lightness, contrast_le
     reasons = []
     if normalized_style in DARK_WALNUT_FRAME_EXCLUDED_STYLES:
         reasons.append(f"стиль {normalized_style}")
-    if normalized_style == "neoclassic" and temperature == "cold":
+    if normalized_style in {"modern_vintage", "neoclassic"} and temperature == "cold":
         return reasons
     if contrast_level == "low":
         reasons.append("низкий контраст")
@@ -1053,7 +1053,7 @@ def dark_walnut_frame_rule_applies(normalized_style, lightness, contrast_level, 
         return False
     if dark_walnut_frame_exclusion_reasons(normalized_style, lightness, contrast_level, temperature=temperature):
         return False
-    if normalized_style == "neoclassic" and temperature == "cold":
+    if normalized_style in {"modern_vintage", "neoclassic"} and temperature == "cold":
         return True
     return lightness == "dark" and contrast_level == "high"
 
