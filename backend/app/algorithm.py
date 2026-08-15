@@ -152,10 +152,9 @@ PLACED_PALETTE = {
     "PY1005": {"id": "PY1005", "name": "Mustard Grey", "hex": "#9F8A4C", "family": "yellow", "role": "accent"},
 }
 
-DEFAULT_MAT_COLOR = PLACED_PALETTE["PW004"]
+DEFAULT_MAT_COLOR = PLACED_PALETTE["PW003"]
 
 MAT_COLOR_OPTIONS = {
-    "ivory": PLACED_PALETTE["PW004"],
     "warm_white": PLACED_PALETTE["PW003"],
     "museum_white": PLACED_PALETTE["PW001"],
 }
@@ -1401,7 +1400,7 @@ def normalize_optional_mm(value):
     return parsed
 
 
-def mat_color_ivory():
+def mat_color_warm_white():
     return public_palette_color(DEFAULT_MAT_COLOR)
 
 
@@ -1416,7 +1415,7 @@ def standard_mat_color(image_analysis):
     temperature = image_analysis.get("temperature")
     lightness = image_analysis.get("lightness")
     if temperature == "теплый" and lightness == "светлый":
-        return public_palette_color(MAT_COLOR_OPTIONS["ivory"])
+        return public_palette_color(MAT_COLOR_OPTIONS["warm_white"])
     if temperature == "теплый":
         return public_palette_color(MAT_COLOR_OPTIONS["warm_white"])
     return public_palette_color(MAT_COLOR_OPTIONS["museum_white"])
@@ -1426,7 +1425,7 @@ def signature_inner_mat_color(image_analysis):
     strategy = signature_inner_color_strategy(image_analysis)
     target_lab = strategy.get("target_lab")
     if target_lab is None:
-        return mat_color_ivory()
+        return mat_color_warm_white()
 
     return public_palette_color(
         nearest_palette_color(
@@ -1458,7 +1457,7 @@ def signature_inner_color_strategy(image_analysis):
             "allowed_families": None,
             "allowed_roles": None,
             "adjustments": [],
-            "reason": "Signature: акцентный цвет не найден, используется резервный Ivory.",
+            "reason": "Signature: акцентный цвет не найден, используется резервный Warm White.",
         }
 
     if is_black_like_color(selected):

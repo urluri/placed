@@ -8,7 +8,7 @@ from .postprocess import add_chromatic_aberration, add_film_grain, add_vignette,
 from .utils import mm_to_px
 
 TECHNICAL_FRAME_COLOR = (0, 0, 0)
-DEFAULT_MAT_COLOR = (255, 255, 240)
+DEFAULT_MAT_COLOR = (245, 241, 232)
 
 
 def add_frame_cast_shadow(canvas, inner_rect, frame_px):
