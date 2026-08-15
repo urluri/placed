@@ -140,16 +140,32 @@ def wood_rail_masks(width, height, rail):
     rail = max(1, min(rail, width // 2, height // 2))
     masks = {}
     specs = {
-        "top": (0, 0, width, rail),
-        "bottom": (0, height - rail, width, height),
-        "left": (0, rail, rail, height - rail),
-        "right": (width - rail, rail, width, height - rail),
+        "top": [(0, 0), (width, 0), (width - rail, rail), (rail, rail)],
+        "bottom": [(0, height), (rail, height - rail), (width - rail, height - rail), (width, height)],
+        "left": [(0, 0), (rail, rail), (rail, height - rail), (0, height)],
+        "right": [(width, 0), (width, height), (width - rail, height - rail), (width - rail, rail)],
     }
-    for name, rect in specs.items():
+    for name, polygon in specs.items():
         mask = Image.new("L", (width, height), 0)
-        ImageDraw.Draw(mask).rectangle(rect, fill=255)
-        masks[name] = mask
+        ImageDraw.Draw(mask).polygon(polygon, fill=255)
+        masks[name] = mask.filter(ImageFilter.GaussianBlur(0.18))
     return masks
+
+
+def draw_wood_outer_contour(canvas, outer_rect, base, frame_px):
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    left, top, right, bottom = outer_rect
+    layers = max(1, min(3, frame_px // 18))
+    shadow = (*adjust_color(base, 0.62), 46)
+    highlight = (*bevel_color(base, 1.10), 24)
+    for i in range(layers):
+        alpha_factor = 1 - i / max(1, layers)
+        draw.line([(left + i, bottom - i), (right - i, bottom - i)], fill=(*shadow[:3], int(shadow[3] * alpha_factor)))
+        draw.line([(right - i, top + i), (right - i, bottom - i)], fill=(*shadow[:3], int(shadow[3] * alpha_factor)))
+        draw.line([(left + i, top + i), (right - i, top + i)], fill=(*highlight[:3], int(highlight[3] * alpha_factor)))
+        draw.line([(left + i, top + i), (left + i, bottom - i)], fill=(*highlight[:3], int(highlight[3] * alpha_factor)))
+    return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
 
 
 def rail_coordinates(width, height, frame_px):
@@ -406,7 +422,7 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
     draw = ImageDraw.Draw(canvas)
 
     if material != "aluminum":
-        return canvas
+        return draw_wood_outer_contour(canvas, outer_rect, base, frame_px)
 
     bevel_layers = max(5, min(14 if material == "aluminum" else 18, frame_px // 8))
     for i in range(bevel_layers):
