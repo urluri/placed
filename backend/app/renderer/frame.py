@@ -355,7 +355,7 @@ def apply_frame_relief(texture, frame_px, material, profile="flat"):
     if material == "aluminum":
         relief = 0.96 + moulding * 0.72 + soft_rounding * 0.07 + diagonal_light * 0.07 - inner_lip * 0.12 - outer_lip * 0.03
     else:
-        relief = 0.93 + moulding * 0.88 + soft_rounding * 0.10 + diagonal_light * 0.08 - inner_lip * 0.16 - outer_lip * 0.04
+        relief = 0.99 + moulding * 0.22 + soft_rounding * 0.025 + diagonal_light * 0.025
 
     arr[ring] *= relief[ring, None]
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
@@ -404,6 +404,9 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
 
     canvas = Image.alpha_composite(canvas.convert("RGBA"), frame_layer).convert("RGB")
     draw = ImageDraw.Draw(canvas)
+
+    if material != "aluminum":
+        return canvas
 
     bevel_layers = max(5, min(14 if material == "aluminum" else 18, frame_px // 8))
     for i in range(bevel_layers):
