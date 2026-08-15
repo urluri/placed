@@ -109,7 +109,9 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
             canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)
             canvas = draw_aperture_depth(canvas, window_rect, mat_px, strength=0.22)
 
-    canvas = add_frame_cast_shadow(canvas, mat_rect, frame)
+    # Inner cast shadows from the frame create dark corner bands on light wood frames.
+    # Keep depth on the frame itself, but do not darken the mat/frame junction here.
+    # canvas = add_frame_cast_shadow(canvas, mat_rect, frame)
 
     if glass_type and glass_type != "none":
         opacity = 12 if glass_type == "museum" else 16

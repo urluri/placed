@@ -148,7 +148,7 @@ def wood_rail_masks(width, height, rail):
     for name, polygon in specs.items():
         mask = Image.new("L", (width, height), 0)
         ImageDraw.Draw(mask).polygon(polygon, fill=255)
-        masks[name] = mask.filter(ImageFilter.GaussianBlur(0.18))
+        masks[name] = mask
     return masks
 
 
@@ -371,7 +371,8 @@ def apply_frame_relief(texture, frame_px, material, profile="flat"):
     if material == "aluminum":
         relief = 0.96 + moulding * 0.72 + soft_rounding * 0.07 + diagonal_light * 0.07 - inner_lip * 0.12 - outer_lip * 0.03
     else:
-        relief = 0.99 + moulding * 0.22 + soft_rounding * 0.025 + diagonal_light * 0.025
+        wood_profile = np.maximum(moulding, 0)
+        relief = 1.0 + wood_profile * 0.12 + soft_rounding * 0.018 + diagonal_light * 0.016
 
     arr[ring] *= relief[ring, None]
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
