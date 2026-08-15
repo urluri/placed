@@ -140,15 +140,15 @@ def wood_rail_masks(width, height, rail):
     rail = max(1, min(rail, width // 2, height // 2))
     masks = {}
     specs = {
-        "top": [(0, 0), (width, 0), (width - rail, rail), (rail, rail)],
-        "bottom": [(0, height), (rail, height - rail), (width - rail, height - rail), (width, height)],
-        "left": [(0, 0), (rail, rail), (rail, height - rail), (0, height)],
-        "right": [(width, 0), (width, height), (width - rail, height - rail), (width - rail, rail)],
+        "top": (0, 0, width, rail),
+        "bottom": (0, height - rail, width, height),
+        "left": (0, rail, rail, height - rail),
+        "right": (width - rail, rail, width, height - rail),
     }
-    for name, polygon in specs.items():
+    for name, rect in specs.items():
         mask = Image.new("L", (width, height), 0)
-        ImageDraw.Draw(mask).polygon(polygon, fill=255)
-        masks[name] = mask.filter(ImageFilter.GaussianBlur(0.35))
+        ImageDraw.Draw(mask).rectangle(rect, fill=255)
+        masks[name] = mask
     return masks
 
 
