@@ -34,7 +34,7 @@ def wood_material_params(base):
     warmth = r_value - b_value
 
     if lightness > 220:
-        return {"kind": "painted_light", "contrast": 5.2, "pore": 1.8, "ring": 3.4, "ray": 1.2, "grain": 4.2}
+        return {"kind": "painted_light", "contrast": 1.6, "pore": 0.4, "ring": 0.0, "ray": 0.0, "grain": 1.2}
     if lightness < 45:
         return {"kind": "painted_dark", "contrast": 3.0, "pore": 1.3, "ring": 2.0, "ray": 0.5, "grain": 2.3}
     if warmth > 70 and lightness > 155:
@@ -187,7 +187,6 @@ def draw_light_wood_definition(draw, outer_rect, base, frame_px):
 
     shadow = adjust_color(base, 0.64)
     soft_shadow = adjust_color(base, 0.76)
-    highlight = bevel_color(base, 1.08)
     edge_width = max(1, min(2, frame_px // 24))
 
     inner_lines = [
@@ -198,21 +197,6 @@ def draw_light_wood_definition(draw, outer_rect, base, frame_px):
     ]
     for start, end, alpha in inner_lines:
         draw.line([start, end], fill=(*shadow, alpha), width=edge_width)
-
-    for offset in (max(3, frame_px // 4), max(5, frame_px // 2)):
-        if offset >= frame_px - 2:
-            continue
-        alpha = 48 if offset < frame_px // 2 else 36
-        draw.rectangle(
-            [left + offset, top + offset, right - offset, bottom - offset],
-            outline=(*soft_shadow, alpha),
-            width=1,
-        )
-        draw.line(
-            [(left + offset + 1, top + offset + 1), (right - offset - 1, top + offset + 1)],
-            fill=(*highlight, max(12, alpha // 2)),
-            width=1,
-        )
 
     miter_alpha = 34
     draw.line([(left, top), (inner_left, inner_top)], fill=(*soft_shadow, miter_alpha), width=1)
@@ -250,6 +234,8 @@ def wood_texture(width, height, base=FRAME_BASE, frame_px=1, profile="natural_wo
     rng = np.random.default_rng(stable_seed(width, height, base, frame_px))
     params = wood_material_params(base)
     x, y, u, v, dist_outer, dist_inner = rail_coordinates(width, height, frame_px)
+    if params["kind"] == "painted_light":
+        return painted_light_wood_texture(width, height, base, frame_px, rng, u, v, dist_outer, dist_inner)
 
     rail_width = max(8, frame_px)
     u_warp = (
@@ -355,6 +341,22 @@ def wood_texture(width, height, base=FRAME_BASE, frame_px=1, profile="natural_wo
 
     img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
     return img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=135, threshold=1))
+
+
+def painted_light_wood_texture(width, height, base, frame_px, rng, u, v, dist_outer, dist_inner):
+    cloud = blurred_noise(width, height, rng, max(8, frame_px // 3), 1.15)
+    soft_cloud = blurred_noise(width, height, rng, max(18, frame_px), 0.9)
+    fine = rng.normal(0, 0.22, (height, width))
+    quiet_grain = np.sin((u + np.sin(v / 47) * 3.5) / 72) * 0.36
+    edge_tone = np.clip(1 - np.minimum(dist_outer, dist_inner) / max(1, frame_px * 0.35), 0, 1) * -0.42
+    value = cloud + soft_cloud + fine + quiet_grain + edge_tone
+
+    arr = np.zeros((height, width, 3), dtype=np.float32)
+    arr[:] = base
+    arr[:, :, 0] += value * 0.86
+    arr[:, :, 1] += value * 0.90
+    arr[:, :, 2] += value * 0.94
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.12))
 
 
 def aluminum_texture(width, height, base):
