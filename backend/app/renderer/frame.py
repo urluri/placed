@@ -96,9 +96,16 @@ def tint_texture_to_frame(texture, base, texture_key=None):
     mean = arr.reshape(-1, 3).mean(axis=0)
     detail = arr - mean
     if texture_key == "white_wood":
-        detail *= 2.15
+        detail *= 2.85
         target = np.array(base, dtype=np.float32) + detail
-        blended = arr * 0.42 + target * 0.58
+        blended = arr * 0.18 + target * 0.82
+
+        # White painted wood sits close to clipping after relief and global lighting.
+        # Compress only the brightest paint so grain and profile remain visible.
+        luminance = blended.mean(axis=2, keepdims=True)
+        highlight = np.clip((luminance - 231) / 24, 0, 1)
+        blended -= highlight * (luminance - 231) * 0.88
+        blended = np.minimum(blended, 238)
     else:
         target = np.array(base, dtype=np.float32) + detail * 0.92
         blended = arr * 0.68 + target * 0.32
