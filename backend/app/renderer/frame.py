@@ -91,12 +91,17 @@ def crop_resized_texture(source, width, height, rng, rotate=False):
     return crop.resize((max(1, width), max(1, height)), Image.Resampling.LANCZOS)
 
 
-def tint_texture_to_frame(texture, base):
+def tint_texture_to_frame(texture, base, texture_key=None):
     arr = np.asarray(texture).astype(np.float32)
     mean = arr.reshape(-1, 3).mean(axis=0)
     detail = arr - mean
-    target = np.array(base, dtype=np.float32) + detail * 0.92
-    blended = arr * 0.68 + target * 0.32
+    if texture_key == "white_wood":
+        detail *= 2.15
+        target = np.array(base, dtype=np.float32) + detail
+        blended = arr * 0.42 + target * 0.58
+    else:
+        target = np.array(base, dtype=np.float32) + detail * 0.92
+        blended = arr * 0.68 + target * 0.32
     return Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8))
 
 
@@ -120,10 +125,10 @@ def real_wood_texture(width, height, base, frame_px, frame_id):
     bottom_layer = Image.new("RGB", (width, height), base)
     left_layer = Image.new("RGB", (width, height), base)
     right_layer = Image.new("RGB", (width, height), base)
-    top_layer.paste(tint_texture_to_frame(top, base), (0, 0))
-    bottom_layer.paste(tint_texture_to_frame(bottom, base), (0, max(0, height - rail)))
-    left_layer.paste(tint_texture_to_frame(left, base), (0, 0))
-    right_layer.paste(tint_texture_to_frame(right, base), (max(0, width - rail), 0))
+    top_layer.paste(tint_texture_to_frame(top, base, texture_key), (0, 0))
+    bottom_layer.paste(tint_texture_to_frame(bottom, base, texture_key), (0, max(0, height - rail)))
+    left_layer.paste(tint_texture_to_frame(left, base, texture_key), (0, 0))
+    right_layer.paste(tint_texture_to_frame(right, base, texture_key), (max(0, width - rail), 0))
 
     masks = wood_rail_masks(width, height, rail)
     for layer, mask in (
@@ -166,44 +171,7 @@ def draw_wood_outer_contour(canvas, outer_rect, base, frame_px):
         draw.line([(right - i, top + i), (right - i, bottom - i)], fill=(*shadow[:3], int(shadow[3] * alpha_factor)))
         draw.line([(left + i, top + i), (right - i, top + i)], fill=(*highlight[:3], int(highlight[3] * alpha_factor)))
         draw.line([(left + i, top + i), (left + i, bottom - i)], fill=(*highlight[:3], int(highlight[3] * alpha_factor)))
-    if is_light_painted_frame(base):
-        draw_light_wood_definition(draw, outer_rect, base, frame_px)
     return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
-
-
-def is_light_painted_frame(base):
-    lightness = (max(base) + min(base)) / 2
-    spread = max(base) - min(base)
-    return lightness > 220 and spread < 26
-
-
-def draw_light_wood_definition(draw, outer_rect, base, frame_px):
-    left, top, right, bottom = outer_rect
-    inner_left = left + frame_px
-    inner_top = top + frame_px
-    inner_right = right - frame_px
-    inner_bottom = bottom - frame_px
-    if inner_right <= inner_left or inner_bottom <= inner_top:
-        return
-
-    shadow = adjust_color(base, 0.64)
-    soft_shadow = adjust_color(base, 0.76)
-    edge_width = max(1, min(2, frame_px // 24))
-
-    inner_lines = [
-        ((inner_left, inner_top - 1), (inner_right, inner_top - 1), 86),
-        ((inner_left - 1, inner_top), (inner_left - 1, inner_bottom), 78),
-        ((inner_left, inner_bottom), (inner_right, inner_bottom), 92),
-        ((inner_right, inner_top), (inner_right, inner_bottom), 88),
-    ]
-    for start, end, alpha in inner_lines:
-        draw.line([start, end], fill=(*shadow, alpha), width=edge_width)
-
-    miter_alpha = 34
-    draw.line([(left, top), (inner_left, inner_top)], fill=(*soft_shadow, miter_alpha), width=1)
-    draw.line([(right, top), (inner_right, inner_top)], fill=(*soft_shadow, miter_alpha), width=1)
-    draw.line([(left, bottom), (inner_left, inner_bottom)], fill=(*soft_shadow, miter_alpha), width=1)
-    draw.line([(right, bottom), (inner_right, inner_bottom)], fill=(*soft_shadow, miter_alpha), width=1)
 
 
 def rail_coordinates(width, height, frame_px):
@@ -428,7 +396,16 @@ def apply_frame_relief(texture, frame_px, material, profile="flat"):
         relief = 0.96 + moulding * 0.72 + soft_rounding * 0.07 + diagonal_light * 0.07 - inner_lip * 0.12 - outer_lip * 0.03
     else:
         wood_profile = np.maximum(moulding, 0)
-        relief = 1.0 + wood_profile * 0.12 + soft_rounding * 0.018 + diagonal_light * 0.016
+        wood_inner_edge = np.clip(1 - dist_inner / max(1, frame_px * 0.08), 0, 1)
+        wood_outer_edge = np.clip(1 - dist_outer / max(1, frame_px * 0.08), 0, 1)
+        relief = (
+            1.0
+            + wood_profile * 0.12
+            + soft_rounding * 0.018
+            + diagonal_light * 0.016
+            - wood_inner_edge * 0.025
+            - wood_outer_edge * 0.012
+        )
 
     arr[ring] *= relief[ring, None]
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
