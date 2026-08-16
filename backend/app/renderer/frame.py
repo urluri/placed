@@ -8,6 +8,7 @@ from .utils import adjust_color
 
 FRAME_BASE = (112, 98, 82)
 WOOD_TEXTURE_FILES = {
+    "white_wood": "white_wood.jpg",
     "light_oak": "oak_light.jpg",
     "oak": "oak.jpg",
     "walnut": "wenge.jpg",
