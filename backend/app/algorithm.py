@@ -182,7 +182,7 @@ FRAME_LIBRARY = {
         "material": "wood",
         "color_family": "white",
         "tone": "light",
-        "hex": "#F4F1EA",
+        "hex": "#ECE8DF",
     },
     "champagne_aluminum": {
         "id": "champagne_aluminum",

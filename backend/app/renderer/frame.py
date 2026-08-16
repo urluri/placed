@@ -34,7 +34,7 @@ def wood_material_params(base):
     warmth = r_value - b_value
 
     if lightness > 220:
-        return {"kind": "painted_light", "contrast": 3.4, "pore": 1.4, "ring": 2.2, "ray": 1.1, "grain": 2.7}
+        return {"kind": "painted_light", "contrast": 5.2, "pore": 1.8, "ring": 3.4, "ray": 1.2, "grain": 4.2}
     if lightness < 45:
         return {"kind": "painted_dark", "contrast": 3.0, "pore": 1.3, "ring": 2.0, "ray": 0.5, "grain": 2.3}
     if warmth > 70 and lightness > 155:
@@ -165,7 +165,60 @@ def draw_wood_outer_contour(canvas, outer_rect, base, frame_px):
         draw.line([(right - i, top + i), (right - i, bottom - i)], fill=(*shadow[:3], int(shadow[3] * alpha_factor)))
         draw.line([(left + i, top + i), (right - i, top + i)], fill=(*highlight[:3], int(highlight[3] * alpha_factor)))
         draw.line([(left + i, top + i), (left + i, bottom - i)], fill=(*highlight[:3], int(highlight[3] * alpha_factor)))
+    if is_light_painted_frame(base):
+        draw_light_wood_definition(draw, outer_rect, base, frame_px)
     return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
+
+
+def is_light_painted_frame(base):
+    lightness = (max(base) + min(base)) / 2
+    spread = max(base) - min(base)
+    return lightness > 220 and spread < 26
+
+
+def draw_light_wood_definition(draw, outer_rect, base, frame_px):
+    left, top, right, bottom = outer_rect
+    inner_left = left + frame_px
+    inner_top = top + frame_px
+    inner_right = right - frame_px
+    inner_bottom = bottom - frame_px
+    if inner_right <= inner_left or inner_bottom <= inner_top:
+        return
+
+    shadow = adjust_color(base, 0.64)
+    soft_shadow = adjust_color(base, 0.76)
+    highlight = bevel_color(base, 1.08)
+    edge_width = max(1, min(2, frame_px // 24))
+
+    inner_lines = [
+        ((inner_left, inner_top - 1), (inner_right, inner_top - 1), 86),
+        ((inner_left - 1, inner_top), (inner_left - 1, inner_bottom), 78),
+        ((inner_left, inner_bottom), (inner_right, inner_bottom), 92),
+        ((inner_right, inner_top), (inner_right, inner_bottom), 88),
+    ]
+    for start, end, alpha in inner_lines:
+        draw.line([start, end], fill=(*shadow, alpha), width=edge_width)
+
+    for offset in (max(3, frame_px // 4), max(5, frame_px // 2)):
+        if offset >= frame_px - 2:
+            continue
+        alpha = 48 if offset < frame_px // 2 else 36
+        draw.rectangle(
+            [left + offset, top + offset, right - offset, bottom - offset],
+            outline=(*soft_shadow, alpha),
+            width=1,
+        )
+        draw.line(
+            [(left + offset + 1, top + offset + 1), (right - offset - 1, top + offset + 1)],
+            fill=(*highlight, max(12, alpha // 2)),
+            width=1,
+        )
+
+    miter_alpha = 34
+    draw.line([(left, top), (inner_left, inner_top)], fill=(*soft_shadow, miter_alpha), width=1)
+    draw.line([(right, top), (inner_right, inner_top)], fill=(*soft_shadow, miter_alpha), width=1)
+    draw.line([(left, bottom), (inner_left, inner_bottom)], fill=(*soft_shadow, miter_alpha), width=1)
+    draw.line([(right, bottom), (inner_right, inner_bottom)], fill=(*soft_shadow, miter_alpha), width=1)
 
 
 def rail_coordinates(width, height, frame_px):
