@@ -668,10 +668,16 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
     ):
         candidates = [FRAME_LIBRARY[WALNUT_FRAME_ID]]
         walnut_rule_selected = True
-        facts.append(
-            "Приоритетное правило ореха: стиль modern_vintage/neoclassic, теплая температура "
-            "и заполненность не low. Выбрана walnut."
-        )
+        if normalized_style == "neoclassic" and temperature == "neutral":
+            facts.append(
+                "Приоритетное правило ореха: стиль neoclassic и нейтральная температура. "
+                "Выбрана walnut."
+            )
+        else:
+            facts.append(
+                "Приоритетное правило ореха: стиль modern_vintage/neoclassic, теплая температура "
+                "и заполненность не low. Выбрана walnut."
+            )
 
     oak_rule_active = oak_frame_rule_applies(
         normalized_style=normalized_style,
@@ -993,8 +999,28 @@ def filter_by_frame_lightness(candidates, lightness):
 
 
 def is_monochrome_image(image_analysis):
-    raw_value = str(image_analysis.get("monochrome") or "").strip().lower()
-    return raw_value in {"monochrome", "mono", "монохромное", "монохромный", "true", "yes"}
+    raw_value = image_analysis.get("monochrome")
+    if isinstance(raw_value, dict):
+        return bool(raw_value.get("is_monochrome"))
+    normalized = str(raw_value or "").strip().lower()
+    return normalized in {
+        "monochrome",
+        "mono",
+        "grayscale",
+        "greyscale",
+        "b/w",
+        "bw",
+        "ч/б",
+        "черно-белое",
+        "черно-белый",
+        "чёрно-белое",
+        "чёрно-белый",
+        "монохромное",
+        "монохромная",
+        "монохромный",
+        "true",
+        "yes",
+    }
 
 
 def normalize_temperature(value):
@@ -1041,6 +1067,8 @@ def dark_walnut_frame_exclusion_reasons(normalized_style, lightness, contrast_le
         reasons.append(f"стиль {normalized_style}")
     if normalized_style in {"modern_vintage", "neoclassic"} and temperature == "cold":
         return reasons
+    if normalized_style == "neoclassic" and temperature == "neutral":
+        reasons.append("нейтральная температура в неоклассике")
     if contrast_level == "low":
         reasons.append("низкий контраст")
     if lightness == "light":
@@ -1062,6 +1090,8 @@ def walnut_frame_exclusion_reasons(normalized_style, temperature, occupancy_leve
     reasons = []
     if normalized_style in WALNUT_FRAME_EXCLUDED_STYLES:
         reasons.append(f"стиль {normalized_style}")
+    if normalized_style == "neoclassic" and temperature == "neutral":
+        return reasons
     if temperature == "cold":
         reasons.append("холодная температура")
     if occupancy_level == "low":
@@ -1074,6 +1104,8 @@ def walnut_frame_rule_applies(normalized_style, temperature, occupancy_level):
         return False
     if walnut_frame_exclusion_reasons(normalized_style, temperature, occupancy_level):
         return False
+    if normalized_style == "neoclassic" and temperature == "neutral":
+        return True
     return temperature == "warm"
 
 
@@ -1421,7 +1453,7 @@ def mat_color_for_variant(decor_style, image_analysis):
 
 
 def standard_mat_color(image_analysis):
-    if image_analysis.get("monochrome") == "монохромное":
+    if is_monochrome_image(image_analysis):
         return public_palette_color(MAT_COLOR_OPTIONS["museum_white"])
 
     temperature = image_analysis.get("temperature")
@@ -1435,6 +1467,10 @@ def standard_mat_color(image_analysis):
 
 def signature_inner_mat_color(image_analysis):
     strategy = signature_inner_color_strategy(image_analysis)
+    final_color = strategy.get("final_color")
+    if final_color:
+        return final_color
+
     target_lab = strategy.get("target_lab")
     if target_lab is None:
         return mat_color_warm_white()
@@ -1459,6 +1495,25 @@ def signature_inner_color_strategy(image_analysis):
     selected = accent.get("selected") if isinstance(accent, dict) else None
     excluded_families = signature_anchor_families(palette)
     grey_allowed = signature_grey_allowed(image_analysis, palette)
+    if signature_inner_should_match_outer_mat(image_analysis):
+        outer_color = standard_mat_color(image_analysis)
+        return {
+            "mode": "same_as_outer_for_light_monochrome",
+            "base_color": None,
+            "final_color": outer_color,
+            "target_lab": palette_lab(outer_color),
+            "similarity": {},
+            "excluded_families": set(),
+            "allowed_families": None,
+            "allowed_roles": None,
+            "adjustments": [],
+            "grey_allowed": True,
+            "reason": (
+                "Signature: изображение монохромное, светлое и низкоконтрастное; "
+                "нижнее паспарту повторяет цвет верхнего паспарту."
+            ),
+        }
+
     if not selected:
         return {
             "mode": "fallback",
@@ -1549,6 +1604,14 @@ def signature_inner_color_strategy(image_analysis):
         "grey_allowed": grey_allowed,
         "reason": "Signature: акцент достаточно самостоятельный, поэтому нижнее паспарту использует приглушенный акцентный цвет.",
     }
+
+
+def signature_inner_should_match_outer_mat(image_analysis):
+    return (
+        is_monochrome_image(image_analysis)
+        and normalize_visual_level(image_analysis.get("lightness")) == "light"
+        and normalize_level(image_analysis.get("contrast")) == "low"
+    )
 
 
 def adjusted_signature_lab(color, image_analysis):
@@ -1858,9 +1921,9 @@ def is_neutral_color(color):
 
 def normalize_visual_level(value):
     normalized = str(value or "").strip().lower()
-    if normalized in {"light", "high", "светлый", "светлая", "высокий", "высокая", "svetlyy"}:
+    if normalized in {"light", "high", "светлый", "светлая", "светлое", "высокий", "высокая", "высокое", "svetlyy"}:
         return "light"
-    if normalized in {"dark", "low", "темный", "тёмный", "темная", "тёмная", "низкий", "низкая", "temnyy"}:
+    if normalized in {"dark", "low", "темный", "тёмный", "темная", "тёмная", "темное", "тёмное", "низкий", "низкая", "низкое", "temnyy"}:
         return "dark"
     return "medium"
 
@@ -1954,6 +2017,12 @@ def mat_color_reason(mat, decor_style, image_analysis):
         return "Цвет паспарту не рассчитывается."
     if decor_style == DecorStyle.standard.value:
         return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
+    strategy = signature_inner_color_strategy(image_analysis)
+    if strategy.get("mode") == "same_as_outer_for_light_monochrome":
+        return (
+            f"Signature: изображение монохромное, светлое и низкоконтрастное; "
+            f"нижнее паспарту повторяет верхнее - {mat.inner_color['name']} ({mat.inner_color['hex']})."
+        )
     return (
         f"Signature: верхнее паспарту выбрано как Standard - {mat.outer_color['name']} ({mat.outer_color['hex']}); "
         f"нижнее паспарту выбрано от смягченного акцентного цвета после проверки светлоты и серого правила - "
@@ -2222,11 +2291,11 @@ def classify_size_profile(width, height):
 
 def normalize_level(value):
     normalized = str(value or "").strip().lower()
-    if normalized in ("low", "низкая", "низкий"):
+    if normalized in ("low", "низкая", "низкий", "низкое"):
         return "low"
-    if normalized in ("medium", "средняя", "средний", "нейтральный"):
+    if normalized in ("medium", "средняя", "средний", "среднее", "нейтральный", "нейтральная", "нейтральное"):
         return "medium"
-    if normalized in ("high", "высокая", "высокий"):
+    if normalized in ("high", "высокая", "высокий", "высокое"):
         return "high"
     return "medium"
 
