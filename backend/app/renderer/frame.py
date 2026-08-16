@@ -408,8 +408,7 @@ def apply_frame_relief(texture, frame_px, material, profile="flat"):
         relief = (
             1.0
             + wood_profile * 0.12
-            + soft_rounding * 0.018
-            + diagonal_light * 0.016
+            + soft_rounding * 0.026
             - wood_inner_edge * 0.025
             - wood_outer_edge * 0.012
         )
