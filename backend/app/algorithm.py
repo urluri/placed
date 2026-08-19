@@ -86,35 +86,21 @@ PLACED_PALETTE = {
     "PG102": {"id": "PG102", "name": "Gallery Grey", "hex": "#DBD9D5", "family": "grey", "role": "soft_neutral"},
     "PG103": {"id": "PG103", "name": "Stone Grey", "hex": "#CFCBC5", "family": "grey", "role": "soft_neutral"},
     "PG104": {"id": "PG104", "name": "Silver Grey", "hex": "#C8C8C6", "family": "grey", "role": "soft_neutral"},
-    "PG105": {"id": "PG105", "name": "Ash Grey", "hex": "#B8B8B5", "family": "grey", "role": "soft_neutral"},
-    "PG106": {"id": "PG106", "name": "Mist Grey", "hex": "#D7D6D2", "family": "grey", "role": "soft_neutral"},
     "PG107": {"id": "PG107", "name": "Pearl Grey", "hex": "#D0D0CC", "family": "grey", "role": "soft_neutral"},
     "PG108": {"id": "PG108", "name": "Dove Grey", "hex": "#C5C2BB", "family": "grey", "role": "soft_neutral"},
-    "PG201": {"id": "PG201", "name": "Graphite", "hex": "#55575B", "family": "grey", "role": "deep_neutral"},
-    "PG202": {"id": "PG202", "name": "Charcoal", "hex": "#4A4A4C", "family": "grey", "role": "deep_neutral"},
-    "PG203": {"id": "PG203", "name": "Slate", "hex": "#666A73", "family": "grey", "role": "deep_neutral"},
-    "PG204": {"id": "PG204", "name": "Basalt", "hex": "#5F625D", "family": "grey", "role": "deep_neutral"},
-    "PG205": {"id": "PG205", "name": "Iron Grey", "hex": "#707070", "family": "grey", "role": "deep_neutral"},
-    "PG206": {"id": "PG206", "name": "Anthracite", "hex": "#383A3D", "family": "grey", "role": "deep_neutral"},
     "PB301": {"id": "PB301", "name": "Sand", "hex": "#D6C3A5", "family": "beige", "role": "soft_neutral"},
     "PB302": {"id": "PB302", "name": "Desert Sand", "hex": "#CDB59A", "family": "beige", "role": "soft_neutral"},
     "PB303": {"id": "PB303", "name": "Beige", "hex": "#D9C6AE", "family": "beige", "role": "soft_neutral"},
     "PB304": {"id": "PB304", "name": "Taupe", "hex": "#B7A79A", "family": "beige", "role": "soft_neutral"},
-    "PB305": {"id": "PB305", "name": "Clay", "hex": "#B79B84", "family": "beige", "role": "soft_neutral"},
     "PB306": {"id": "PB306", "name": "Oatmeal", "hex": "#D8CBB8", "family": "beige", "role": "soft_neutral"},
     "PB307": {"id": "PB307", "name": "Mushroom", "hex": "#B8AA9C", "family": "beige", "role": "soft_neutral"},
     "PB308": {"id": "PB308", "name": "Camel", "hex": "#B6946A", "family": "beige", "role": "soft_neutral"},
     "PE401": {"id": "PE401", "name": "Terracotta", "hex": "#B76545", "family": "earth", "role": "deep_color"},
-    "PE402": {"id": "PE402", "name": "Burnt Clay", "hex": "#A75A40", "family": "earth", "role": "deep_color"},
-    "PE403": {"id": "PE403", "name": "Rust", "hex": "#964B35", "family": "earth", "role": "deep_color"},
     "PE404": {"id": "PE404", "name": "Cinnamon", "hex": "#A26A4A", "family": "earth", "role": "deep_color"},
     "PE405": {"id": "PE405", "name": "Umber", "hex": "#7C5A46", "family": "earth", "role": "deep_color"},
-    "PE406": {"id": "PE406", "name": "Cocoa", "hex": "#6B4E3D", "family": "earth", "role": "deep_color"},
     "PE407": {"id": "PE407", "name": "Mocha", "hex": "#7A6756", "family": "earth", "role": "deep_color"},
-    "PE408": {"id": "PE408", "name": "Chestnut", "hex": "#77523D", "family": "earth", "role": "deep_color"},
     "PG501": {"id": "PG501", "name": "Sage", "hex": "#A7B39C", "family": "green", "role": "soft_color"},
     "PG502": {"id": "PG502", "name": "Olive Grey", "hex": "#8E9378", "family": "green", "role": "soft_color"},
-    "PG503": {"id": "PG503", "name": "Moss", "hex": "#707A58", "family": "green", "role": "deep_color"},
     "PG504": {"id": "PG504", "name": "Eucalyptus", "hex": "#8FA89B", "family": "green", "role": "soft_color"},
     "PG505": {"id": "PG505", "name": "Forest Mist", "hex": "#6E7C6A", "family": "green", "role": "deep_color"},
     "PG506": {"id": "PG506", "name": "Khaki", "hex": "#8C8762", "family": "green", "role": "soft_color"},
@@ -124,16 +110,8 @@ PLACED_PALETTE = {
     "PB602": {"id": "PB602", "name": "Mist Blue", "hex": "#B5C2C9", "family": "blue", "role": "soft_color"},
     "PB603": {"id": "PB603", "name": "Steel Blue", "hex": "#758A98", "family": "blue", "role": "soft_color"},
     "PB604": {"id": "PB604", "name": "Blue Grey", "hex": "#8B99A3", "family": "blue", "role": "soft_color"},
-    "PB605": {"id": "PB605", "name": "Smoke Blue", "hex": "#6D7D89", "family": "blue", "role": "deep_color"},
-    "PB606": {"id": "PB606", "name": "Slate Blue", "hex": "#667789", "family": "blue", "role": "deep_color"},
     "PB607": {"id": "PB607", "name": "Ocean Mist", "hex": "#A8BCC3", "family": "blue", "role": "soft_color"},
     "PB608": {"id": "PB608", "name": "Ice Blue", "hex": "#D7E2E7", "family": "blue", "role": "soft_color"},
-    "PN701": {"id": "PN701", "name": "Navy Grey", "hex": "#45556A", "family": "navy", "role": "deep_color"},
-    "PN702": {"id": "PN702", "name": "Deep Indigo", "hex": "#3E4A63", "family": "navy", "role": "deep_color"},
-    "PN703": {"id": "PN703", "name": "Midnight Blue", "hex": "#2F3A4A", "family": "navy", "role": "deep_color"},
-    "PN704": {"id": "PN704", "name": "Denim", "hex": "#5C718A", "family": "navy", "role": "deep_color"},
-    "PN705": {"id": "PN705", "name": "Petrol Blue", "hex": "#4A6672", "family": "navy", "role": "deep_color"},
-    "PN706": {"id": "PN706", "name": "Ink Blue", "hex": "#35485A", "family": "navy", "role": "deep_color"},
     "PR801": {"id": "PR801", "name": "Dusty Rose", "hex": "#C49A96", "family": "rose", "role": "soft_color"},
     "PR802": {"id": "PR802", "name": "Blush", "hex": "#D9BBB3", "family": "rose", "role": "soft_color"},
     "PR803": {"id": "PR803", "name": "Nude Pink", "hex": "#D8B3A5", "family": "rose", "role": "soft_color"},
@@ -143,13 +121,9 @@ PLACED_PALETTE = {
     "PV901": {"id": "PV901", "name": "Lavender Grey", "hex": "#B4A9B9", "family": "violet", "role": "soft_color"},
     "PV902": {"id": "PV902", "name": "Heather", "hex": "#A58FA5", "family": "violet", "role": "soft_color"},
     "PV903": {"id": "PV903", "name": "Dusty Lilac", "hex": "#9D8BA7", "family": "violet", "role": "soft_color"},
-    "PV904": {"id": "PV904", "name": "Plum Grey", "hex": "#746675", "family": "violet", "role": "deep_color"},
-    "PV905": {"id": "PV905", "name": "Aubergine", "hex": "#5E4A57", "family": "violet", "role": "deep_color"},
     "PY1001": {"id": "PY1001", "name": "Sand Yellow", "hex": "#D6BE78", "family": "yellow", "role": "accent"},
     "PY1002": {"id": "PY1002", "name": "Wheat", "hex": "#D3B57C", "family": "yellow", "role": "accent"},
     "PY1003": {"id": "PY1003", "name": "Ochre", "hex": "#C39A49", "family": "yellow", "role": "accent"},
-    "PY1004": {"id": "PY1004", "name": "Honey", "hex": "#C28B3A", "family": "yellow", "role": "accent"},
-    "PY1005": {"id": "PY1005", "name": "Mustard Grey", "hex": "#9F8A4C", "family": "yellow", "role": "accent"},
 }
 
 DEFAULT_MAT_COLOR = PLACED_PALETTE["PW003"]
@@ -1498,7 +1472,7 @@ def signature_inner_color_strategy(image_analysis):
     if signature_inner_should_match_outer_mat(image_analysis):
         outer_color = standard_mat_color(image_analysis)
         return {
-            "mode": "same_as_outer_for_light_monochrome",
+            "mode": "same_as_outer_for_monochrome",
             "base_color": None,
             "final_color": outer_color,
             "target_lab": palette_lab(outer_color),
@@ -1509,7 +1483,7 @@ def signature_inner_color_strategy(image_analysis):
             "adjustments": [],
             "grey_allowed": True,
             "reason": (
-                "Signature: изображение монохромное, светлое и низкоконтрастное; "
+                "Signature: изображение монохромное; "
                 "нижнее паспарту повторяет цвет верхнего паспарту."
             ),
         }
@@ -1536,12 +1510,12 @@ def signature_inner_color_strategy(image_analysis):
             "similarity": accent_similarity(selected, palette),
             "excluded_families": set(),
             "allowed_families": {"grey"},
-            "allowed_roles": {"deep_neutral"},
+            "allowed_roles": None,
             "adjustments": adjustments,
             "grey_allowed": True,
             "reason": (
                 "Signature: акцентный цвет черный или почти черный; черный запрещен для нижнего паспарту, "
-                "поэтому используется графит из палитры placed."
+                "поэтому используется ближайший допустимый серый из палитры placed."
             ),
         }
 
@@ -1607,11 +1581,7 @@ def signature_inner_color_strategy(image_analysis):
 
 
 def signature_inner_should_match_outer_mat(image_analysis):
-    return (
-        is_monochrome_image(image_analysis)
-        and normalize_visual_level(image_analysis.get("lightness")) == "light"
-        and normalize_level(image_analysis.get("contrast")) == "low"
-    )
+    return is_monochrome_image(image_analysis)
 
 
 def adjusted_signature_lab(color, image_analysis):
@@ -2018,9 +1988,9 @@ def mat_color_reason(mat, decor_style, image_analysis):
     if decor_style == DecorStyle.standard.value:
         return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
     strategy = signature_inner_color_strategy(image_analysis)
-    if strategy.get("mode") == "same_as_outer_for_light_monochrome":
+    if strategy.get("mode") == "same_as_outer_for_monochrome":
         return (
-            f"Signature: изображение монохромное, светлое и низкоконтрастное; "
+            f"Signature: изображение монохромное; "
             f"нижнее паспарту повторяет верхнее - {mat.inner_color['name']} ({mat.inner_color['hex']})."
         )
     return (

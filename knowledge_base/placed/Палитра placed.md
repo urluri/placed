@@ -100,15 +100,8 @@ PaletteColor:
 | PG102 | Gallery Grey | `#DBD9D5` | grey | `soft_neutral` |
 | PG103 | Stone Grey | `#CFCBC5` | grey | `soft_neutral` |
 | PG104 | Silver Grey | `#C8C8C6` | grey | `soft_neutral` |
-| PG105 | Ash Grey | `#B8B8B5` | grey | `soft_neutral` |
-| PG106 | Mist Grey | `#D7D6D2` | grey | `soft_neutral` |
 | PG107 | Pearl Grey | `#D0D0CC` | grey | `soft_neutral` |
 | PG108 | Dove Grey | `#C5C2BB` | grey | `soft_neutral` |
-| PG201 | Graphite | `#55575B` | grey | `deep_neutral` |
-| PG202 | Charcoal | `#4A4A4C` | grey | `deep_neutral` |
-| PG204 | Basalt | `#5F625D` | grey | `deep_neutral` |
-| PG205 | Iron Grey | `#707070` | grey | `deep_neutral` |
-| PG206 | Anthracite | `#383A3D` | grey | `deep_neutral` |
 
 ## Светло-серые
 
@@ -118,21 +111,12 @@ PaletteColor:
 | PG102 | Gallery Grey | `#DBD9D5` | grey | `soft_neutral` |
 | PG103 | Stone Grey | `#CFCBC5` | grey | `soft_neutral` |
 | PG104 | Silver Grey | `#C8C8C6` | grey | `soft_neutral` |
-| PG105 | Ash Grey | `#B8B8B5` | grey | `soft_neutral` |
-| PG106 | Mist Grey | `#D7D6D2` | grey | `soft_neutral` |
 | PG107 | Pearl Grey | `#D0D0CC` | grey | `soft_neutral` |
 | PG108 | Dove Grey | `#C5C2BB` | grey | `soft_neutral` |
 
 ## Темно-серые
 
-| Код | Название | HEX | Семейство | Роль |
-| --- | --- | --- | --- | --- |
-| PG201 | Graphite | `#55575B` | grey | `deep_neutral` |
-| PG202 | Charcoal | `#4A4A4C` | grey | `deep_neutral` |
-| PG203 | Slate | `#666A73` | grey | `deep_neutral` |
-| PG204 | Basalt | `#5F625D` | grey | `deep_neutral` |
-| PG205 | Iron Grey | `#707070` | grey | `deep_neutral` |
-| PG206 | Anthracite | `#383A3D` | grey | `deep_neutral` |
+Темно-серые оттенки временно исключены из рабочей палитры placed. Для почти черных акцентов алгоритм использует ближайший допустимый мягкий серый, если серый цвет разрешен стратегией.
 
 ## Бежевые
 
@@ -142,7 +126,6 @@ PaletteColor:
 | PB302 | Desert Sand | `#CDB59A` | beige | `soft_neutral` |
 | PB303 | Beige | `#D9C6AE` | beige | `soft_neutral` |
 | PB304 | Taupe | `#B7A79A` | beige | `soft_neutral` |
-| PB305 | Clay | `#B79B84` | beige | `soft_neutral` |
 | PB306 | Oatmeal | `#D8CBB8` | beige | `soft_neutral` |
 | PB307 | Mushroom | `#B8AA9C` | beige | `soft_neutral` |
 | PB308 | Camel | `#B6946A` | beige | `soft_neutral` |
@@ -152,13 +135,9 @@ PaletteColor:
 | Код   | Название   | HEX       | Семейство | Роль         |
 | ----- | ---------- | --------- | --------- | ------------ |
 | PE401 | Terracotta | `#B76545` | earth     | `deep_color` |
-| PE402 | Burnt Clay | `#A75A40` | earth     | `deep_color` |
-| PE403 | Rust       | `#964B35` | earth     | `deep_color` |
 | PE404 | Cinnamon   | `#A26A4A` | earth     | `deep_color` |
 | PE405 | Umber      | `#7C5A46` | earth     | `deep_color` |
-| PE406 | Cocoa      | `#6B4E3D` | earth     | `deep_color` |
 | PE407 | Mocha      | `#7A6756` | earth     | `deep_color` |
-| PE408 | Chestnut   | `#77523D` | earth     | `deep_color` |
 
 ## Зеленые
 
@@ -166,7 +145,6 @@ PaletteColor:
 | --- | --- | --- | --- | --- |
 | PG501 | Sage | `#A7B39C` | green | `soft_color` |
 | PG502 | Olive Grey | `#8E9378` | green | `soft_color` |
-| PG503 | Moss | `#707A58` | green | `deep_color` |
 | PG504 | Eucalyptus | `#8FA89B` | green | `soft_color` |
 | PG505 | Forest Mist | `#6E7C6A` | green | `deep_color` |
 | PG506 | Khaki | `#8C8762` | green | `soft_color` |
@@ -181,21 +159,12 @@ PaletteColor:
 | PB602 | Mist Blue | `#B5C2C9` | blue | `soft_color` |
 | PB603 | Steel Blue | `#758A98` | blue | `soft_color` |
 | PB604 | Blue Grey | `#8B99A3` | blue | `soft_color` |
-| PB605 | Smoke Blue | `#6D7D89` | blue | `deep_color` |
-| PB606 | Slate Blue | `#667789` | blue | `deep_color` |
 | PB607 | Ocean Mist | `#A8BCC3` | blue | `soft_color` |
 | PB608 | Ice Blue | `#D7E2E7` | blue | `soft_color` |
 
 ## Синие
 
-| Код | Название | HEX | Семейство | Роль |
-| --- | --- | --- | --- | --- |
-| PN701 | Navy Grey | `#45556A` | navy | `deep_color` |
-| PN702 | Deep Indigo | `#3E4A63` | navy | `deep_color` |
-| PN703 | Midnight Blue | `#2F3A4A` | navy | `deep_color` |
-| PN704 | Denim | `#5C718A` | navy | `deep_color` |
-| PN705 | Petrol Blue | `#4A6672` | navy | `deep_color` |
-| PN706 | Ink Blue | `#35485A` | navy | `deep_color` |
+Темные синие оттенки семейства `navy` временно исключены из рабочей палитры placed.
 
 ## Розовые
 
@@ -215,8 +184,6 @@ PaletteColor:
 | PV901 | Lavender Grey | `#B4A9B9` | violet | `soft_color` |
 | PV902 | Heather | `#A58FA5` | violet | `soft_color` |
 | PV903 | Dusty Lilac | `#9D8BA7` | violet | `soft_color` |
-| PV904 | Plum Grey | `#746675` | violet | `deep_color` |
-| PV905 | Aubergine | `#5E4A57` | violet | `deep_color` |
 
 ## Желтые
 
@@ -225,8 +192,6 @@ PaletteColor:
 | PY1001 | Sand Yellow | `#D6BE78` | yellow | `accent` |
 | PY1002 | Wheat | `#D3B57C` | yellow | `accent` |
 | PY1003 | Ochre | `#C39A49` | yellow | `accent` |
-| PY1004 | Honey | `#C28B3A` | yellow | `accent` |
-| PY1005 | Mustard Grey | `#9F8A4C` | yellow | `accent` |
 
 ## Замечания для реализации
 
