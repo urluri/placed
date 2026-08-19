@@ -426,7 +426,7 @@ def bevel_color(color, factor):
     return tuple(int(channel + (255 - channel) * amount) for channel in color)
 
 
-def apply_triangular_frame_slope(texture, frame_px, material, frame_id=None, angle_degrees=12):
+def apply_triangular_frame_slope(texture, frame_px, material, frame_id=None, angle_degrees=30):
     """Apply one clean bevel: outer frame edge is higher than the inner edge."""
     if frame_px <= 1:
         return texture
@@ -438,16 +438,16 @@ def apply_triangular_frame_slope(texture, frame_px, material, frame_id=None, ang
         return texture
 
     slope = math.tan(math.radians(angle_degrees))
-    strength = min(0.18, max(0.08, slope * 0.72))
+    strength = min(0.36, max(0.12, slope * 0.62))
     if frame_id == "white_wood":
-        outer_lift = strength * 0.18
-        inner_drop = strength * 0.62
+        outer_lift = strength * 0.26
+        inner_drop = strength * 0.78
     elif material == "aluminum":
-        outer_lift = strength * 0.34
-        inner_drop = strength * 0.66
+        outer_lift = strength * 0.42
+        inner_drop = strength * 0.82
     else:
-        outer_lift = strength * 0.30
-        inner_drop = strength * 0.70
+        outer_lift = strength * 0.42
+        inner_drop = strength * 0.92
 
     y, x = np.mgrid[0:height, 0:width]
     masks = {name: np.asarray(mask) > 0 for name, mask in wood_rail_masks(width, height, rail).items()}
@@ -483,7 +483,7 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
         frame_px,
         material,
         frame_id=frame_id,
-        angle_degrees=12,
+        angle_degrees=30,
     ).convert("RGBA")
 
     mask = Image.new("L", (width, height), 0)
