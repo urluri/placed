@@ -514,6 +514,7 @@ def build_frame_decision(artwork_type, interior_style, size_profile, image_analy
         lightness=lightness,
         temperature=temperature,
         contrast_level=contrast_level,
+        image_analysis=image_analysis,
     )
     targeted_rule_selected = False
     if targeted_frame_rule:
@@ -999,9 +1000,9 @@ def is_monochrome_image(image_analysis):
 
 def normalize_temperature(value):
     normalized = str(value or "").strip().lower()
-    if normalized in {"warm", "теплый", "тёплый", "teplyy"}:
+    if normalized in {"warm", "теплый", "тёплый", "теплая", "тёплая", "теплое", "тёплое", "teplyy"}:
         return "warm"
-    if normalized in {"cold", "холодный", "holodnyy"}:
+    if normalized in {"cold", "холодный", "холодная", "холодное", "holodnyy"}:
         return "cold"
     return "neutral"
 
@@ -1102,7 +1103,33 @@ def oak_frame_rule_applies(normalized_style, lightness, temperature, contrast_le
     return temperature in {"warm", "neutral"} and lightness == "medium"
 
 
-def targeted_frame_rule_for_image(artwork_type, normalized_style, lightness, temperature, contrast_level):
+def targeted_frame_rule_for_image(artwork_type, normalized_style, lightness, temperature, contrast_level, image_analysis):
+    if normalized_style == "contemporary" and lightness in {"light", "medium"} and contrast_level in {"low", "medium"}:
+        if is_monochrome_image(image_analysis):
+            return {
+                "frame_id": SILVER_FRAME_ID,
+                "reason": (
+                    "Целевое правило современного интерьера: изображение монохромное, светлота light/medium "
+                    "и контраст low/medium. Выбрана silver_aluminum."
+                ),
+            }
+        if temperature == "cold":
+            return {
+                "frame_id": SILVER_FRAME_ID,
+                "reason": (
+                    "Целевое правило современного интерьера: цветное холодное изображение, светлота light/medium "
+                    "и контраст low/medium. Выбрана silver_aluminum."
+                ),
+            }
+        if temperature in {"warm", "neutral"}:
+            return {
+                "frame_id": "champagne_aluminum",
+                "reason": (
+                    "Целевое правило современного интерьера: цветное warm/neutral изображение, светлота light/medium "
+                    "и контраст low/medium. Выбрана champagne_aluminum."
+                ),
+            }
+
     if artwork_type == "botanical":
         if temperature == "warm":
             frame_id = BOTANICAL_WARM_FRAME_BY_STYLE.get(normalized_style)
