@@ -429,19 +429,14 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
     left, top, right, bottom = outer_rect
     width = right - left
     height = bottom - top
-    inner_rect = (
-        left + frame_px,
-        top + frame_px,
-        right - frame_px,
-        bottom - frame_px,
-    )
 
     frame_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     if material == "aluminum":
         texture = aluminum_texture(width, height, base).convert("RGBA")
     else:
         texture = wood_texture(width, height, base, frame_px=frame_px, profile=profile, frame_id=frame_id).convert("RGBA")
-    texture = apply_frame_relief(texture.convert("RGB"), frame_px, material, profile).convert("RGBA")
+    # Realism effects are disabled temporarily while we isolate frame-corner shadows.
+    # Keep the selected texture, but do not add relief, bevels, edge shadows, or rabbet lines.
 
     mask = Image.new("L", (width, height), 0)
     mask_draw = ImageDraw.Draw(mask)
@@ -459,54 +454,4 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
     frame_layer.alpha_composite(texture, (left, top))
 
     canvas = Image.alpha_composite(canvas.convert("RGBA"), frame_layer).convert("RGB")
-    draw = ImageDraw.Draw(canvas)
-
-    if material != "aluminum":
-        return draw_wood_outer_contour(canvas, outer_rect, base, frame_px)
-
-    bevel_layers = max(5, min(14 if material == "aluminum" else 18, frame_px // 8))
-    for i in range(bevel_layers):
-        t = i / max(1, bevel_layers - 1)
-        if material == "aluminum":
-            light = 1.18 - t * 0.12
-            dark = 0.76 + t * 0.12
-        else:
-            light = 1.26 - t * 0.18
-            dark = 0.68 + t * 0.18
-
-        current_bottom = bottom - i
-        draw.line([(left + i, top + i), (right - i, top + i)], fill=bevel_color(base, light))
-        draw.line([(left + i, top + i), (left + i, current_bottom)], fill=bevel_color(base, light))
-        draw.line([(left + i, current_bottom), (right - i, current_bottom)], fill=bevel_color(base, dark))
-        draw.line([(right - i, top + i), (right - i, current_bottom)], fill=bevel_color(base, dark))
-
-    inner_left, inner_top, inner_right, inner_bottom = inner_rect
-    inner_layers = max(5, min(12 if material == "aluminum" else 16, frame_px // 9))
-    for i in range(inner_layers):
-        t = i / max(1, inner_layers - 1)
-        if material == "aluminum":
-            light = 1.10 - t * 0.06
-            dark = 0.70 + t * 0.12
-        else:
-            light = 1.13 - t * 0.08
-            dark = 0.62 + t * 0.14
-        draw.line([(inner_left - i, inner_top - i), (inner_right + i, inner_top - i)], fill=bevel_color(base, dark))
-        draw.line([(inner_left - i, inner_top - i), (inner_left - i, inner_bottom + i)], fill=bevel_color(base, dark))
-        draw.line([(inner_left - i, inner_bottom + i), (inner_right + i, inner_bottom + i)], fill=bevel_color(base, light))
-        draw.line([(inner_right + i, inner_top - i), (inner_right + i, inner_bottom + i)], fill=bevel_color(base, light))
-
-    rabbet = max(2, min(frame_px // 10, 10))
-    for i in range(rabbet):
-        t = i / max(1, rabbet - 1)
-        color = bevel_color(base, 0.42 + t * 0.18)
-        draw.rectangle(
-            [
-                inner_left - i,
-                inner_top - i,
-                inner_right + i,
-                inner_bottom + i,
-            ],
-            outline=color,
-        )
-
     return canvas

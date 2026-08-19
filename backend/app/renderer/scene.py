@@ -1,10 +1,7 @@
 from PIL import Image, ImageDraw, ImageFilter
 
 from .frame import draw_frame
-from .glass import add_glass_effect
-from .lighting import add_global_lighting
-from .mat import draw_aperture_depth, draw_image_window_depth, draw_inner_reveal, draw_mat
-from .postprocess import add_chromatic_aberration, add_film_grain, add_vignette, color_grade
+from .mat import draw_inner_reveal, draw_mat
 from .utils import mm_to_px
 
 TECHNICAL_FRAME_COLOR = (0, 0, 0)
@@ -103,25 +100,12 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
                 (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
                 inner_mat_color,
             )
-            canvas = draw_aperture_depth(canvas, top_aperture_rect, mat_px, strength=0.22)
-            canvas = draw_image_window_depth(canvas, window_rect, mat_px, strength=0.34)
         else:
             canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)
-            canvas = draw_aperture_depth(canvas, window_rect, mat_px, strength=0.22)
 
-    # Inner cast shadows from the frame create dark corner bands on light wood frames.
-    # Keep depth on the frame itself, but do not darken the mat/frame junction here.
-    # canvas = add_frame_cast_shadow(canvas, mat_rect, frame)
-
-    if glass_type and glass_type != "none":
-        opacity = 12 if glass_type == "museum" else 16
-        canvas = add_glass_effect(canvas, window_rect, opacity=opacity)
-
-    canvas = add_global_lighting(canvas, strength=0.065)
-    canvas = add_vignette(canvas, strength=0.055)
-    canvas = add_film_grain(canvas, sigma=0.8)
-    canvas = add_chromatic_aberration(canvas, offset=0)
-    canvas = color_grade(canvas)
+    # Realism effects are disabled temporarily while we isolate frame-corner shadows.
+    # Keep geometry, colors, artwork, and textures only. Re-enable effects step by step.
+    _ = (glass_type, frame, mat_px if has_mat else 0, window_rect)
 
     canvas.save(output_path, quality=96, subsampling=0)
     return canvas
