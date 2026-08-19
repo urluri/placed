@@ -1,4 +1,5 @@
 from functools import lru_cache
+import math
 from pathlib import Path
 
 import numpy as np
@@ -425,6 +426,48 @@ def bevel_color(color, factor):
     return tuple(int(channel + (255 - channel) * amount) for channel in color)
 
 
+def apply_triangular_frame_slope(texture, frame_px, material, frame_id=None, angle_degrees=12):
+    """Apply one clean bevel: outer frame edge is higher than the inner edge."""
+    if frame_px <= 1:
+        return texture
+
+    arr = np.asarray(texture).astype(np.float32)
+    height, width = arr.shape[:2]
+    rail = max(1, min(frame_px, width // 2, height // 2))
+    if rail <= 1:
+        return texture
+
+    slope = math.tan(math.radians(angle_degrees))
+    strength = min(0.18, max(0.08, slope * 0.72))
+    if frame_id == "white_wood":
+        outer_lift = strength * 0.18
+        inner_drop = strength * 0.62
+    elif material == "aluminum":
+        outer_lift = strength * 0.34
+        inner_drop = strength * 0.66
+    else:
+        outer_lift = strength * 0.30
+        inner_drop = strength * 0.70
+
+    y, x = np.mgrid[0:height, 0:width]
+    masks = {name: np.asarray(mask) > 0 for name, mask in wood_rail_masks(width, height, rail).items()}
+    positions = {
+        "top": np.clip(y / rail, 0, 1),
+        "bottom": np.clip((height - 1 - y) / rail, 0, 1),
+        "left": np.clip(x / rail, 0, 1),
+        "right": np.clip((width - 1 - x) / rail, 0, 1),
+    }
+
+    relief = np.ones((height, width), dtype=np.float32)
+    for name, mask in masks.items():
+        t = positions[name].astype(np.float32)
+        t = t * t * (3 - 2 * t)
+        relief[mask] = 1 + outer_lift * (1 - t[mask]) - inner_drop * t[mask]
+
+    arr *= relief[:, :, None]
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
 def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", profile="flat", frame_id=None):
     left, top, right, bottom = outer_rect
     width = right - left
@@ -435,8 +478,13 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
         texture = aluminum_texture(width, height, base).convert("RGBA")
     else:
         texture = wood_texture(width, height, base, frame_px=frame_px, profile=profile, frame_id=frame_id).convert("RGBA")
-    # Realism effects are disabled temporarily while we isolate frame-corner shadows.
-    # Keep the selected texture, but do not add relief, bevels, edge shadows, or rabbet lines.
+    texture = apply_triangular_frame_slope(
+        texture.convert("RGB"),
+        frame_px,
+        material,
+        frame_id=frame_id,
+        angle_degrees=12,
+    ).convert("RGBA")
 
     mask = Image.new("L", (width, height), 0)
     mask_draw = ImageDraw.Draw(mask)
