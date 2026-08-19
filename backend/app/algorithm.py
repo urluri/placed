@@ -64,15 +64,9 @@ MAT_SIZE_MAX_MM = {
     "extra_large": {"standard": 70, "signature": 70},
 }
 
-SIGNATURE_INNER_MAT_RATIO = 0.8
+SIGNATURE_OUTER_MAT_RATIO = 0.8
+SIGNATURE_INNER_REVEAL_SCALE = 0.8
 MAT_WINDOW_OVERLAP_MM = 5
-ACCENT_SIMILAR_DELTA_E = 22
-ACCENT_SAME_FAMILY_DELTA_E = 24
-NEUTRAL_COLOR_FAMILIES = {"white", "grey", "black"}
-INNER_MAT_MIN_L = 25
-INNER_MAT_MAX_DARKER_THAN_IMAGE = 20
-INNER_MAT_GRAPHITE_TARGET_L = 34
-
 PLACED_PALETTE = {
     "PW001": {"id": "PW001", "name": "Museum White", "hex": "#F7F6F2", "family": "white", "role": "base_white"},
     "PW002": {"id": "PW002", "name": "Gallery White", "hex": "#F3F2ED", "family": "white", "role": "base_white"},
@@ -1358,18 +1352,31 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
     base_size = mat_base_size(width, height, size_style, size_profile, mat_size_config)
     bottom_size = int(round(base_size * 1.1))
     inner_color = signature_inner_mat_color(image_analysis) if decor_style == DecorStyle.signature.value else None
-    inner_reveal_left = signature_inner_reveal(base_size) if inner_color else 0
-    inner_reveal_right = signature_inner_reveal(base_size) if inner_color else 0
-    inner_reveal_top = signature_inner_reveal(base_size) if inner_color else 0
-    inner_reveal_bottom = signature_inner_reveal(bottom_size) if inner_color else 0
+    if inner_color:
+        inner_reveal_left = signature_inner_reveal(base_size)
+        inner_reveal_right = signature_inner_reveal(base_size)
+        inner_reveal_top = signature_inner_reveal(base_size)
+        inner_reveal_bottom = signature_inner_reveal(bottom_size)
+        left_size = signature_total_field(base_size, inner_reveal_left)
+        right_size = signature_total_field(base_size, inner_reveal_right)
+        top_size = signature_total_field(base_size, inner_reveal_top)
+        bottom_size = signature_total_field(bottom_size, inner_reveal_bottom)
+    else:
+        inner_reveal_left = 0
+        inner_reveal_right = 0
+        inner_reveal_top = 0
+        inner_reveal_bottom = 0
+        left_size = base_size
+        right_size = base_size
+        top_size = base_size
 
     return MatSpec(
         enabled=True,
         outer_color=mat_color_for_variant(decor_style, image_analysis),
         inner_color=inner_color,
-        left_mm=base_size,
-        right_mm=base_size,
-        top_mm=base_size,
+        left_mm=left_size,
+        right_mm=right_size,
+        top_mm=top_size,
         bottom_mm=bottom_size,
         overlap_mm=MAT_WINDOW_OVERLAP_MM,
         inner_reveal_mm=inner_reveal_top,
@@ -1381,8 +1388,13 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
 
 
 def signature_inner_reveal(outer_field_mm):
-    reveal = int(round(outer_field_mm * (1 - SIGNATURE_INNER_MAT_RATIO)))
+    reveal = int(round(outer_field_mm * (1 - SIGNATURE_OUTER_MAT_RATIO) * SIGNATURE_INNER_REVEAL_SCALE))
     return max(1, reveal)
+
+
+def signature_total_field(standard_field_mm, inner_reveal_mm):
+    outer_visible_field = int(round(standard_field_mm * SIGNATURE_OUTER_MAT_RATIO))
+    return outer_visible_field + inner_reveal_mm
 
 
 def mat_size_style_for_geometry(decor_style):
@@ -1494,426 +1506,30 @@ def signature_inner_color_strategy(image_analysis):
     palette = image_analysis.get("palette", {})
     accent = palette.get("accent", {}) if isinstance(palette, dict) else {}
     selected = accent.get("selected") if isinstance(accent, dict) else None
-    excluded_families = signature_anchor_families(palette)
-    grey_allowed = signature_grey_allowed(image_analysis, palette)
-    if signature_inner_should_match_outer_mat(image_analysis):
-        outer_color = standard_mat_color(image_analysis)
-        return {
-            "mode": "same_as_outer_for_monochrome",
-            "base_color": None,
-            "final_color": outer_color,
-            "target_lab": palette_lab(outer_color),
-            "similarity": {},
-            "excluded_families": set(),
-            "allowed_families": None,
-            "allowed_roles": None,
-            "adjustments": [],
-            "grey_allowed": True,
-            "reason": (
-                "Signature: изображение монохромное; "
-                "нижнее паспарту повторяет цвет верхнего паспарту."
-            ),
-        }
 
     if not selected:
         return {
             "mode": "fallback",
             "base_color": None,
             "target_lab": None,
-            "similarity": {},
-            "excluded_families": excluded_families,
+            "excluded_families": set(),
             "allowed_families": None,
             "allowed_roles": None,
             "adjustments": [],
             "reason": "Signature: акцентный цвет не найден, используется резервный Warm White.",
         }
 
-    if is_black_like_color(selected):
-        target_lab, adjustments = graphite_inner_mat_lab(image_analysis)
-        return {
-            "mode": "graphite_for_black_accent",
-            "base_color": selected,
-            "target_lab": target_lab,
-            "similarity": accent_similarity(selected, palette),
-            "excluded_families": set(),
-            "allowed_families": {"grey"},
-            "allowed_roles": None,
-            "adjustments": adjustments,
-            "grey_allowed": True,
-            "reason": (
-                "Signature: акцентный цвет черный или почти черный; черный запрещен для нижнего паспарту, "
-                "поэтому используется ближайший допустимый серый из палитры placed."
-            ),
-        }
-
-    if is_neutral_color(selected):
-        neutral_choice = signature_neutral_base_color(accent, palette, grey_allowed)
-        base_color = neutral_choice.get("color") or selected
-        target_lab, adjustments = adjusted_signature_lab(base_color, image_analysis)
-        return {
-            "mode": "image_candidate_for_neutral",
-            "base_color": base_color,
-            "base_source": neutral_choice.get("source"),
-            "target_lab": target_lab,
-            "similarity": accent_similarity(selected, palette),
-            "excluded_families": grey_sensitive_excluded_families(excluded_families, grey_allowed, base_color),
-            "allowed_families": None,
-            "allowed_roles": None,
-            "adjustments": adjustments,
-            "grey_allowed": grey_allowed,
-            "reason": (
-                "Signature: выбранный акцент нейтральный, поэтому новый нейтральный цвет не добавляется автоматически; "
-                "для нижнего паспарту используется подходящий цвет-кандидат из изображения."
-            ),
-        }
-
-    similarity = accent_similarity(selected, palette)
-    if similarity.get("similar", False):
-        fallback = farthest_accent_candidate(accent, palette, similarity)
-        base_color = fallback.get("color") or selected
-        target_lab, adjustments = adjusted_signature_lab(base_color, image_analysis)
-        return {
-            "mode": "distant_accent_candidate",
-            "base_color": base_color,
-            "base_source": fallback.get("source"),
-            "target_lab": target_lab,
-            "similarity": similarity,
-            "excluded_families": grey_sensitive_excluded_families(excluded_families, grey_allowed, base_color),
-            "allowed_families": None,
-            "allowed_roles": None,
-            "candidate_distances": fallback.get("distances", {}),
-            "adjustments": adjustments,
-            "grey_allowed": grey_allowed,
-            "reason": (
-                "Signature: выбранный акцент находится в одной цветовой группе с основным или вторичным; "
-                "выбран самый дальний подходящий кандидат акцента."
-            ),
-        }
-
-    target_lab, adjustments = adjusted_signature_lab(selected, image_analysis)
     return {
-        "mode": "accent",
+        "mode": "direct_accent",
         "base_color": selected,
         "base_source": accent.get("source"),
-        "target_lab": target_lab,
-        "similarity": similarity,
-        "excluded_families": grey_sensitive_excluded_families(excluded_families, grey_allowed, selected),
+        "target_lab": color_lab(selected),
+        "excluded_families": set(),
         "allowed_families": None,
         "allowed_roles": None,
-        "candidate_distances": {},
-        "adjustments": adjustments,
-        "grey_allowed": grey_allowed,
-        "reason": "Signature: акцент достаточно самостоятельный, поэтому нижнее паспарту использует приглушенный акцентный цвет.",
+        "adjustments": [],
+        "reason": "Signature: нижнее паспарту выбирается напрямую от акцентного цвета изображения через ближайший цвет палитры placed.",
     }
-
-
-def signature_inner_should_match_outer_mat(image_analysis):
-    return is_monochrome_image(image_analysis)
-
-
-def adjusted_signature_lab(color, image_analysis):
-    lab = color_lab(color)
-    if lab is None:
-        return None, []
-
-    l_value, a_value, b_value = lab
-    adjustments = []
-    original_l = l_value
-
-    if l_value < INNER_MAT_MIN_L:
-        l_value = 38
-        a_value *= 0.82
-        b_value *= 0.82
-        adjustments.append("Акцент темнее L=25: Hue сохранен, цвет осветлен до спокойного диапазона L=30-45, насыщенность снижена.")
-    elif l_value < 40:
-        l_value = min(55, l_value + 20)
-        a_value *= 0.85
-        b_value *= 0.85
-        adjustments.append("Акцент в диапазоне L=25-40: цвет осветлен и немного приглушен.")
-    else:
-        a_value *= 0.84
-        b_value *= 0.84
-        adjustments.append("Акцент светлее L=40: Hue сохранен, насыщенность снижена.")
-
-    image_l = image_lightness_value(image_analysis)
-    l_value, lightness_adjustments = enforce_inner_mat_lightness(l_value, image_l)
-    adjustments.extend(lightness_adjustments)
-
-    l_value, a_value, b_value, contrast_adjustments = reduce_inner_mat_visual_weight(
-        l_value,
-        a_value,
-        b_value,
-        image_analysis,
-        original_l,
-    )
-    adjustments.extend(contrast_adjustments)
-
-    return (clamp_float(l_value, 0, 100), a_value, b_value), adjustments
-
-
-def enforce_inner_mat_lightness(l_value, image_l):
-    adjustments = []
-    minimum_l = INNER_MAT_MIN_L
-    if image_l is not None:
-        minimum_l = max(minimum_l, image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE)
-
-    while l_value < minimum_l:
-        l_value += 5
-        adjustments.append(f"Светлота нижнего паспарту поднята на 5 пунктов до L={round(l_value, 1)}.")
-
-    return clamp_float(l_value, minimum_l, 100), adjustments
-
-
-def reduce_inner_mat_visual_weight(l_value, a_value, b_value, image_analysis, original_l):
-    image_l = image_lightness_value(image_analysis)
-    image_contrast_value = image_contrast_metric(image_analysis)
-    if image_l is None:
-        return l_value, a_value, b_value, []
-
-    max_gap = max(18, image_contrast_value * 0.75)
-    gap = abs(l_value - image_l)
-    if gap <= max_gap:
-        return l_value, a_value, b_value, []
-
-    direction = 1 if l_value > image_l else -1
-    l_value = image_l + direction * max_gap
-    if l_value < image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE:
-        l_value = image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE
-    a_value *= 0.82
-    b_value *= 0.82
-    return (
-        clamp_float(l_value, INNER_MAT_MIN_L, 100),
-        a_value,
-        b_value,
-        [
-            (
-                "Контраст нижнего паспарту с изображением был сильнее внутренних отношений изображения; "
-                f"L скорректирован от исходного акцента L={round(original_l, 1)}, насыщенность снижена."
-            )
-        ],
-    )
-
-
-def graphite_inner_mat_lab(image_analysis):
-    image_l = image_lightness_value(image_analysis)
-    target_l = INNER_MAT_GRAPHITE_TARGET_L
-    if normalize_visual_level(image_analysis.get("lightness")) == "light" and normalize_level(image_analysis.get("contrast")) == "low":
-        target_l = 38
-    if image_l is not None:
-        target_l = max(target_l, min(40, image_l - INNER_MAT_MAX_DARKER_THAN_IMAGE))
-    target_l = clamp_float(target_l, 25, 40)
-    return (target_l, 0, 0), [f"Черный акцент заменен на графитовый диапазон палитры placed: целевая светлота L={round(target_l, 1)}."]
-
-
-def is_black_like_color(color):
-    lab = color_lab(color)
-    if lab is None:
-        return False
-    l_value, a_value, b_value = lab
-    chroma = color.get("chroma")
-    if chroma is None:
-        chroma = sqrt(a_value * a_value + b_value * b_value)
-    return l_value < INNER_MAT_MIN_L and float(chroma) < 12
-
-
-def image_lightness_value(image_analysis):
-    metrics = image_analysis.get("metrics", {}) if isinstance(image_analysis, dict) else {}
-    value = metrics.get("lightness") if isinstance(metrics, dict) else None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        level = normalize_visual_level(image_analysis.get("lightness") if isinstance(image_analysis, dict) else None)
-        return {"light": 72.0, "medium": 52.0, "dark": 32.0}.get(level, 52.0)
-
-
-def image_contrast_metric(image_analysis):
-    metrics = image_analysis.get("metrics", {}) if isinstance(image_analysis, dict) else {}
-    value = metrics.get("contrast") if isinstance(metrics, dict) else None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return {"low": 22.0, "medium": 36.0, "high": 52.0}.get(normalize_level(image_analysis.get("contrast")), 36.0)
-
-
-def signature_grey_allowed(image_analysis, palette):
-    if is_monochrome_image(image_analysis):
-        return True
-    if image_analysis.get("temperature") == "нейтральный":
-        return True
-    grey_present = image_palette_has_grey(palette)
-    if image_analysis.get("temperature") == "теплый":
-        return False
-    if image_analysis.get("temperature") == "холодный":
-        return grey_present
-    return grey_present
-
-
-def image_palette_has_grey(palette):
-    if not isinstance(palette, dict):
-        return False
-    for role in ("primary", "secondary"):
-        color = palette.get(role)
-        if isinstance(color, dict) and color.get("family") == "grey":
-            return True
-    accent = palette.get("accent", {})
-    if isinstance(accent, dict):
-        selected = accent.get("selected")
-        if isinstance(selected, dict) and selected.get("family") == "grey":
-            return True
-        candidates = accent.get("candidates", {})
-        if isinstance(candidates, dict):
-            for color in candidates.values():
-                if isinstance(color, dict) and color.get("family") == "grey":
-                    return True
-    return False
-
-
-def grey_sensitive_excluded_families(base_excluded_families, grey_allowed, base_color):
-    families = set(base_excluded_families or [])
-    if not grey_allowed:
-        families.add("grey")
-    return families
-
-
-def signature_neutral_base_color(accent, palette, grey_allowed):
-    candidates = accent.get("candidates", {}) if isinstance(accent, dict) else {}
-    selected = accent.get("selected") if isinstance(accent, dict) else None
-
-    ordered = []
-    if isinstance(candidates, dict):
-        for source in ("area", "pop", "temperature", "light"):
-            ordered.append((source, candidates.get(source)))
-    ordered.append(("selected", selected))
-
-    if grey_allowed:
-        for source, candidate in ordered:
-            if candidate:
-                return {"source": source, "color": candidate}
-
-    for source, candidate in ordered:
-        if candidate and candidate.get("family") != "grey":
-            return {"source": source, "color": candidate}
-
-    if isinstance(palette, dict):
-        for source in ("secondary", "primary"):
-            candidate = palette.get(source)
-            if isinstance(candidate, dict) and candidate.get("family") != "grey":
-                return {"source": source, "color": candidate}
-
-    return {"source": "selected", "color": selected}
-
-
-def signature_anchor_families(palette):
-    families = set()
-    if not isinstance(palette, dict):
-        return families
-    for role in ("primary", "secondary"):
-        color = palette.get(role)
-        family = color.get("family") if isinstance(color, dict) else None
-        if family and family not in NEUTRAL_COLOR_FAMILIES:
-            families.add(family)
-    return families
-
-
-def farthest_accent_candidate(accent, palette, similarity):
-    candidates = accent.get("candidates", {}) if isinstance(accent, dict) else {}
-    anchor_roles = similarity.get("similar_roles") or [similarity.get("closest_role")]
-    anchor_roles = [role for role in anchor_roles if role in {"primary", "secondary"}]
-    if not anchor_roles:
-        anchor_roles = ["primary", "secondary"]
-
-    anchors = [
-        palette.get(role)
-        for role in anchor_roles
-        if isinstance(palette, dict) and palette.get(role)
-    ]
-    anchor_labs = [color_lab(anchor) for anchor in anchors]
-    anchor_labs = [lab for lab in anchor_labs if lab is not None]
-    if not anchor_labs:
-        return {"color": accent.get("selected"), "source": accent.get("source"), "distances": {}}
-
-    selected_hex = (accent.get("selected") or {}).get("hex")
-    scored = []
-    seen = set()
-    for source, candidate in candidates.items():
-        if not candidate:
-            continue
-        candidate_hex = candidate.get("hex")
-        if not candidate_hex or candidate_hex in seen:
-            continue
-        seen.add(candidate_hex)
-        candidate_lab = color_lab(candidate)
-        if candidate_lab is None:
-            continue
-        distances = [delta_e(candidate_lab, anchor_lab) for anchor_lab in anchor_labs]
-        distance_score = min(distances)
-        source_penalty = 0.01 if candidate_hex == selected_hex else 0
-        scored.append((distance_score - source_penalty, source, candidate, distances))
-
-    if not scored:
-        return {"color": accent.get("selected"), "source": accent.get("source"), "distances": {}}
-
-    scored.sort(key=lambda item: item[0], reverse=True)
-    _score, source, candidate, distances = scored[0]
-    distance_map = {
-        role: round(distance, 2)
-        for role, distance in zip(anchor_roles, distances)
-    }
-    return {"color": candidate, "source": source, "distances": distance_map}
-
-
-def accent_similarity(accent_color, palette):
-    accent_lab = color_lab(accent_color)
-    if accent_lab is None:
-        return {"similar": False, "primary_delta_e": None, "secondary_delta_e": None, "closest_role": None, "similar_roles": []}
-
-    closest_role = None
-    closest_delta = None
-    distances = {}
-    similar = False
-    similar_roles = []
-    for role in ("primary", "secondary"):
-        anchor = palette.get(role) if isinstance(palette, dict) else None
-        anchor_lab = color_lab(anchor) if anchor else None
-        if anchor_lab is None:
-            distances[f"{role}_delta_e"] = None
-            continue
-
-        distance = delta_e(accent_lab, anchor_lab)
-        same_family = accent_color.get("family") and accent_color.get("family") == anchor.get("family")
-        role_similar = distance <= ACCENT_SIMILAR_DELTA_E or (
-            same_family and distance <= ACCENT_SAME_FAMILY_DELTA_E
-        )
-        distances[f"{role}_delta_e"] = round(distance, 2)
-        if closest_delta is None or distance < closest_delta:
-            closest_delta = distance
-            closest_role = role
-        similar = similar or role_similar
-        if role_similar:
-            similar_roles.append(role)
-
-    return {
-        "similar": similar,
-        "primary_delta_e": distances.get("primary_delta_e"),
-        "secondary_delta_e": distances.get("secondary_delta_e"),
-        "closest_role": closest_role,
-        "similar_roles": similar_roles,
-    }
-
-
-def is_neutral_color(color):
-    family = color.get("family")
-    if family in NEUTRAL_COLOR_FAMILIES:
-        return True
-
-    lab = color_lab(color)
-    if lab is None:
-        return False
-    _l_value, a_value, b_value = lab
-    chroma = color.get("chroma")
-    if chroma is None:
-        chroma = sqrt(a_value * a_value + b_value * b_value)
-    return float(chroma) < 10
 
 
 def normalize_visual_level(value):
@@ -1995,16 +1611,6 @@ def lab_pivot(value):
     return (7.787 * value) + (16 / 116)
 
 
-def clamp_float(value, low, high):
-    return max(low, min(high, float(value)))
-
-
-def format_optional_metric(value):
-    if value is None:
-        return "n/a"
-    return f"{float(value):.2f}"
-
-
 def public_palette_color(color):
     return {"id": color["id"], "name": color["name"], "hex": color["hex"]}
 
@@ -2015,14 +1621,14 @@ def mat_color_reason(mat, decor_style, image_analysis):
     if decor_style == DecorStyle.standard.value:
         return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
     strategy = signature_inner_color_strategy(image_analysis)
-    if strategy.get("mode") == "same_as_outer_for_monochrome":
+    if strategy.get("mode") == "fallback":
         return (
-            f"Signature: изображение монохромное; "
-            f"нижнее паспарту повторяет верхнее - {mat.inner_color['name']} ({mat.inner_color['hex']})."
+            f"Signature: акцентный цвет не найден; нижнее паспарту использует резервный "
+            f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
         )
     return (
         f"Signature: верхнее паспарту выбрано как Standard - {mat.outer_color['name']} ({mat.outer_color['hex']}); "
-        f"нижнее паспарту выбрано от смягченного акцентного цвета после проверки светлоты и серого правила - "
+        f"нижнее паспарту выбрано напрямую от акцентного цвета через ближайший цвет placed - "
         f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
     )
 
@@ -2046,43 +1652,30 @@ def color_facts(mat, decor_style, image_analysis):
         facts.append("Для Standard применена таблица из `Цвет паспарту.md`; монохромное изображение имеет приоритет над температурой и светлотой.")
     else:
         strategy = signature_inner_color_strategy(image_analysis)
-        similarity = strategy.get("similarity", {})
         accent = image_analysis.get("palette", {}).get("accent", {})
         selected = accent.get("selected") if isinstance(accent, dict) else None
         facts.append(
             "Стратегия нижнего паспарту Signature: "
             f"{strategy.get('mode')}; {strategy.get('reason')}"
         )
+        source = accent.get("source") if isinstance(accent, dict) else None
+        confidence = accent.get("confidence") if isinstance(accent, dict) else None
         facts.append(
-            "Схожесть акцента: "
-            f"основной Delta E {format_optional_metric(similarity.get('primary_delta_e'))}, "
-            f"вторичный Delta E {format_optional_metric(similarity.get('secondary_delta_e'))}; "
-            f"схожий={similarity.get('similar', False)}, "
-            f"роли={', '.join(similarity.get('similar_roles') or []) or 'нет'}."
+            "Акцентный цвет: "
+            f"{color_fact(selected) if selected else 'не найден'}"
+            f"{f', источник {source}' if source else ''}"
+            f"{f', уверенность {confidence}' if confidence else ''}."
         )
-        base_color = strategy.get("base_color")
-        if base_color:
-            source = strategy.get("base_source") or "selected"
-            facts.append(f"Базовый цвет нижнего паспарту: {color_fact(base_color)}, источник {source}.")
-        candidate_distances = strategy.get("candidate_distances") or {}
-        if candidate_distances:
-            facts.append(
-                "Дистанции выбранного кандидата до конфликтующих цветов: "
-                + ", ".join(f"{role} Delta E {format_optional_metric(distance)}" for role, distance in candidate_distances.items())
-                + "."
-            )
-        excluded_families = ", ".join(sorted(strategy.get("excluded_families") or [])) or "нет"
-        facts.append(f"Исключенные семьи для нижнего паспарту: {excluded_families}.")
-        allowed_families = ", ".join(sorted(strategy.get("allowed_families") or [])) or "все допустимые"
-        allowed_roles = ", ".join(sorted(strategy.get("allowed_roles") or [])) or "все допустимые"
-        facts.append(f"Разрешенные семьи/роли палитры: семьи - {allowed_families}; роли - {allowed_roles}.")
-        facts.append(f"Серый допустим для нижнего паспарту: {'да' if strategy.get('grey_allowed') else 'нет'}.")
-        facts.append(f"Акцентный цвет: {color_fact(selected) if selected else 'не найден'}.")
         target_lab = strategy.get("target_lab")
         if target_lab:
-            facts.append(f"Расчетный LAB нижнего паспарту после коррекций: L={round(target_lab[0], 1)}, a={round(target_lab[1], 1)}, b={round(target_lab[2], 1)}.")
-        for adjustment in strategy.get("adjustments") or []:
-            facts.append(adjustment)
+            facts.append(f"LAB акцентного цвета без коррекций: L={round(target_lab[0], 1)}, a={round(target_lab[1], 1)}, b={round(target_lab[2], 1)}.")
+        scores = accent.get("scores") if isinstance(accent, dict) else None
+        if isinstance(scores, dict):
+            facts.append(
+                "Оценки кандидатов акцента: "
+                + ", ".join(f"{name}={score}" for name, score in scores.items())
+                + "."
+            )
         facts.append(f"Цвет нижнего паспарту: {mat.inner_color['name']} ({mat.inner_color['hex']}).")
     return facts
 
@@ -2103,7 +1696,8 @@ def mat_reason(mat, decor_style, size_profile, mat_size_config=None):
     if decor_style != DecorStyle.signature.value:
         return base_reason
     return (
-        f"{base_reason} Для Signature общий размер поля совпадает со Standard; нижнее паспарту занимает внутренние 20% поля: "
+        f"{base_reason} Для Signature видимое верхнее паспарту сохраняет прежние 80% поля Standard; "
+        f"нижнее паспарту уменьшено на 20% от прежнего раскрытия и занимает внутренние 16% поля Standard: "
         f"{mat.inner_reveal_left_mm}/{mat.inner_reveal_top_mm}/{mat.inner_reveal_right_mm}/{mat.inner_reveal_bottom_mm} мм."
     )
 
@@ -2136,7 +1730,8 @@ def mat_facts(mat, decor_style, size_profile, width, height, mat_size_config=Non
         facts.extend(
             [
                 "Signature: окно нижнего паспарту совпадает с окном Standard.",
-                "Signature: общий размер поля совпадает со Standard; верхнее паспарту сокращено до внешних 80%, нижнее раскрытие занимает внутренние 20%.",
+                "Signature: видимое верхнее паспарту сохраняет внешние 80% поля Standard; нижнее раскрытие уменьшено с 20% до 16%.",
+                "Signature: общий внешний размер паспарту уменьшен до 96% поля Standard, поэтому периметр рамы становится меньше без зазоров между слоями.",
                 (
                     "Видимая внутренняя полоса нижнего паспарту: "
                     f"{mat.inner_reveal_left_mm}/{mat.inner_reveal_top_mm}/"
