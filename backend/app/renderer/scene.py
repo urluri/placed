@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw, ImageFilter
 
 from .frame import draw_frame
-from .mat import draw_inner_reveal, draw_mat
+from .mat import draw_inner_reveal, draw_inner_reveal_depth, draw_mat
 from .utils import mm_to_px
 
 TECHNICAL_FRAME_COLOR = (0, 0, 0)
@@ -99,6 +99,12 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
                 window_rect,
                 (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
                 inner_mat_color,
+            )
+            canvas = draw_inner_reveal_depth(
+                canvas,
+                window_rect,
+                (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
+                strength=0.24,
             )
         else:
             canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)

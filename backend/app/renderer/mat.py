@@ -124,6 +124,43 @@ def draw_image_window_depth(canvas, aperture_rect, mat_px, strength=0.34):
     return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
 
 
+def draw_inner_reveal_depth(canvas, aperture_rect, reveal_px, strength=0.24):
+    if isinstance(reveal_px, (tuple, list)):
+        left_reveal, top_reveal, right_reveal, bottom_reveal = [max(0, int(value)) for value in reveal_px]
+    else:
+        reveal = max(0, int(reveal_px))
+        left_reveal = top_reveal = right_reveal = bottom_reveal = reveal
+
+    if max(left_reveal, top_reveal, right_reveal, bottom_reveal) <= 0:
+        return canvas
+
+    left, top, right, bottom = aperture_rect
+    reveal_left = left - left_reveal
+    reveal_top = top - top_reveal
+    reveal_right = right + right_reveal
+    reveal_bottom = bottom + bottom_reveal
+
+    depth = max(2, min(max(left_reveal, top_reveal, right_reveal, bottom_reveal) // 3, 9))
+    blur = max(1, min(depth, 5))
+    shadow_alpha = int(115 * strength)
+
+    shadow_mask = Image.new("L", canvas.size, 0)
+    shadow_draw = ImageDraw.Draw(shadow_mask)
+    shadow_draw.rectangle([reveal_left, reveal_top, reveal_right, reveal_bottom], outline=shadow_alpha, width=depth)
+    shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(blur))
+
+    reveal_clip = Image.new("L", canvas.size, 0)
+    clip_draw = ImageDraw.Draw(reveal_clip)
+    clip_draw.rectangle([reveal_left, reveal_top, reveal_right, reveal_bottom], fill=255)
+    clip_draw.rectangle([left, top, right, bottom], fill=0)
+
+    clipped_shadow = Image.new("L", canvas.size, 0)
+    clipped_shadow.paste(shadow_mask, mask=reveal_clip)
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 56))
+    shadow_layer.putalpha(clipped_shadow)
+    return Image.alpha_composite(canvas.convert("RGBA"), shadow_layer).convert("RGB")
+
+
 def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
     if isinstance(reveal_px, (tuple, list)):
         left_reveal, top_reveal, right_reveal, bottom_reveal = [max(0, int(value)) for value in reveal_px]

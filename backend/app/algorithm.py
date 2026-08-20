@@ -89,10 +89,6 @@ PLACED_PALETTE = {
     "PB306": {"id": "PB306", "name": "Oatmeal", "hex": "#D8CBB8", "family": "beige", "role": "soft_neutral"},
     "PB307": {"id": "PB307", "name": "Mushroom", "hex": "#B8AA9C", "family": "beige", "role": "soft_neutral"},
     "PB308": {"id": "PB308", "name": "Camel", "hex": "#B6946A", "family": "beige", "role": "soft_neutral"},
-    "PE401": {"id": "PE401", "name": "Terracotta", "hex": "#B76545", "family": "earth", "role": "deep_color"},
-    "PE404": {"id": "PE404", "name": "Cinnamon", "hex": "#A26A4A", "family": "earth", "role": "deep_color"},
-    "PE405": {"id": "PE405", "name": "Umber", "hex": "#7C5A46", "family": "earth", "role": "deep_color"},
-    "PE407": {"id": "PE407", "name": "Mocha", "hex": "#7A6756", "family": "earth", "role": "deep_color"},
     "PG501": {"id": "PG501", "name": "Sage", "hex": "#A7B39C", "family": "green", "role": "soft_color"},
     "PG502": {"id": "PG502", "name": "Olive Grey", "hex": "#8E9378", "family": "green", "role": "soft_color"},
     "PG504": {"id": "PG504", "name": "Eucalyptus", "hex": "#8FA89B", "family": "green", "role": "soft_color"},
@@ -1505,7 +1501,7 @@ def signature_inner_target_lab(image_analysis):
 def signature_inner_color_strategy(image_analysis):
     palette = image_analysis.get("palette", {})
     accent = palette.get("accent", {}) if isinstance(palette, dict) else {}
-    selected = accent.get("selected") if isinstance(accent, dict) else None
+    selected, rejected_candidates = signature_distinct_accent(palette, accent)
 
     if not selected:
         return {
@@ -1516,7 +1512,9 @@ def signature_inner_color_strategy(image_analysis):
             "allowed_families": None,
             "allowed_roles": None,
             "adjustments": [],
-            "reason": "Signature: акцентный цвет не найден, используется резервный Warm White.",
+            "final_color": public_palette_color(MAT_COLOR_OPTIONS["museum_white"]),
+            "rejected_candidates": rejected_candidates,
+            "reason": "Signature: заметно отличающийся акцентный цвет не найден, используется резервный Museum White.",
         }
 
     return {
@@ -1528,8 +1526,69 @@ def signature_inner_color_strategy(image_analysis):
         "allowed_families": None,
         "allowed_roles": None,
         "adjustments": [],
-        "reason": "Signature: нижнее паспарту выбирается напрямую от акцентного цвета изображения через ближайший цвет палитры placed.",
+        "rejected_candidates": rejected_candidates,
+        "reason": "Signature: нижнее паспарту выбирается от первого акцентного кандидата, заметно отличающегося от основного и вторичного цветов.",
     }
+
+
+def signature_distinct_accent(palette, accent, min_anchor_delta=24):
+    anchors = []
+    if isinstance(palette, dict):
+        for key in ("primary", "secondary"):
+            anchor = palette.get(key)
+            if isinstance(anchor, dict) and color_lab(anchor):
+                anchors.append(anchor)
+
+    selected = accent.get("selected") if isinstance(accent, dict) else None
+    candidates = signature_accent_candidates(accent)
+    rejected = []
+
+    if not anchors:
+        return selected, rejected
+
+    for candidate in candidates:
+        candidate_lab = color_lab(candidate)
+        if candidate_lab is None:
+            continue
+        nearest_anchor_delta = min(delta_e(candidate_lab, color_lab(anchor)) for anchor in anchors)
+        if nearest_anchor_delta >= min_anchor_delta:
+            return candidate, rejected
+        rejected.append(
+            {
+                "hex": candidate.get("hex"),
+                "nearest_anchor_delta": round(nearest_anchor_delta, 1),
+            }
+        )
+
+    return None, rejected
+
+
+def signature_accent_candidates(accent):
+    if not isinstance(accent, dict):
+        return []
+
+    scores = accent.get("scores") if isinstance(accent.get("scores"), dict) else {}
+    raw_candidates = []
+    selected = accent.get("selected")
+    if isinstance(selected, dict):
+        raw_candidates.append(("selected", selected, float("inf")))
+
+    candidates = accent.get("candidates") if isinstance(accent.get("candidates"), dict) else {}
+    for source, candidate in candidates.items():
+        if isinstance(candidate, dict):
+            raw_candidates.append((source, candidate, float(scores.get(source, 0) or 0)))
+
+    raw_candidates.sort(key=lambda item: item[2], reverse=True)
+
+    unique = []
+    seen = set()
+    for _source, candidate, _score in raw_candidates:
+        key = candidate.get("hex") or tuple(candidate.get("rgb") or [])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
 
 
 def normalize_visual_level(value):
@@ -1623,12 +1682,12 @@ def mat_color_reason(mat, decor_style, image_analysis):
     strategy = signature_inner_color_strategy(image_analysis)
     if strategy.get("mode") == "fallback":
         return (
-            f"Signature: акцентный цвет не найден; нижнее паспарту использует резервный "
+            f"Signature: заметно отличающийся акцентный цвет не найден; нижнее паспарту использует резервный "
             f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
         )
     return (
         f"Signature: верхнее паспарту выбрано как Standard - {mat.outer_color['name']} ({mat.outer_color['hex']}); "
-        f"нижнее паспарту выбрано напрямую от акцентного цвета через ближайший цвет placed - "
+        f"нижнее паспарту выбрано от заметно отличающегося акцентного кандидата через ближайший цвет placed - "
         f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
     )
 
@@ -1669,11 +1728,24 @@ def color_facts(mat, decor_style, image_analysis):
         target_lab = strategy.get("target_lab")
         if target_lab:
             facts.append(f"LAB акцентного цвета без коррекций: L={round(target_lab[0], 1)}, a={round(target_lab[1], 1)}, b={round(target_lab[2], 1)}.")
+        base_color = strategy.get("base_color")
+        if base_color and base_color is not selected:
+            facts.append(f"Целевой акцент после проверки похожести: {color_fact(base_color)}.")
         scores = accent.get("scores") if isinstance(accent, dict) else None
         if isinstance(scores, dict):
             facts.append(
                 "Оценки кандидатов акцента: "
                 + ", ".join(f"{name}={score}" for name, score in scores.items())
+                + "."
+            )
+        rejected_candidates = strategy.get("rejected_candidates")
+        if rejected_candidates:
+            facts.append(
+                "Отклоненные кандидаты акцента из-за близости к основному/вторичному: "
+                + ", ".join(
+                    f"{item.get('hex')} (Delta E {item.get('nearest_anchor_delta')})"
+                    for item in rejected_candidates
+                )
                 + "."
             )
         facts.append(f"Цвет нижнего паспарту: {mat.inner_color['name']} ({mat.inner_color['hex']}).")
