@@ -123,6 +123,20 @@ MAT_COLOR_OPTIONS = {
     "museum_white": PLACED_PALETTE["PW001"],
 }
 
+ACCENT_TO_MAT_FAMILIES = {
+    "red": {"rose"},
+    "orange": {"yellow", "beige", "rose"},
+    "yellow": {"yellow", "beige"},
+    "green": {"green"},
+    "cyan": {"blue"},
+    "blue": {"blue"},
+    "violet": {"violet", "rose"},
+    "magenta": {"violet", "rose"},
+    "white": {"white", "grey"},
+    "grey": {"grey", "white"},
+    "black": {"grey", "white"},
+}
+
 FRAME_LIBRARY = {
     "black_aluminum": {
         "id": "black_aluminum",
@@ -1517,18 +1531,54 @@ def signature_inner_color_strategy(image_analysis):
             "reason": "Signature: заметно отличающийся акцентный цвет не найден, используется резервный Museum White.",
         }
 
+    target_lab = color_lab(selected)
+    if target_lab is None:
+        return {
+            "mode": "fallback",
+            "base_color": selected,
+            "target_lab": None,
+            "excluded_families": set(),
+            "allowed_families": None,
+            "allowed_roles": None,
+            "adjustments": [],
+            "final_color": public_palette_color(MAT_COLOR_OPTIONS["museum_white"]),
+            "rejected_candidates": rejected_candidates,
+            "reason": "Signature: акцентный цвет невозможно перевести в LAB, используется резервный Museum White.",
+        }
+
+    allowed_families = placed_families_for_accent(selected)
+    if not palette_candidates(allowed_families=allowed_families):
+        return {
+            "mode": "family_fallback",
+            "base_color": selected,
+            "base_source": accent.get("source"),
+            "target_lab": target_lab,
+            "excluded_families": set(),
+            "allowed_families": allowed_families,
+            "allowed_roles": None,
+            "adjustments": [],
+            "final_color": public_palette_color(MAT_COLOR_OPTIONS["museum_white"]),
+            "rejected_candidates": rejected_candidates,
+            "reason": "Signature: для семейства акцентного цвета нет доступных цветов placed, используется резервный Museum White.",
+        }
+
     return {
         "mode": "direct_accent",
         "base_color": selected,
         "base_source": accent.get("source"),
-        "target_lab": color_lab(selected),
+        "target_lab": target_lab,
         "excluded_families": set(),
-        "allowed_families": None,
+        "allowed_families": allowed_families,
         "allowed_roles": None,
         "adjustments": [],
         "rejected_candidates": rejected_candidates,
-        "reason": "Signature: нижнее паспарту выбирается от первого акцентного кандидата, заметно отличающегося от основного и вторичного цветов.",
+        "reason": "Signature: нижнее паспарту выбирается от первого заметно отличающегося акцентного кандидата внутри родственных семейств placed.",
     }
+
+
+def placed_families_for_accent(color):
+    family = str((color or {}).get("family") or "").strip().lower()
+    return ACCENT_TO_MAT_FAMILIES.get(family, {"white"})
 
 
 def signature_distinct_accent(palette, accent, min_anchor_delta=24):
@@ -1601,20 +1651,28 @@ def normalize_visual_level(value):
 
 
 def nearest_palette_color(target_lab, excluded_families=None, allowed_families=None, allowed_roles=None):
+    candidates = palette_candidates(
+        excluded_families=excluded_families,
+        allowed_families=allowed_families,
+        allowed_roles=allowed_roles,
+    )
+    if not candidates:
+        candidates = list(PLACED_PALETTE.values())
+    candidates.sort(key=lambda color: (delta_e(target_lab, palette_lab(color)), palette_chroma(color)))
+    return candidates[0]
+
+
+def palette_candidates(excluded_families=None, allowed_families=None, allowed_roles=None):
     excluded_families = set(excluded_families or [])
     allowed_families = set(allowed_families or [])
     allowed_roles = set(allowed_roles or [])
-    candidates = [
+    return [
         color
         for color in PLACED_PALETTE.values()
         if color.get("family") not in excluded_families
         and (not allowed_families or color.get("family") in allowed_families)
         and (not allowed_roles or color.get("role") in allowed_roles)
     ]
-    if not candidates:
-        candidates = list(PLACED_PALETTE.values())
-    candidates.sort(key=lambda color: (delta_e(target_lab, palette_lab(color)), palette_chroma(color)))
-    return candidates[0]
 
 
 def color_lab(color):
@@ -1685,9 +1743,14 @@ def mat_color_reason(mat, decor_style, image_analysis):
             f"Signature: заметно отличающийся акцентный цвет не найден; нижнее паспарту использует резервный "
             f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
         )
+    if strategy.get("mode") == "family_fallback":
+        return (
+            f"Signature: для семейства акцентного цвета нет доступных цветов placed; нижнее паспарту использует резервный "
+            f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
+        )
     return (
         f"Signature: верхнее паспарту выбрано как Standard - {mat.outer_color['name']} ({mat.outer_color['hex']}); "
-        f"нижнее паспарту выбрано от заметно отличающегося акцентного кандидата через ближайший цвет placed - "
+        f"нижнее паспарту выбрано от заметно отличающегося акцентного кандидата внутри родственных семейств placed - "
         f"{mat.inner_color['name']} ({mat.inner_color['hex']})."
     )
 
@@ -1731,6 +1794,13 @@ def color_facts(mat, decor_style, image_analysis):
         base_color = strategy.get("base_color")
         if base_color and base_color is not selected:
             facts.append(f"Целевой акцент после проверки похожести: {color_fact(base_color)}.")
+        allowed_families = strategy.get("allowed_families")
+        if allowed_families:
+            facts.append(
+                "Разрешенные семейства placed для нижнего паспарту: "
+                + ", ".join(sorted(allowed_families))
+                + "."
+            )
         scores = accent.get("scores") if isinstance(accent, dict) else None
         if isinstance(scores, dict):
             facts.append(
