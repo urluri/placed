@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import { recommend, renderPreview } from "./api";
+import { getMlModelInfo, recommend, renderPreview } from "./api";
 import type {
   AccentAnalysis,
   ArtworkType,
@@ -11,6 +11,10 @@ import type {
   FormState,
   ImageInfo,
   InteriorStyle,
+  MatColor,
+  MatColorAnalyzer,
+  MlModelInfo,
+  MlColorCandidate,
   MatSizeConfig,
   Recommendation,
   SizeProfile,
@@ -41,25 +45,11 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 const decorStyles: DecorStyle[] = ["standard", "signature"];
 const matSizeDecorStyles: DecorStyle[] = ["standard"];
 const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
-const RENDER_STATUS_DURATION_MS = 1250;
-const renderingMessages = [
-  "Анализирую картинку",
-  "Считаю размеры",
-  "Любуюсь цветами",
-  "Ищу акценты",
-  "Ищу подходящую раму",
-  "Выбираю паспарту",
-  "Готовлю рендер",
-  "Ой, кое-что забыл",
-  "Шучу! Почти готово!",
-  "Сдуваю пыль",
+const matColorAnalyzerOptions: Array<{ value: MatColorAnalyzer; label: string }> = [
+  { value: "rules", label: "Правила" },
+  { value: "ml", label: "Машинное обучение" },
 ];
-
-function wait(durationMs: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, durationMs);
-  });
-}
+const allMatColorAnalyzers: MatColorAnalyzer[] = ["rules", "ml"];
 
 const sizeProfileLabels: Record<SizeProfile, string> = {
   small: "Малый",
@@ -171,19 +161,23 @@ export default function App() {
     imageInfo: null,
     artworkType: "poster",
     interiorStyle: "minimal",
+    matColorAnalyzer: "rules",
     image: null,
     rotationDegrees: 0,
     matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig),
   });
   const [selectedDecorStyle, setSelectedDecorStyle] = useState<DecorStyle>("standard");
-  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
-  const [previewUrls, setPreviewUrls] = useState<Partial<Record<DecorStyle, string>>>({});
+  const [selectedMatColorAnalyzers, setSelectedMatColorAnalyzers] = useState<MatColorAnalyzer[]>(["rules", "ml"]);
+  const [recommendations, setRecommendations] = useState<Partial<Record<MatColorAnalyzer, Recommendation>>>({});
+  const [previewUrls, setPreviewUrls] = useState<Partial<Record<MatColorAnalyzer, Partial<Record<DecorStyle, string>>>>>({});
+  const [mlInnerOverrideColorId, setMlInnerOverrideColorId] = useState<string | null>(null);
   const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showDecisionTree, setShowDecisionTree] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
+  const [mlModelInfo, setMlModelInfo] = useState<MlModelInfo | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "light";
     const savedTheme = window.localStorage.getItem("placed-theme");
@@ -213,12 +207,51 @@ export default function App() {
     window.localStorage.setItem("placed-theme", themeMode);
   }, [themeMode]);
 
+  useEffect(() => {
+    let isMounted = true;
+    let timeoutId: number | undefined;
+    let attempt = 0;
+
+    const loadInfo = () => {
+      void getMlModelInfo()
+        .then((info) => {
+          if (isMounted) setMlModelInfo(info);
+        })
+        .catch(() => {
+          attempt += 1;
+          if (!isMounted) return;
+          if (attempt < 5) {
+            timeoutId = window.setTimeout(loadInfo, 1500);
+            return;
+          }
+          setMlModelInfo({
+            available: false,
+            reason: "Не удалось прочитать метаданные ML-модели",
+            sample_count: 0,
+          });
+        });
+    };
+
+    loadInfo();
+    return () => {
+      isMounted = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  const primaryAnalyzer = selectedMatColorAnalyzers[0] ?? "rules";
+  const isSplitPreview = selectedMatColorAnalyzers.length > 1;
+  const recommendation = recommendations[primaryAnalyzer] ?? null;
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
   }, [recommendation, selectedDecorStyle]);
-  const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
+  const mlSignatureVariant = useMemo(() => {
+    return recommendations.ml?.variants.find((variant) => variant.decor_style === "signature") ?? null;
+  }, [recommendations.ml]);
+  const mlInnerCandidates = useMemo(() => mlInnerMatCandidates(mlSignatureVariant), [mlSignatureVariant]);
+  const currentInputSignature = useMemo(() => formInputSignature(form, selectedMatColorAnalyzers), [form, selectedMatColorAnalyzers]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
-  const currentPreviewUrl = previewUrls[selectedDecorStyle] ?? "";
+  const currentPreviewUrl = previewUrls[primaryAnalyzer]?.[selectedDecorStyle] ?? "";
   const isApplyDisabled = isRendering || !hasInputChanges;
   const imageAnalysis = recommendation?.image_analysis ?? null;
   const interiorScene = interiorScenes[form.interiorStyle];
@@ -244,7 +277,7 @@ export default function App() {
 
   const clearPreview = () => {
     setPreviewUrls((previousUrls) => {
-      revokePreviewUrls(previousUrls);
+      revokeAnalyzerPreviewUrls(previousUrls);
       return {};
     });
   };
@@ -253,7 +286,24 @@ export default function App() {
     requestId.current += 1;
     setIsRendering(false);
     setForm((current) => ({ ...current, ...patch }));
-    setRecommendation(null);
+    setRecommendations({});
+    setMlInnerOverrideColorId(null);
+    setShowDecisionTree(false);
+    clearPreview();
+    setRenderState("Нажмите «Применить»");
+  };
+
+  const handleMatColorAnalyzerToggle = (analyzer: MatColorAnalyzer) => {
+    requestId.current += 1;
+    setIsRendering(false);
+    setSelectedMatColorAnalyzers((current) => {
+      if (current.includes(analyzer)) {
+        return current.length === 1 ? current : current.filter((item) => item !== analyzer);
+      }
+      return allMatColorAnalyzers.filter((item) => [...current, analyzer].includes(item));
+    });
+    setRecommendations({});
+    setMlInnerOverrideColorId(null);
     setShowDecisionTree(false);
     clearPreview();
     setRenderState("Нажмите «Применить»");
@@ -411,86 +461,124 @@ export default function App() {
     updateForm({ matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig) });
   };
 
-  const playRenderStatusSequence = async (id: number) => {
-    for (const message of renderingMessages) {
-      if (id !== requestId.current) return false;
-      setRenderState(message);
-      await wait(RENDER_STATUS_DURATION_MS);
-    }
-    return id === requestId.current;
-  };
-
   const applyRender = async () => {
     const id = ++requestId.current;
     setIsRendering(true);
-    const statusSequence = playRenderStatusSequence(id);
+    setRenderState("");
+    const analyzersToRender: MatColorAnalyzer[] = selectedMatColorAnalyzers.length ? selectedMatColorAnalyzers : ["rules"];
 
     try {
-      const nextRecommendation = await recommend(form);
+      const recommendationEntries: Array<readonly [MatColorAnalyzer, Recommendation]> = [];
+      for (const analyzer of analyzersToRender) {
+        recommendationEntries.push([analyzer, await recommend(form, analyzer)] as const);
+      }
       if (id !== requestId.current) return;
+      const nextRecommendations = Object.fromEntries(recommendationEntries) as Partial<Record<MatColorAnalyzer, Recommendation>>;
+      const primaryRecommendation = nextRecommendations[analyzersToRender[0]];
       const nextVariant =
-        nextRecommendation.variants.find((variant) => variant.decor_style === selectedDecorStyle) ??
-        nextRecommendation.variants[0] ??
+        primaryRecommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ??
+        primaryRecommendation?.variants[0] ??
         null;
 
       if (!nextVariant) {
-        const didFinishStatuses = await statusSequence;
-        if (!didFinishStatuses) return;
         setRenderState("Нет варианта для рендера");
         return;
       }
 
-      const renderResults = await Promise.allSettled(
-        decorStyles.map(async (decorStyle) => {
-          const variant = nextRecommendation.variants.find((item) => item.decor_style === decorStyle) ?? null;
-          if (!variant) return null;
-          const blob = await renderPreview(form, decorStyle, variant);
-          return [decorStyle, URL.createObjectURL(blob)] as const;
-        }),
-      );
-      const renderedPreviews = renderResults
-        .filter((result): result is PromiseFulfilledResult<readonly [DecorStyle, string] | null> => result.status === "fulfilled")
-        .map((result) => result.value);
-      const failedRender = renderResults.find((result) => result.status === "rejected");
-      if (failedRender) {
-        for (const item of renderedPreviews) {
-          if (item) URL.revokeObjectURL(item[1]);
+      const renderedPreviews: Array<readonly [MatColorAnalyzer, DecorStyle, string]> = [];
+      try {
+        for (const analyzer of analyzersToRender) {
+            const analyzerRecommendation = nextRecommendations[analyzer];
+            for (const decorStyle of decorStyles) {
+              const variant = analyzerRecommendation?.variants.find((item) => item.decor_style === decorStyle) ?? null;
+              if (!variant) continue;
+            const blob = await renderPreview(form, decorStyle, variant, analyzer, analyzerRecommendation?.image_token);
+            renderedPreviews.push([analyzer, decorStyle, URL.createObjectURL(blob)] as const);
+          }
         }
-        throw failedRender.reason;
+      } catch (error) {
+        for (const item of renderedPreviews) {
+          URL.revokeObjectURL(item[2]);
+        }
+        throw error;
       }
       if (id !== requestId.current) {
         for (const item of renderedPreviews) {
-          if (item) URL.revokeObjectURL(item[1]);
+          URL.revokeObjectURL(item[2]);
         }
         return;
       }
 
-      const nextPreviewUrls: Partial<Record<DecorStyle, string>> = {};
+      const nextPreviewUrls: Partial<Record<MatColorAnalyzer, Partial<Record<DecorStyle, string>>>> = {};
       for (const item of renderedPreviews) {
-        if (item) nextPreviewUrls[item[0]] = item[1];
+        const [analyzer, decorStyle, previewUrl] = item;
+        nextPreviewUrls[analyzer] = {
+          ...(nextPreviewUrls[analyzer] ?? {}),
+          [decorStyle]: previewUrl,
+        };
       }
 
-      const didFinishStatuses = await statusSequence;
-      if (!didFinishStatuses) {
-        revokePreviewUrls(nextPreviewUrls);
-        return;
-      }
-
-      setRecommendation(nextRecommendation);
+      setRecommendations(nextRecommendations);
+      setMlInnerOverrideColorId(null);
       setPreviewUrls((previousUrls) => {
-        revokePreviewUrls(previousUrls);
+        revokeAnalyzerPreviewUrls(previousUrls);
         return nextPreviewUrls;
       });
       setAppliedInputSignature(currentInputSignature);
-      setRenderState("Готово");
-      window.setTimeout(() => {
-        if (id === requestId.current) setRenderState("");
-      }, 900);
+      setRenderState("");
     } catch (error) {
       if (id !== requestId.current) return;
-      await statusSequence;
-      if (id !== requestId.current) return;
       setRenderState(error instanceof Error ? error.message : "Ошибка рендера");
+    } finally {
+      if (id === requestId.current) setIsRendering(false);
+    }
+  };
+
+  const handleMlInnerCandidateSelect = async (candidate: MlColorCandidate) => {
+    const color = candidate.color ?? null;
+    const currentMlRecommendation = recommendations.ml;
+    const currentVariant = currentMlRecommendation?.variants.find((variant) => variant.decor_style === "signature") ?? null;
+    if (!color || !currentMlRecommendation || !currentVariant?.mat?.enabled) return;
+
+    const id = ++requestId.current;
+    const updatedVariant = withInnerMatColor(currentVariant, color);
+    setIsRendering(true);
+    setRenderState("");
+    setSelectedDecorStyle("signature");
+    setMlInnerOverrideColorId(color.id);
+    setRecommendations((current) => ({
+      ...current,
+      ml: current.ml
+        ? {
+            ...current.ml,
+            variants: current.ml.variants.map((variant) =>
+              variant.decor_style === "signature" ? updatedVariant : variant,
+            ),
+          }
+        : current.ml,
+    }));
+
+    try {
+      const blob = await renderPreview(form, "signature", updatedVariant, "ml", currentMlRecommendation.image_token);
+      if (id !== requestId.current) {
+        return;
+      }
+      const nextUrl = URL.createObjectURL(blob);
+      setPreviewUrls((previousUrls) => {
+        const previousMlSignatureUrl = previousUrls.ml?.signature;
+        if (previousMlSignatureUrl) URL.revokeObjectURL(previousMlSignatureUrl);
+        return {
+          ...previousUrls,
+          ml: {
+            ...(previousUrls.ml ?? {}),
+            signature: nextUrl,
+          },
+        };
+      });
+    } catch (error) {
+      if (id === requestId.current) {
+        setRenderState(error instanceof Error ? error.message : "Не удалось применить ML-кандидат");
+      }
     } finally {
       if (id === requestId.current) setIsRendering(false);
     }
@@ -697,6 +785,11 @@ export default function App() {
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
           />
 
+          <AnalyzerCheckboxGroup
+            selected={selectedMatColorAnalyzers}
+            onToggle={handleMatColorAnalyzerToggle}
+          />
+
           <details className="debug-panel">
             <summary>Отладка</summary>
             <div className="debug-section">
@@ -761,6 +854,16 @@ export default function App() {
               <span>Интерьер</span>
               <strong>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</strong>
             </div>
+            <div className="preview-meta-row">
+              <span>Анализатор</span>
+              <strong>{selectedMatColorAnalyzers.map(matColorAnalyzerLabel).join(" / ")}</strong>
+            </div>
+            <div className="preview-meta-row">
+              <span>ML-модель</span>
+              <strong className={mlModelInfo?.available ? "ml-model-badge" : "ml-model-badge is-unavailable"}>
+                {mlModelInfoLabel(mlModelInfo)}
+              </strong>
+            </div>
           </div>
           <div className="preview-mode-panel">
             <nav className="variant-tabs" aria-label="Варианты оформления">
@@ -804,22 +907,69 @@ export default function App() {
           </div>
         </div>
         <div
-          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"}`}
+          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"} ${isSplitPreview ? "split-preview" : ""}`}
           style={previewSurfaceStyle}
         >
-          {currentPreviewUrl && (
+          {isSplitPreview ? (
+            <div className="split-preview-grid" aria-label="Сравнение анализаторов">
+              {selectedMatColorAnalyzers.map((analyzer) => {
+                const previewUrl = previewUrls[analyzer]?.[selectedDecorStyle] ?? "";
+                const splitVariant = recommendations[analyzer]?.variants.find(
+                  (variant) => variant.decor_style === selectedDecorStyle,
+                );
+                const splitScale = splitVariant ? scaleInteriorArtwork(splitVariant.geometry.outer_width_mm) : null;
+                const splitImageStyle: CSSProperties | undefined = showInteriorPreview
+                  ? {
+                      left: `${interiorSceneScale.artworkCenterXPercent}%`,
+                      top: `${interiorSceneScale.artworkCenterYPercent}%`,
+                      width: `${splitScale?.widthPercent ?? interiorSceneScale.minArtworkWidthPercent}%`,
+                    }
+                  : undefined;
+
+                return (
+                  <div
+                    key={analyzer}
+                    className={`split-preview-pane ${showInteriorPreview ? "is-interior" : "is-plain"}`}
+                    style={showInteriorPreview ? previewSurfaceStyle : undefined}
+                  >
+                    <span className="split-preview-label">{matColorAnalyzerLabel(analyzer)}</span>
+                    {previewUrl && (
+                      <img
+                        className="framed-art-preview split-preview-image"
+                        src={previewUrl}
+                        alt={`Превью оформления: ${matColorAnalyzerLabel(analyzer)}`}
+                        style={splitImageStyle}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : currentPreviewUrl ? (
             <img
               className="framed-art-preview"
               src={currentPreviewUrl}
               alt="Превью оформления"
               style={previewImageStyle}
             />
+          ) : null}
+          {isRendering && (
+            <div className="render-loader" aria-label="Рендер выполняется">
+              <FramingLoader />
+            </div>
           )}
-          <div className={`render-state ${renderState ? "is-visible" : ""} ${isRendering ? "is-loading" : ""}`}>
-            {isRendering && <FramingLoader />}
-            <span>{renderState}</span>
-          </div>
+          {renderState && !isRendering && <div className="render-error">{renderState}</div>}
         </div>
+        {selectedDecorStyle === "signature" && mlInnerCandidates.length > 0 && (
+          <MlInnerCandidatePanel
+            candidates={mlInnerCandidates}
+            activeColorId={mlInnerOverrideColorId ?? mlSignatureVariant?.mat?.inner_color?.id ?? null}
+            disabled={isRendering}
+            onSelect={(candidate) => {
+              void handleMlInnerCandidateSelect(candidate);
+            }}
+          />
+        )}
         <div className="result-panel">
           <details className="result-details">
             <summary>Параметры итогового оформления</summary>
@@ -900,6 +1050,36 @@ function SelectField<T extends string>({
   );
 }
 
+function AnalyzerCheckboxGroup({
+  selected,
+  onToggle,
+}: {
+  selected: MatColorAnalyzer[];
+  onToggle: (value: MatColorAnalyzer) => void;
+}) {
+  return (
+    <fieldset className="analyzer-field">
+      <legend>Цвет паспарту</legend>
+      <div className="analyzer-checkboxes">
+        {matColorAnalyzerOptions.map((option) => {
+          const checked = selected.includes(option.value);
+          return (
+            <label key={option.value} className={checked ? "is-active" : ""}>
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={checked && selected.length === 1}
+                onChange={() => onToggle(option.value)}
+              />
+              <span>{option.label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 function SpecItem({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
@@ -926,6 +1106,51 @@ function PaletteChip({ label, color }: { label: string; color?: ColorSample | nu
       <div className="color-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
       <span>{color ? `${label}: ${color.hex}` : `${label}: —`}</span>
     </div>
+  );
+}
+
+function MlInnerCandidatePanel({
+  candidates,
+  activeColorId,
+  disabled,
+  onSelect,
+}: {
+  candidates: MlColorCandidate[];
+  activeColorId: string | null;
+  disabled: boolean;
+  onSelect: (candidate: MlColorCandidate) => void;
+}) {
+  return (
+    <section className="ml-candidate-panel" aria-label="ML-кандидаты цвета нижнего паспарту">
+      <div>
+        <strong>ML-кандидаты нижнего паспарту</strong>
+        <span>Нажмите на цвет, чтобы применить его в ML-превью</span>
+      </div>
+      <div className="ml-candidate-list">
+        {candidates.map((candidate, index) => {
+          const color = candidate.color;
+          const isActive = Boolean(color?.id && color.id === activeColorId);
+          return (
+            <button
+              key={`${candidate.color_id}-${index}`}
+              type="button"
+              className={isActive ? "is-active" : ""}
+              disabled={disabled || !color}
+              onClick={() => onSelect(candidate)}
+            >
+              <span className="ml-candidate-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
+              <span>
+                <strong>{color ? color.name : candidate.color_id}</strong>
+                <small>
+                  {color?.hex ?? candidate.color_id}
+                  {typeof candidate.vote_share === "number" ? ` · ${Math.round(candidate.vote_share * 100)}%` : ""}
+                </small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -1057,6 +1282,40 @@ function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | unde
   ].join(" / ");
 }
 
+function matColorAnalyzerLabel(value: MatColorAnalyzer) {
+  return value === "ml" ? "ML" : "Правила";
+}
+
+function mlModelInfoLabel(info: MlModelInfo | null) {
+  if (!info) return "загрузка";
+  if (!info.available) return info.reason ?? "не обучена";
+
+  const version = info.model_version ? `v${info.model_version}` : "v?";
+  const sampleCount = info.sample_count ?? 0;
+  return `${sampleCount} прим. · ${version}`;
+}
+
+function mlInnerMatCandidates(variant: Recommendation["variants"][number] | null): MlColorCandidate[] {
+  const top = variant?.mat?.ml_prediction?.predictions?.inner_mat_color_id?.top ?? [];
+  return top.filter((candidate) => candidate.color?.id && candidate.color?.hex).slice(0, 3);
+}
+
+function withInnerMatColor(variant: Recommendation["variants"][number], color: MatColor): Recommendation["variants"][number] {
+  if (!variant.mat) return variant;
+  return {
+    ...variant,
+    mat: {
+      ...variant.mat,
+      inner_color: {
+        id: color.id,
+        name: color.name,
+        hex: color.hex,
+      },
+      color_source: "ml_candidate_override",
+    },
+  };
+}
+
 function formatMetric(value: number | undefined) {
   return typeof value === "number" ? String(value) : "—";
 }
@@ -1078,7 +1337,7 @@ function cloneMatSizeConfig(config: MatSizeConfig): MatSizeConfig {
   };
 }
 
-function formInputSignature(form: FormState) {
+function formInputSignature(form: FormState, matColorAnalyzers: MatColorAnalyzer[]) {
   return JSON.stringify({
     image: form.image
       ? {
@@ -1096,6 +1355,7 @@ function formInputSignature(form: FormState) {
     imageInfo: form.imageInfo,
     artworkType: form.artworkType,
     interiorStyle: form.interiorStyle,
+    matColorAnalyzers,
     rotationDegrees: form.rotationDegrees,
     matSizeConfig: form.matSizeConfig,
   });
@@ -1104,6 +1364,12 @@ function formInputSignature(form: FormState) {
 function revokePreviewUrls(previewUrls: Partial<Record<DecorStyle, string>>) {
   for (const previewUrl of Object.values(previewUrls)) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }
+}
+
+function revokeAnalyzerPreviewUrls(previewUrls: Partial<Record<MatColorAnalyzer, Partial<Record<DecorStyle, string>>>>) {
+  for (const analyzerPreviewUrls of Object.values(previewUrls)) {
+    if (analyzerPreviewUrls) revokePreviewUrls(analyzerPreviewUrls);
   }
 }
 

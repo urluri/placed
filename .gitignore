@@ -11,6 +11,8 @@ frontend/dist/
 frontend/.vite/
 frontend/tsconfig.tsbuildinfo
 
+backend/app/data/
+
 output.jpg
 mvp_check.jpg
 api_render_check.jpg

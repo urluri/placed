@@ -113,5 +113,6 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     # Keep geometry, colors, artwork, and textures only. Re-enable effects step by step.
     _ = (glass_type, frame, mat_px if has_mat else 0, window_rect)
 
-    canvas.save(output_path, quality=96, subsampling=0)
+    if output_path:
+        canvas.save(output_path, quality=96, subsampling=0)
     return canvas

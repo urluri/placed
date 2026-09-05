@@ -1,15 +1,16 @@
-import type { DecorStyle, DecorationVariant, FormState, Recommendation } from "./types";
+import type { DecorStyle, DecorationVariant, FormState, MatColorAnalyzer, MlModelInfo, Recommendation } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
 
-export async function recommend(form: FormState): Promise<Recommendation> {
+export async function recommend(form: FormState, matColorAnalyzer: MatColorAnalyzer = form.matColorAnalyzer): Promise<Recommendation> {
+  const payload = toPayload(form, matColorAnalyzer);
   const response = await fetch(`${API_BASE}/api/recommend`, {
     method: "POST",
     cache: "no-store",
     headers: {
       "Cache-Control": "no-cache",
     },
-    body: toPayload(form),
+    body: payload,
   });
 
   if (!response.ok) {
@@ -23,9 +24,14 @@ export async function renderPreview(
   form: FormState,
   decorStyle: DecorStyle,
   variant: DecorationVariant | null,
+  matColorAnalyzer: MatColorAnalyzer = form.matColorAnalyzer,
+  imageToken?: string,
 ): Promise<Blob> {
-  const payload = toPayload(form);
+  const payload = toPayload(form, matColorAnalyzer);
   payload.set("decorStyle", decorStyle);
+  if (imageToken) {
+    payload.set("imageToken", imageToken);
+  }
   if (variant) {
     payload.set("spec", JSON.stringify(variant));
   }
@@ -46,12 +52,29 @@ export async function renderPreview(
   return response.blob();
 }
 
-function toPayload(form: FormState) {
+export async function getMlModelInfo(): Promise<MlModelInfo> {
+  const response = await fetch(`${API_BASE}/api/ml/status`, {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, "Не удалось прочитать версию ML-модели"));
+  }
+
+  return response.json();
+}
+
+function toPayload(form: FormState, matColorAnalyzer: MatColorAnalyzer) {
   const payload = new FormData();
   payload.set("widthMm", String(dimensionOrDefault(form.widthMm, 300)));
   payload.set("heightMm", String(dimensionOrDefault(form.heightMm, 400)));
   payload.set("artworkType", form.artworkType);
   payload.set("interiorStyle", form.interiorStyle);
+  payload.set("matColorAnalyzer", matColorAnalyzer);
   payload.set("rotateArtwork", String(form.rotationDegrees !== 0));
   payload.set("rotationDegrees", String(form.rotationDegrees));
   payload.set("matSizeConfig", JSON.stringify(form.matSizeConfig));

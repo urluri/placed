@@ -130,17 +130,15 @@ PaletteColor:
 | PB307 | Mushroom | `#B8AA9C` | beige | `soft_neutral` |
 | PB308 | Camel | `#B6946A` | beige | `soft_neutral` |
 
-## Землистые
+## Землистые и терракотовые
 
-Землистые оттенки временно исключены из рабочей палитры placed и не участвуют в подборе паспарту.
+Эти оттенки участвуют в рабочей палитре placed как плотные цветные варианты. В алгоритме они относятся к семейству `rose`, потому что используются как близкие к красно-терракотовым и винным акцентам, а не как базовые бежевые нейтрали.
 
-Исключенные HEX:
-
-- `#B76545`
-- `#A26A4A`
-- `#7C5A46`
-- `#7A6756`
-- `#77523D`
+| Код | Название | HEX | Семейство | Роль |
+| --- | --- | --- | --- | --- |
+| PE401 | Terracotta | `#B76545` | rose | `deep_color` |
+| SD003 | Burnt Terracotta | `#985A43` | rose | `deep_color` |
+| SD004 | Deep Clay | `#8A5948` | rose | `deep_color` |
 
 ## Зеленые
 
@@ -153,6 +151,8 @@ PaletteColor:
 | PG506 | Khaki | `#8C8762` | green | `soft_color` |
 | PG507 | Lichen | `#B2B59A` | green | `soft_color` |
 | PG508 | Dusty Olive | `#7A785C` | green | `deep_color` |
+| SD005 | Deep Olive | `#5F6348` | green | `deep_color` |
+| SD006 | Forest Green | `#526556` | green | `deep_color` |
 
 ## Голубые
 
@@ -164,6 +164,8 @@ PaletteColor:
 | PB604 | Blue Grey | `#8B99A3` | blue | `soft_color` |
 | PB607 | Ocean Mist | `#A8BCC3` | blue | `soft_color` |
 | PB608 | Ice Blue | `#D7E2E7` | blue | `soft_color` |
+| SD007 | Deep Petrol | `#496873` | blue | `deep_color` |
+| SD008 | Deep Teal | `#45615F` | blue | `deep_color` |
 
 ## Синие
 
@@ -179,6 +181,8 @@ PaletteColor:
 | PR804 | Mauve | `#B799A6` | rose | `soft_color` |
 | PR805 | Old Rose | `#A97E7A` | rose | `soft_color` |
 | PR806 | Rose Clay | `#B98D82` | rose | `soft_color` |
+| SD001 | Wine | `#6E3F46` | rose | `deep_color` |
+| SD002 | Bordeaux | `#743E48` | rose | `deep_color` |
 
 ## Фиолетовые
 
@@ -187,6 +191,7 @@ PaletteColor:
 | PV901 | Lavender Grey | `#B4A9B9` | violet | `soft_color` |
 | PV902 | Heather | `#A58FA5` | violet | `soft_color` |
 | PV903 | Dusty Lilac | `#9D8BA7` | violet | `soft_color` |
+| SD009 | Plum | `#695764` | violet | `deep_color` |
 
 ## Желтые
 
@@ -195,6 +200,7 @@ PaletteColor:
 | PY1001 | Sand Yellow | `#D6BE78` | yellow | `accent` |
 | PY1002 | Wheat | `#D3B57C` | yellow | `accent` |
 | PY1003 | Ochre | `#C39A49` | yellow | `accent` |
+| SD010 | Deep Ochre | `#92733E` | yellow | `accent` |
 
 ## Замечания для реализации
 

@@ -9,6 +9,7 @@ export type InteriorStyle =
   | "neoclassic"
   | "universal";
 export type DecorStyle = "standard" | "signature";
+export type MatColorAnalyzer = "rules" | "ml";
 export type SizeSource = "manual" | "from_file";
 export type SizeProfile = "small" | "medium" | "large" | "extra_large";
 
@@ -59,6 +60,42 @@ export type MatColor = {
   hex: string;
 };
 
+export type MlColorCandidate = {
+  color_id: string;
+  color?: MatColor | null;
+  vote_share?: number;
+};
+
+export type MlTargetPrediction = {
+  color_id: string | null;
+  color?: MatColor | null;
+  confidence?: "low" | "medium" | "high";
+  weight?: number;
+  vote_share?: number;
+  evidence?: number[];
+  top?: MlColorCandidate[];
+};
+
+export type MlPrediction = {
+  available: boolean;
+  model_version?: number;
+  trained_at?: string;
+  sample_count?: number;
+  predictions?: Partial<Record<"outer_mat_color_id" | "inner_mat_color_id", MlTargetPrediction>>;
+  neighbors?: unknown[];
+};
+
+export type MlModelInfo = {
+  available: boolean;
+  reason?: string;
+  type?: string;
+  model_version?: number | null;
+  trained_at?: string | null;
+  sample_count?: number;
+  target_counts?: Partial<Record<"outer_mat_color_id" | "inner_mat_color_id", Record<string, number>>>;
+  palette_size?: number;
+};
+
 export type MatSpec = {
   enabled: boolean;
   outer_color: MatColor | null;
@@ -73,6 +110,9 @@ export type MatSpec = {
   inner_reveal_right_mm: number;
   inner_reveal_top_mm: number;
   inner_reveal_bottom_mm: number;
+  color_analyzer?: MatColorAnalyzer;
+  color_source?: string;
+  ml_prediction?: MlPrediction | null;
 };
 
 export type FrameSpec = {
@@ -124,6 +164,7 @@ export type DecorationVariant = {
 };
 
 export type Recommendation = {
+  image_token?: string;
   image_analysis: {
     palette: {
       primary: ColorSample | null;
@@ -146,6 +187,7 @@ export type Recommendation = {
     };
   };
   variants: DecorationVariant[];
+  mat_color_analyzer?: MatColorAnalyzer;
 };
 
 export type FormState = {
@@ -157,6 +199,7 @@ export type FormState = {
   imageInfo: ImageInfo | null;
   artworkType: ArtworkType;
   interiorStyle: InteriorStyle;
+  matColorAnalyzer: MatColorAnalyzer;
   image: File | null;
   rotationDegrees: -90 | 0 | 90;
   matSizeConfig: MatSizeConfig;

@@ -3,11 +3,17 @@ from enum import Enum
 from math import sqrt
 
 from .image_analysis import analyze_image
+from .mat_ml import predict_mat_colors
 
 
 class DecorStyle(str, Enum):
     standard = "standard"
     signature = "signature"
+
+
+class MatColorAnalyzer(str, Enum):
+    rules = "rules"
+    ml = "ml"
 
 
 SIZE_PROFILE_LABELS = {
@@ -96,24 +102,35 @@ PLACED_PALETTE = {
     "PG506": {"id": "PG506", "name": "Khaki", "hex": "#8C8762", "family": "green", "role": "soft_color"},
     "PG507": {"id": "PG507", "name": "Lichen", "hex": "#B2B59A", "family": "green", "role": "soft_color"},
     "PG508": {"id": "PG508", "name": "Dusty Olive", "hex": "#7A785C", "family": "green", "role": "deep_color"},
+    "SD005": {"id": "SD005", "name": "Deep Olive", "hex": "#5F6348", "family": "green", "role": "deep_color"},
+    "SD006": {"id": "SD006", "name": "Forest Green", "hex": "#526556", "family": "green", "role": "deep_color"},
     "PB601": {"id": "PB601", "name": "Dusty Blue", "hex": "#8FA7B5", "family": "blue", "role": "soft_color"},
     "PB602": {"id": "PB602", "name": "Mist Blue", "hex": "#B5C2C9", "family": "blue", "role": "soft_color"},
     "PB603": {"id": "PB603", "name": "Steel Blue", "hex": "#758A98", "family": "blue", "role": "soft_color"},
     "PB604": {"id": "PB604", "name": "Blue Grey", "hex": "#8B99A3", "family": "blue", "role": "soft_color"},
     "PB607": {"id": "PB607", "name": "Ocean Mist", "hex": "#A8BCC3", "family": "blue", "role": "soft_color"},
     "PB608": {"id": "PB608", "name": "Ice Blue", "hex": "#D7E2E7", "family": "blue", "role": "soft_color"},
+    "SD007": {"id": "SD007", "name": "Deep Petrol", "hex": "#496873", "family": "blue", "role": "deep_color"},
+    "SD008": {"id": "SD008", "name": "Deep Teal", "hex": "#45615F", "family": "blue", "role": "deep_color"},
     "PR801": {"id": "PR801", "name": "Dusty Rose", "hex": "#C49A96", "family": "rose", "role": "soft_color"},
     "PR802": {"id": "PR802", "name": "Blush", "hex": "#D9BBB3", "family": "rose", "role": "soft_color"},
     "PR803": {"id": "PR803", "name": "Nude Pink", "hex": "#D8B3A5", "family": "rose", "role": "soft_color"},
     "PR804": {"id": "PR804", "name": "Mauve", "hex": "#B799A6", "family": "rose", "role": "soft_color"},
     "PR805": {"id": "PR805", "name": "Old Rose", "hex": "#A97E7A", "family": "rose", "role": "soft_color"},
     "PR806": {"id": "PR806", "name": "Rose Clay", "hex": "#B98D82", "family": "rose", "role": "soft_color"},
+    "SD001": {"id": "SD001", "name": "Wine", "hex": "#6E3F46", "family": "rose", "role": "deep_color"},
+    "SD002": {"id": "SD002", "name": "Bordeaux", "hex": "#743E48", "family": "rose", "role": "deep_color"},
+    "PE401": {"id": "PE401", "name": "Terracotta", "hex": "#B76545", "family": "rose", "role": "deep_color"},
+    "SD003": {"id": "SD003", "name": "Burnt Terracotta", "hex": "#985A43", "family": "rose", "role": "deep_color"},
+    "SD004": {"id": "SD004", "name": "Deep Clay", "hex": "#8A5948", "family": "rose", "role": "deep_color"},
     "PV901": {"id": "PV901", "name": "Lavender Grey", "hex": "#B4A9B9", "family": "violet", "role": "soft_color"},
     "PV902": {"id": "PV902", "name": "Heather", "hex": "#A58FA5", "family": "violet", "role": "soft_color"},
     "PV903": {"id": "PV903", "name": "Dusty Lilac", "hex": "#9D8BA7", "family": "violet", "role": "soft_color"},
+    "SD009": {"id": "SD009", "name": "Plum", "hex": "#695764", "family": "violet", "role": "deep_color"},
     "PY1001": {"id": "PY1001", "name": "Sand Yellow", "hex": "#D6BE78", "family": "yellow", "role": "accent"},
     "PY1002": {"id": "PY1002", "name": "Wheat", "hex": "#D3B57C", "family": "yellow", "role": "accent"},
     "PY1003": {"id": "PY1003", "name": "Ochre", "hex": "#C39A49", "family": "yellow", "role": "accent"},
+    "SD010": {"id": "SD010", "name": "Deep Ochre", "hex": "#92733E", "family": "yellow", "role": "accent"},
 }
 
 DEFAULT_MAT_COLOR = PLACED_PALETTE["PW003"]
@@ -351,6 +368,9 @@ class MatSpec:
     inner_reveal_right_mm: int = 0
     inner_reveal_top_mm: int = 0
     inner_reveal_bottom_mm: int = 0
+    color_analyzer: str = MatColorAnalyzer.rules.value
+    color_source: str = "rules"
+    ml_prediction: dict | None = None
 
 
 @dataclass
@@ -393,30 +413,60 @@ def build_decoration_set(
     artwork_type,
     interior_style,
     mat_size_config=None,
+    mat_color_analyzer=MatColorAnalyzer.rules.value,
 ):
     width = clamp_int(artwork_width_mm, 50, 3000)
     height = clamp_int(artwork_height_mm, 50, 3000)
     image_analysis = analyze_image(image_path)
     mat_size_config = normalize_mat_size_config(mat_size_config)
+    mat_color_analyzer = normalize_mat_color_analyzer(mat_color_analyzer)
 
     variants = [
-        build_placeholder_variant(DecorStyle.standard.value, width, height, artwork_type, interior_style, image_analysis, mat_size_config),
-        build_placeholder_variant(DecorStyle.signature.value, width, height, artwork_type, interior_style, image_analysis, mat_size_config),
+        build_placeholder_variant(
+            DecorStyle.standard.value,
+            width,
+            height,
+            artwork_type,
+            interior_style,
+            image_analysis,
+            mat_size_config,
+            mat_color_analyzer,
+        ),
+        build_placeholder_variant(
+            DecorStyle.signature.value,
+            width,
+            height,
+            artwork_type,
+            interior_style,
+            image_analysis,
+            mat_size_config,
+            mat_color_analyzer,
+        ),
     ]
 
     return {
         "image_analysis": image_analysis,
+        "mat_color_analyzer": mat_color_analyzer,
         "variants": [serialize_dataclass(variant) for variant in variants],
     }
 
 
-def build_placeholder_variant(decor_style, width, height, artwork_type, interior_style, image_analysis, mat_size_config):
+def build_placeholder_variant(decor_style, width, height, artwork_type, interior_style, image_analysis, mat_size_config, mat_color_analyzer):
     normalized_type = normalize_artwork_type(artwork_type)
     size_profile = classify_size_profile(width, height)
     constructive = constructive_decision(normalized_type, size_profile, image_analysis)
     frame_decision = build_frame_decision(normalized_type, interior_style, size_profile, image_analysis)
     frame = frame_decision["frame"]
-    mat = build_mat_spec(constructive["mat_enabled"], decor_style, size_profile, width, height, image_analysis, mat_size_config)
+    mat = build_mat_spec(
+        constructive["mat_enabled"],
+        decor_style,
+        size_profile,
+        width,
+        height,
+        image_analysis,
+        mat_size_config,
+        mat_color_analyzer,
+    )
     glass = GlassSpec(type=constructive["glass_type"], required=constructive["glass_required"])
     geometry = build_geometry(width, height, frame.width_mm, mat, size_profile)
 
@@ -445,6 +495,7 @@ def build_placeholder_variant(decor_style, width, height, artwork_type, interior
                     f"Размерный профиль: {SIZE_PROFILE_LABELS[size_profile]}.",
                     f"Стиль интерьера: {interior_style}.",
                     f"Вариант оформления: {decor_style}.",
+                    f"Анализатор цвета паспарту: {mat_color_analyzer}.",
                 ],
             },
             {
@@ -1339,7 +1390,7 @@ def constructive_decision(artwork_type, size_profile, image_analysis):
     }
 
 
-def build_mat_spec(enabled, decor_style, size_profile, width, height, image_analysis, mat_size_config=None):
+def build_mat_spec(enabled, decor_style, size_profile, width, height, image_analysis, mat_size_config=None, mat_color_analyzer=MatColorAnalyzer.rules.value):
     if not enabled:
         return MatSpec(
             enabled=False,
@@ -1355,13 +1406,18 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
             inner_reveal_right_mm=0,
             inner_reveal_top_mm=0,
             inner_reveal_bottom_mm=0,
+            color_analyzer=normalize_mat_color_analyzer(mat_color_analyzer),
+            color_source="none",
+            ml_prediction=None,
         )
 
     mat_size_config = normalize_mat_size_config(mat_size_config)
+    mat_color_analyzer = normalize_mat_color_analyzer(mat_color_analyzer)
     size_style = mat_size_style_for_geometry(decor_style)
     base_size = mat_base_size(width, height, size_style, size_profile, mat_size_config)
     bottom_size = int(round(base_size * 1.1))
-    inner_color = signature_inner_mat_color(image_analysis) if decor_style == DecorStyle.signature.value else None
+    colors = mat_colors_for_analyzer(decor_style, image_analysis, mat_color_analyzer)
+    inner_color = colors["inner_color"]
     if inner_color:
         inner_reveal_left = signature_inner_reveal(base_size)
         inner_reveal_right = signature_inner_reveal(base_size)
@@ -1382,7 +1438,7 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
 
     return MatSpec(
         enabled=True,
-        outer_color=mat_color_for_variant(decor_style, image_analysis),
+        outer_color=colors["outer_color"],
         inner_color=inner_color,
         left_mm=left_size,
         right_mm=right_size,
@@ -1394,6 +1450,9 @@ def build_mat_spec(enabled, decor_style, size_profile, width, height, image_anal
         inner_reveal_right_mm=inner_reveal_right,
         inner_reveal_top_mm=inner_reveal_top,
         inner_reveal_bottom_mm=inner_reveal_bottom,
+        color_analyzer=mat_color_analyzer,
+        color_source=colors["source"],
+        ml_prediction=colors.get("ml_prediction"),
     )
 
 
@@ -1469,6 +1528,38 @@ def normalize_optional_mm(value):
 
 def mat_color_warm_white():
     return public_palette_color(DEFAULT_MAT_COLOR)
+
+
+def mat_colors_for_analyzer(decor_style, image_analysis, mat_color_analyzer):
+    rules_outer = mat_color_for_variant(decor_style, image_analysis)
+    rules_inner = signature_inner_mat_color(image_analysis) if decor_style == DecorStyle.signature.value else None
+    if mat_color_analyzer != MatColorAnalyzer.ml.value:
+        return {
+            "outer_color": rules_outer,
+            "inner_color": rules_inner,
+            "source": "rules",
+            "ml_prediction": None,
+        }
+
+    prediction = predict_mat_colors(image_analysis, decor_style, PLACED_PALETTE)
+    outer_color = color_from_ml_prediction(prediction, "outer_mat_color_id") or rules_outer
+    inner_color = rules_inner
+    if decor_style == DecorStyle.signature.value:
+        inner_color = color_from_ml_prediction(prediction, "inner_mat_color_id") or rules_inner
+
+    return {
+        "outer_color": outer_color,
+        "inner_color": inner_color,
+        "source": "ml" if prediction.get("available") else "rules_fallback",
+        "ml_prediction": prediction,
+    }
+
+
+def color_from_ml_prediction(prediction, target):
+    color_id = prediction.get("predictions", {}).get(target, {}).get("color_id")
+    if not color_id or color_id not in PLACED_PALETTE:
+        return None
+    return public_palette_color(PLACED_PALETTE[color_id])
 
 
 def mat_color_for_variant(decor_style, image_analysis):
@@ -1735,6 +1826,21 @@ def public_palette_color(color):
 def mat_color_reason(mat, decor_style, image_analysis):
     if not mat.enabled:
         return "Цвет паспарту не рассчитывается."
+    if mat.color_analyzer == MatColorAnalyzer.ml.value:
+        prediction = mat.ml_prediction or {}
+        if not prediction.get("available"):
+            return (
+                "ML-анализатор выбран, но модель недоступна; "
+                f"цвета паспарту рассчитаны правилами: верхнее {mat.outer_color['name']} ({mat.outer_color['hex']})"
+                + (f", нижнее {mat.inner_color['name']} ({mat.inner_color['hex']})" if mat.inner_color else "")
+                + "."
+            )
+        return (
+            f"ML-анализатор: цвет паспарту выбран k-NN моделью по {prediction.get('sample_count', 0)} размеченным примерам: "
+            f"верхнее {mat.outer_color['name']} ({mat.outer_color['hex']})"
+            + (f", нижнее {mat.inner_color['name']} ({mat.inner_color['hex']})" if mat.inner_color else "")
+            + "."
+        )
     if decor_style == DecorStyle.standard.value:
         return f"Standard: выбран {mat.outer_color['name']} ({mat.outer_color['hex']}) по таблице цвета паспарту."
     strategy = signature_inner_color_strategy(image_analysis)
@@ -1759,6 +1865,10 @@ def color_facts(mat, decor_style, image_analysis):
     facts = ["Цвет рамы зафиксирован как #000000."]
     if not mat.enabled:
         facts.append("Паспарту не используется, цвет не выбирается.")
+        return facts
+
+    if mat.color_analyzer == MatColorAnalyzer.ml.value:
+        facts.extend(ml_color_facts(mat))
         return facts
 
     facts.extend(
@@ -1820,6 +1930,48 @@ def color_facts(mat, decor_style, image_analysis):
             )
         facts.append(f"Цвет нижнего паспарту: {mat.inner_color['name']} ({mat.inner_color['hex']}).")
     return facts
+
+
+def ml_color_facts(mat):
+    prediction = mat.ml_prediction or {}
+    facts = [
+        f"Анализатор цвета паспарту: {mat.color_analyzer}.",
+        f"Источник цвета паспарту: {mat.color_source}.",
+        f"Цвет верхнего паспарту: {mat.outer_color['name']} ({mat.outer_color['hex']}).",
+    ]
+    if mat.inner_color:
+        facts.append(f"Цвет нижнего паспарту: {mat.inner_color['name']} ({mat.inner_color['hex']}).")
+
+    if not prediction.get("available"):
+        facts.append(f"ML-модель недоступна: {prediction.get('reason', 'причина не указана')}. Использован fallback на правила.")
+        return facts
+
+    facts.append(f"ML-модель: k-NN, обучающих примеров: {prediction.get('sample_count', 0)}.")
+    facts.extend(ml_target_facts("Верхнее паспарту", prediction, "outer_mat_color_id"))
+    facts.extend(ml_target_facts("Нижнее паспарту", prediction, "inner_mat_color_id"))
+    neighbors = prediction.get("neighbors") or []
+    if neighbors:
+        facts.append(
+            "Ближайшие размеченные примеры: "
+            + ", ".join(f"{item.get('image_id')} (d={item.get('distance')})" for item in neighbors[:3])
+            + "."
+        )
+    return facts
+
+
+def ml_target_facts(label, prediction, target):
+    target_prediction = prediction.get("predictions", {}).get(target)
+    if not target_prediction:
+        return []
+    color_id = target_prediction.get("color_id")
+    if not color_id:
+        return [f"{label}: ML не нашла валидный цвет, использован fallback."]
+    top = target_prediction.get("top") or []
+    top_text = ", ".join(f"{item.get('color_id')}={item.get('vote_share')}" for item in top[:3])
+    return [
+        f"{label}: {color_id}, уверенность {target_prediction.get('confidence')}, доля голосов {target_prediction.get('vote_share')}.",
+        f"{label}: топ ML-кандидатов - {top_text}." if top_text else f"{label}: топ ML-кандидатов пуст.",
+    ]
 
 
 def mat_reason(mat, decor_style, size_profile, mat_size_config=None):
@@ -2010,6 +2162,13 @@ def normalize_artwork_type(value):
         "volumetric": "volumetric",
     }
     return aliases.get(normalized, "poster")
+
+
+def normalize_mat_color_analyzer(value):
+    normalized = str(value or MatColorAnalyzer.rules.value).strip().lower()
+    if normalized in {"ml", "machine_learning", "machine-learning", "машинное обучение"}:
+        return MatColorAnalyzer.ml.value
+    return MatColorAnalyzer.rules.value
 
 
 def classify_size_profile(width, height):
