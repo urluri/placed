@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 
 import { recommend, renderPreview } from "./api";
 import type {
@@ -150,6 +150,12 @@ type SpecCalloutData = {
   targetX: number;
   targetY: number;
 };
+type PreviewZoomState = {
+  cursorX: number;
+  cursorY: number;
+  relativeX: number;
+  relativeY: number;
+};
 
 const IMAGE_HISTORY_LIMIT = 15;
 const IMAGE_HISTORY_DB = "placed-image-history";
@@ -191,6 +197,7 @@ export default function App() {
   const previewImageRef = useRef<HTMLImageElement>(null);
   const requestId = useRef(0);
   const [previewMeasure, setPreviewMeasure] = useState<PreviewMeasure | null>(null);
+  const [previewZoom, setPreviewZoom] = useState<PreviewZoomState | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -273,6 +280,7 @@ export default function App() {
   useEffect(() => {
     if (!currentPreviewUrl) {
       setPreviewMeasure(null);
+      setPreviewZoom(null);
       return;
     }
 
@@ -291,6 +299,24 @@ export default function App() {
       window.removeEventListener("resize", measurePreview);
     };
   }, [currentPreviewUrl, selectedDecorStyle, selectedVariant, showInteriorPreview, measurePreview]);
+
+  useEffect(() => {
+    setPreviewZoom(null);
+  }, [currentPreviewUrl, selectedDecorStyle, showInteriorPreview]);
+
+  const handlePreviewZoomMove = (event: MouseEvent<HTMLImageElement>) => {
+    const surface = previewSurfaceRef.current;
+    if (!surface || !previewMeasure || !currentPreviewUrl) return;
+
+    const surfaceRect = surface.getBoundingClientRect();
+    const imageRect = event.currentTarget.getBoundingClientRect();
+    setPreviewZoom({
+      cursorX: event.clientX - surfaceRect.left,
+      cursorY: event.clientY - surfaceRect.top,
+      relativeX: clampNumber(event.clientX - imageRect.left, 0, imageRect.width),
+      relativeY: clampNumber(event.clientY - imageRect.top, 0, imageRect.height),
+    });
+  };
 
   const clearPreview = () => {
     setPreviewUrls((previousUrls) => {
@@ -824,8 +850,13 @@ export default function App() {
               alt="Превью оформления"
               style={previewImageStyle}
               onLoad={measurePreview}
+              onMouseMove={handlePreviewZoomMove}
+              onMouseLeave={() => setPreviewZoom(null)}
             />
           ) : null}
+          {currentPreviewUrl && previewMeasure && previewZoom && (
+            <PreviewMagnifier imageUrl={currentPreviewUrl} measure={previewMeasure} zoom={previewZoom} />
+          )}
           {showSpecOverlay && currentPreviewUrl && selectedVariant && previewMeasure && (
             <SpecOverlay variant={selectedVariant} measure={previewMeasure} />
           )}
@@ -873,6 +904,54 @@ export default function App() {
         </div>
       </section>
     </main>
+  );
+}
+
+function PreviewMagnifier({
+  imageUrl,
+  measure,
+  zoom,
+}: {
+  imageUrl: string;
+  measure: PreviewMeasure;
+  zoom: PreviewZoomState;
+}) {
+  const zoomFactor = 2;
+  const width = Math.min(260, Math.max(190, measure.surfaceWidth * 0.22));
+  const height = Math.round(width * 0.68);
+  const gap = 18;
+  const padding = 14;
+  const x =
+    zoom.cursorX + gap + width <= measure.surfaceWidth - padding
+      ? zoom.cursorX + gap
+      : zoom.cursorX - gap - width;
+  const y =
+    zoom.cursorY + gap + height <= measure.surfaceHeight - padding
+      ? zoom.cursorY + gap
+      : zoom.cursorY - gap - height;
+  const left = clampNumber(x, padding, measure.surfaceWidth - width - padding);
+  const top = clampNumber(y, padding, measure.surfaceHeight - height - padding);
+
+  return (
+    <div
+      className="preview-magnifier"
+      style={
+        {
+          left: `${left}px`,
+          top: `${top}px`,
+          width: `${width}px`,
+          height: `${height}px`,
+          backgroundImage: `url(${imageUrl})`,
+          backgroundSize: `${measure.imageWidth * zoomFactor}px ${measure.imageHeight * zoomFactor}px`,
+          backgroundPosition: `${width / 2 - zoom.relativeX * zoomFactor}px ${
+            height / 2 - zoom.relativeY * zoomFactor
+          }px`,
+        } as CSSProperties
+      }
+      aria-hidden="true"
+    >
+      <span>x2</span>
+    </div>
   );
 }
 
