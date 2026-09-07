@@ -1,23 +1,18 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import { getMlModelInfo, recommend, renderPreview } from "./api";
+import { recommend, renderPreview } from "./api";
 import type {
-  AccentAnalysis,
   ArtworkType,
-  ColorSample,
-  DecisionNode,
   DecorStyle,
   FormState,
   ImageInfo,
   InteriorStyle,
   MatColor,
   MatColorAnalyzer,
-  MlModelInfo,
-  MlColorCandidate,
   MatSizeConfig,
+  MlColorCandidate,
   Recommendation,
-  SizeProfile,
   SizeSource,
 } from "./types";
 
@@ -43,20 +38,7 @@ const interiorOptions: Array<{ value: InteriorStyle; label: string }> = [
 ];
 
 const decorStyles: DecorStyle[] = ["standard", "signature"];
-const matSizeDecorStyles: DecorStyle[] = ["standard"];
-const sizeProfiles: SizeProfile[] = ["small", "medium", "large", "extra_large"];
-const matColorAnalyzerOptions: Array<{ value: MatColorAnalyzer; label: string }> = [
-  { value: "rules", label: "Правила" },
-  { value: "ml", label: "Машинное обучение" },
-];
-const allMatColorAnalyzers: MatColorAnalyzer[] = ["rules", "ml"];
-
-const sizeProfileLabels: Record<SizeProfile, string> = {
-  small: "Малый",
-  medium: "Средний",
-  large: "Большой",
-  extra_large: "Очень большой",
-};
+const ACTIVE_MAT_COLOR_ANALYZER: MatColorAnalyzer = "ml";
 
 const decorStyleLabels: Record<DecorStyle, string> = {
   standard: "Standard",
@@ -146,6 +128,28 @@ type StoredImageHistoryItem = ImageHistoryItem & {
   blob: Blob;
   lastModified: number;
 };
+type PreviewMeasure = {
+  surfaceWidth: number;
+  surfaceHeight: number;
+  imageLeft: number;
+  imageTop: number;
+  imageWidth: number;
+  imageHeight: number;
+};
+type SpecCalloutData = {
+  kind: "frame" | "outer-mat" | "inner-mat";
+  title: string;
+  color?: string;
+  lines: string[];
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  anchorX: number;
+  anchorY: number;
+  targetX: number;
+  targetY: number;
+};
 
 const IMAGE_HISTORY_LIMIT = 15;
 const IMAGE_HISTORY_DB = "placed-image-history";
@@ -161,23 +165,21 @@ export default function App() {
     imageInfo: null,
     artworkType: "poster",
     interiorStyle: "minimal",
-    matColorAnalyzer: "rules",
+    matColorAnalyzer: ACTIVE_MAT_COLOR_ANALYZER,
     image: null,
     rotationDegrees: 0,
     matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig),
   });
   const [selectedDecorStyle, setSelectedDecorStyle] = useState<DecorStyle>("standard");
-  const [selectedMatColorAnalyzers, setSelectedMatColorAnalyzers] = useState<MatColorAnalyzer[]>(["rules", "ml"]);
   const [recommendations, setRecommendations] = useState<Partial<Record<MatColorAnalyzer, Recommendation>>>({});
   const [previewUrls, setPreviewUrls] = useState<Partial<Record<MatColorAnalyzer, Partial<Record<DecorStyle, string>>>>>({});
   const [mlInnerOverrideColorId, setMlInnerOverrideColorId] = useState<string | null>(null);
   const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
-  const [showDecisionTree, setShowDecisionTree] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
+  const [showSpecOverlay, setShowSpecOverlay] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
-  const [mlModelInfo, setMlModelInfo] = useState<MlModelInfo | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "light";
     const savedTheme = window.localStorage.getItem("placed-theme");
@@ -185,7 +187,10 @@ export default function App() {
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const previewSurfaceRef = useRef<HTMLDivElement>(null);
+  const previewImageRef = useRef<HTMLImageElement>(null);
   const requestId = useRef(0);
+  const [previewMeasure, setPreviewMeasure] = useState<PreviewMeasure | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -207,40 +212,34 @@ export default function App() {
     window.localStorage.setItem("placed-theme", themeMode);
   }, [themeMode]);
 
-  useEffect(() => {
-    let isMounted = true;
-    let timeoutId: number | undefined;
-    let attempt = 0;
+  const measurePreview = useCallback(() => {
+    const surface = previewSurfaceRef.current;
+    const image = previewImageRef.current;
+    if (!surface || !image) {
+      setPreviewMeasure(null);
+      return;
+    }
 
-    const loadInfo = () => {
-      void getMlModelInfo()
-        .then((info) => {
-          if (isMounted) setMlModelInfo(info);
-        })
-        .catch(() => {
-          attempt += 1;
-          if (!isMounted) return;
-          if (attempt < 5) {
-            timeoutId = window.setTimeout(loadInfo, 1500);
-            return;
-          }
-          setMlModelInfo({
-            available: false,
-            reason: "Не удалось прочитать метаданные ML-модели",
-            sample_count: 0,
-          });
-        });
+    const surfaceRect = surface.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    if (surfaceRect.width <= 0 || surfaceRect.height <= 0 || imageRect.width <= 0 || imageRect.height <= 0) {
+      setPreviewMeasure(null);
+      return;
+    }
+
+    const nextMeasure = {
+      surfaceWidth: surfaceRect.width,
+      surfaceHeight: surfaceRect.height,
+      imageLeft: imageRect.left - surfaceRect.left,
+      imageTop: imageRect.top - surfaceRect.top,
+      imageWidth: imageRect.width,
+      imageHeight: imageRect.height,
     };
 
-    loadInfo();
-    return () => {
-      isMounted = false;
-      if (timeoutId) window.clearTimeout(timeoutId);
-    };
+    setPreviewMeasure((current) => (isSamePreviewMeasure(current, nextMeasure) ? current : nextMeasure));
   }, []);
 
-  const primaryAnalyzer = selectedMatColorAnalyzers[0] ?? "rules";
-  const isSplitPreview = selectedMatColorAnalyzers.length > 1;
+  const primaryAnalyzer = ACTIVE_MAT_COLOR_ANALYZER;
   const recommendation = recommendations[primaryAnalyzer] ?? null;
   const selectedVariant = useMemo(() => {
     return recommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
@@ -249,11 +248,10 @@ export default function App() {
     return recommendations.ml?.variants.find((variant) => variant.decor_style === "signature") ?? null;
   }, [recommendations.ml]);
   const mlInnerCandidates = useMemo(() => mlInnerMatCandidates(mlSignatureVariant), [mlSignatureVariant]);
-  const currentInputSignature = useMemo(() => formInputSignature(form, selectedMatColorAnalyzers), [form, selectedMatColorAnalyzers]);
+  const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
   const currentPreviewUrl = previewUrls[primaryAnalyzer]?.[selectedDecorStyle] ?? "";
   const isApplyDisabled = isRendering || !hasInputChanges;
-  const imageAnalysis = recommendation?.image_analysis ?? null;
   const interiorScene = interiorScenes[form.interiorStyle];
   const interiorArtworkScale = selectedVariant
     ? scaleInteriorArtwork(selectedVariant.geometry.outer_width_mm)
@@ -261,9 +259,6 @@ export default function App() {
   const currentPrintQuality = form.imageInfo
     ? printQualityFor(form.imageInfo, dimensionNumber(form.widthMm), dimensionNumber(form.heightMm))
     : null;
-  const sizeProfile = selectedVariant?.geometry.size_profile;
-  const sizeProfileLabel = sizeProfileName(sizeProfile);
-  const sizeProfileShort = sizeProfileAbbreviation(sizeProfile);
   const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
     ? { backgroundImage: `url(${interiorScene.src})` }
     : undefined;
@@ -274,6 +269,28 @@ export default function App() {
         width: `${interiorArtworkScale?.widthPercent ?? interiorSceneScale.minArtworkWidthPercent}%`,
       }
     : undefined;
+
+  useEffect(() => {
+    if (!currentPreviewUrl) {
+      setPreviewMeasure(null);
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(measurePreview);
+    const surface = previewSurfaceRef.current;
+    const image = previewImageRef.current;
+    const resizeObserver = new ResizeObserver(measurePreview);
+
+    if (surface) resizeObserver.observe(surface);
+    if (image) resizeObserver.observe(image);
+    window.addEventListener("resize", measurePreview);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", measurePreview);
+    };
+  }, [currentPreviewUrl, selectedDecorStyle, selectedVariant, showInteriorPreview, measurePreview]);
 
   const clearPreview = () => {
     setPreviewUrls((previousUrls) => {
@@ -288,23 +305,6 @@ export default function App() {
     setForm((current) => ({ ...current, ...patch }));
     setRecommendations({});
     setMlInnerOverrideColorId(null);
-    setShowDecisionTree(false);
-    clearPreview();
-    setRenderState("Нажмите «Применить»");
-  };
-
-  const handleMatColorAnalyzerToggle = (analyzer: MatColorAnalyzer) => {
-    requestId.current += 1;
-    setIsRendering(false);
-    setSelectedMatColorAnalyzers((current) => {
-      if (current.includes(analyzer)) {
-        return current.length === 1 ? current : current.filter((item) => item !== analyzer);
-      }
-      return allMatColorAnalyzers.filter((item) => [...current, analyzer].includes(item));
-    });
-    setRecommendations({});
-    setMlInnerOverrideColorId(null);
-    setShowDecisionTree(false);
     clearPreview();
     setRenderState("Нажмите «Применить»");
   };
@@ -424,48 +424,13 @@ export default function App() {
 
   const handleDecorStyleChange = (decorStyle: DecorStyle) => {
     setSelectedDecorStyle(decorStyle);
-    setShowDecisionTree(false);
-  };
-
-  const handleMatPercentageChange = (profile: SizeProfile, decorStyle: DecorStyle, value: string) => {
-    updateForm({
-      matSizeConfig: {
-        ...form.matSizeConfig,
-        percentages: {
-          ...form.matSizeConfig.percentages,
-          [profile]: {
-            ...form.matSizeConfig.percentages[profile],
-            [decorStyle]: value,
-          },
-        },
-      },
-    });
-  };
-
-  const handleMatMaxChange = (decorStyle: DecorStyle, value: string) => {
-    updateForm({
-      matSizeConfig: {
-        ...form.matSizeConfig,
-        max_mm: {
-          ...form.matSizeConfig.max_mm,
-          extra_large: {
-            ...form.matSizeConfig.max_mm.extra_large,
-            [decorStyle]: value,
-          },
-        },
-      },
-    });
-  };
-
-  const resetMatSizeConfig = () => {
-    updateForm({ matSizeConfig: cloneMatSizeConfig(defaultMatSizeConfig) });
   };
 
   const applyRender = async () => {
     const id = ++requestId.current;
     setIsRendering(true);
     setRenderState("");
-    const analyzersToRender: MatColorAnalyzer[] = selectedMatColorAnalyzers.length ? selectedMatColorAnalyzers : ["rules"];
+    const analyzersToRender: MatColorAnalyzer[] = [ACTIVE_MAT_COLOR_ANALYZER];
 
     try {
       const recommendationEntries: Array<readonly [MatColorAnalyzer, Recommendation]> = [];
@@ -616,7 +581,9 @@ export default function App() {
                 aria-label="Загрузить изображение"
                 onClick={() => uploadInputRef.current?.click()}
               >
-                <span aria-hidden="true">+</span>
+                <span className="download-glyph" aria-hidden="true">
+                  <span />
+                </span>
               </button>
               <input
                 ref={uploadInputRef}
@@ -669,14 +636,14 @@ export default function App() {
                 disabled={!form.imageInfo}
                 onClick={() => handleSizeSourceChange("from_file")}
               >
-                Рассчитать по файлу
+                Автоматически
               </button>
               <button
                 type="button"
                 className={form.sizeSource === "manual" ? "is-active" : ""}
                 onClick={() => handleSizeSourceChange("manual")}
               >
-                Задать вручную
+                Вручную
               </button>
             </div>
             {form.imageInfo && (
@@ -784,54 +751,6 @@ export default function App() {
             options={interiorOptions}
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
           />
-
-          <AnalyzerCheckboxGroup
-            selected={selectedMatColorAnalyzers}
-            onToggle={handleMatColorAnalyzerToggle}
-          />
-
-          <details className="debug-panel">
-            <summary>Отладка</summary>
-            <div className="debug-section">
-              <div className="section-label-row">
-                <span>Размер паспарту, %</span>
-                <button type="button" className="text-button" onClick={resetMatSizeConfig}>
-                  Сбросить
-                </button>
-              </div>
-              <div className="mat-size-grid" role="group" aria-label="Таблица размеров паспарту">
-                <span />
-                {matSizeDecorStyles.map((decorStyle) => (
-                  <strong key={decorStyle}>{decorStyleLabels[decorStyle]}</strong>
-                ))}
-                {sizeProfiles.map((profile) => (
-                  <MatSizeRow
-                    key={profile}
-                    profile={profile}
-                    values={form.matSizeConfig.percentages[profile]}
-                    onChange={handleMatPercentageChange}
-                  />
-                ))}
-              </div>
-              <div className="mat-limit-grid" role="group" aria-label="Ограничения паспарту для очень большого профиля">
-                <span>Максимум, мм</span>
-                {matSizeDecorStyles.map((decorStyle) => (
-                  <label key={decorStyle}>
-                    <span>{decorStyleLabels[decorStyle]}</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="500"
-                      step="1"
-                      inputMode="numeric"
-                      value={form.matSizeConfig.max_mm.extra_large[decorStyle]}
-                      onChange={(event) => handleMatMaxChange(decorStyle, event.target.value)}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-          </details>
         </form>
       </section>
 
@@ -841,10 +760,6 @@ export default function App() {
             <div className="preview-meta-row">
               <span>Размер</span>
               <strong className="preview-dimensions">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</strong>
-              <output className="size-badge" aria-label={`Размерный профиль: ${sizeProfileLabel}`}>
-                <span className="size-badge-icon" aria-hidden="true" />
-                {sizeProfileShort}
-              </output>
             </div>
             <div className="preview-meta-row">
               <span>Исполнение</span>
@@ -853,16 +768,6 @@ export default function App() {
             <div className="preview-meta-row">
               <span>Интерьер</span>
               <strong>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</strong>
-            </div>
-            <div className="preview-meta-row">
-              <span>Анализатор</span>
-              <strong>{selectedMatColorAnalyzers.map(matColorAnalyzerLabel).join(" / ")}</strong>
-            </div>
-            <div className="preview-meta-row">
-              <span>ML-модель</span>
-              <strong className={mlModelInfo?.available ? "ml-model-badge" : "ml-model-badge is-unavailable"}>
-                {mlModelInfoLabel(mlModelInfo)}
-              </strong>
             </div>
           </div>
           <div className="preview-mode-panel">
@@ -907,58 +812,36 @@ export default function App() {
           </div>
         </div>
         <div
-          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"} ${isSplitPreview ? "split-preview" : ""}`}
+          ref={previewSurfaceRef}
+          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"}`}
           style={previewSurfaceStyle}
         >
-          {isSplitPreview ? (
-            <div className="split-preview-grid" aria-label="Сравнение анализаторов">
-              {selectedMatColorAnalyzers.map((analyzer) => {
-                const previewUrl = previewUrls[analyzer]?.[selectedDecorStyle] ?? "";
-                const splitVariant = recommendations[analyzer]?.variants.find(
-                  (variant) => variant.decor_style === selectedDecorStyle,
-                );
-                const splitScale = splitVariant ? scaleInteriorArtwork(splitVariant.geometry.outer_width_mm) : null;
-                const splitImageStyle: CSSProperties | undefined = showInteriorPreview
-                  ? {
-                      left: `${interiorSceneScale.artworkCenterXPercent}%`,
-                      top: `${interiorSceneScale.artworkCenterYPercent}%`,
-                      width: `${splitScale?.widthPercent ?? interiorSceneScale.minArtworkWidthPercent}%`,
-                    }
-                  : undefined;
-
-                return (
-                  <div
-                    key={analyzer}
-                    className={`split-preview-pane ${showInteriorPreview ? "is-interior" : "is-plain"}`}
-                    style={showInteriorPreview ? previewSurfaceStyle : undefined}
-                  >
-                    <span className="split-preview-label">{matColorAnalyzerLabel(analyzer)}</span>
-                    {previewUrl && (
-                      <img
-                        className="framed-art-preview split-preview-image"
-                        src={previewUrl}
-                        alt={`Превью оформления: ${matColorAnalyzerLabel(analyzer)}`}
-                        style={splitImageStyle}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : currentPreviewUrl ? (
+          {currentPreviewUrl ? (
             <img
+              ref={previewImageRef}
               className="framed-art-preview"
               src={currentPreviewUrl}
               alt="Превью оформления"
               style={previewImageStyle}
+              onLoad={measurePreview}
             />
           ) : null}
+          {showSpecOverlay && currentPreviewUrl && selectedVariant && previewMeasure && (
+            <SpecOverlay variant={selectedVariant} measure={previewMeasure} />
+          )}
           {isRendering && (
             <div className="render-loader" aria-label="Рендер выполняется">
               <FramingLoader />
             </div>
           )}
-          {renderState && !isRendering && <div className="render-error">{renderState}</div>}
+          {renderState === "Нажмите «Применить»" && !isRendering && (
+            <button type="button" className="render-cta" onClick={applyRender} disabled={isApplyDisabled}>
+              {renderState}
+            </button>
+          )}
+          {renderState && renderState !== "Нажмите «Применить»" && !isRendering && (
+            <div className="render-error">{renderState}</div>
+          )}
         </div>
         {selectedDecorStyle === "signature" && mlInnerCandidates.length > 0 && (
           <MlInnerCandidatePanel
@@ -971,7 +854,11 @@ export default function App() {
           />
         )}
         <div className="result-panel">
-          <details className="result-details">
+          <details
+            className="result-details"
+            open={showSpecOverlay}
+            onToggle={(event) => setShowSpecOverlay(event.currentTarget.open)}
+          >
             <summary>Параметры итогового оформления</summary>
             <dl className="spec-list">
               <SpecItem label="Рама">{frameSpec(selectedVariant)}</SpecItem>
@@ -982,43 +869,221 @@ export default function App() {
                   : "—"}
               </SpecItem>
             </dl>
-            <p className="reason-text">{selectedVariant?.reasons.join(" ")}</p>
           </details>
-          <details className="result-details">
-            <summary>Расчеты изображения</summary>
-            <div className="palette-row" aria-label="Цвета изображения">
-              <PaletteChip label="Основной" color={imageAnalysis?.palette.primary} />
-              <PaletteChip label="Вторичный" color={imageAnalysis?.palette.secondary} />
-              <PaletteChip label="Акцентный" color={imageAnalysis?.palette.accent?.selected} />
-            </div>
-            <AccentDetails accent={imageAnalysis?.palette.accent} />
-            <dl className="spec-list analysis-list">
-              <SpecItem label="Температура">{imageAnalysis?.temperature ?? "—"}</SpecItem>
-              <SpecItem label="Светлота">{imageAnalysis?.lightness ?? "—"}</SpecItem>
-              <SpecItem label="Насыщенность">{imageAnalysis?.chroma_level ?? "—"}</SpecItem>
-              <SpecItem label="Монохромность">{imageAnalysis?.monochrome ?? "—"}</SpecItem>
-              <SpecItem label="Заполненность">{imageAnalysis?.frame_occupancy ?? "—"}</SpecItem>
-              <SpecItem label="Контраст">{imageAnalysis?.contrast ?? "—"}</SpecItem>
-              <SpecItem label="Метрики">{metricsSpec(imageAnalysis?.metrics)}</SpecItem>
-            </dl>
-          </details>
-          <button
-            type="button"
-            className="decision-toggle"
-            aria-expanded={showDecisionTree}
-            onClick={() => setShowDecisionTree((isOpen) => !isOpen)}
-          >
-            Дерево решений
-          </button>
         </div>
-        {showDecisionTree && (
-          <section className="decision-panel" aria-label="Дерево решений">
-            <DecisionTree nodes={selectedVariant?.decision_tree ?? []} />
-          </section>
-        )}
       </section>
     </main>
   );
+}
+
+function SpecOverlay({ variant, measure }: { variant: Recommendation["variants"][number]; measure: PreviewMeasure }) {
+  const callouts = buildSpecCallouts(variant, measure);
+
+  return (
+    <div className="spec-overlay" aria-label="Параметры оформления на превью">
+      <svg
+        className="spec-overlay-lines"
+        viewBox={`0 0 ${measure.surfaceWidth} ${measure.surfaceHeight}`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        {callouts.map((item) => (
+          <g key={`${item.kind}-line`}>
+            <line
+              className="spec-overlay-line"
+              x1={item.anchorX}
+              y1={item.anchorY}
+              x2={item.targetX}
+              y2={item.targetY}
+            />
+            <circle className="spec-overlay-dot" cx={item.targetX} cy={item.targetY} r="4" />
+          </g>
+        ))}
+      </svg>
+      {callouts.map((item) => (
+        <SpecCallout key={item.kind} item={item} />
+      ))}
+    </div>
+  );
+}
+
+function SpecCallout({ item }: { item: SpecCalloutData }) {
+  return (
+    <div
+      className={`spec-callout spec-callout-${item.kind}`}
+      style={
+        {
+          "--callout-color": item.color ?? "#D8D6D0",
+          left: `${item.x}px`,
+          top: `${item.y}px`,
+          width: `${item.width}px`,
+        } as CSSProperties
+      }
+    >
+      <span className="spec-callout-swatch" aria-hidden="true" />
+      <div>
+        <strong>{item.title}</strong>
+        {item.lines.map((line, index) => (
+          <span key={`${line}-${index}`}>{line}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildSpecCallouts(variant: Recommendation["variants"][number], measure: PreviewMeasure): SpecCalloutData[] {
+  const geometry = variant.geometry;
+  const scaleX = measure.imageWidth / Math.max(geometry.outer_width_mm, 1);
+  const scaleY = measure.imageHeight / Math.max(geometry.outer_height_mm, 1);
+  const mmX = (value: number) => measure.imageLeft + value * scaleX;
+  const mmY = (value: number) => measure.imageTop + value * scaleY;
+  const callouts: SpecCalloutData[] = [];
+  const frameTarget = {
+    x: mmX(variant.frame.width_mm / 2),
+    y: mmY(geometry.outer_height_mm * 0.36),
+  };
+
+  callouts.push(
+    placeSpecCallout(measure, frameTarget, {
+      kind: "frame",
+      title: "Рама",
+      color: variant.frame.hex,
+      lines: [variant.frame.name, `${variant.frame.width_mm} мм`, materialName(variant.frame.material)],
+      preferredSide: "left",
+      height: 78,
+    }),
+  );
+
+  if (variant.mat?.enabled) {
+    const mat = variant.mat;
+    const frameWidth = variant.frame.width_mm;
+    const windowLeft = frameWidth + mat.left_mm;
+    const windowTop = frameWidth + mat.top_mm;
+    const windowRight = windowLeft + geometry.window_width_mm;
+    const windowBottom = windowTop + geometry.window_height_mm;
+    const outerMatTarget = {
+      x: mmX(windowLeft + geometry.window_width_mm * 0.48),
+      y: mmY(frameWidth + Math.max(mat.top_mm - (mat.inner_reveal_top_mm ?? 0), 1) * 0.46),
+    };
+
+    callouts.push(
+      placeSpecCallout(measure, outerMatTarget, {
+        kind: "outer-mat",
+        title: "Верхнее паспарту",
+        color: mat.outer_color?.hex,
+        lines: [
+          matEdgesLabel(mat),
+          mat.outer_color ? `${mat.outer_color.name} ${mat.outer_color.hex}` : "цвет не задан",
+        ],
+        preferredSide: "right",
+        height: 72,
+      }),
+    );
+
+    if (mat.inner_color) {
+      const innerTarget = {
+        x: mmX(windowRight + Math.max(mat.inner_reveal_right_mm, 1) * 0.5),
+        y: mmY(windowTop + geometry.window_height_mm * 0.42),
+      };
+
+      if (innerTarget.x > mmX(geometry.outer_width_mm - frameWidth)) {
+        innerTarget.x = mmX(windowLeft - Math.max(mat.inner_reveal_left_mm, 1) * 0.5);
+      }
+
+      callouts.push(
+        placeSpecCallout(measure, innerTarget, {
+          kind: "inner-mat",
+          title: "Нижнее паспарту",
+          color: mat.inner_color.hex,
+          lines: [innerMatRevealLabel(mat), `${mat.inner_color.name} ${mat.inner_color.hex}`],
+          preferredSide: windowRight > geometry.outer_width_mm * 0.58 ? "left" : "right",
+          height: 72,
+        }),
+      );
+    }
+  }
+
+  return avoidCalloutOverlap(callouts, measure);
+}
+
+function placeSpecCallout(
+  measure: PreviewMeasure,
+  target: { x: number; y: number },
+  options: {
+    kind: SpecCalloutData["kind"];
+    title: string;
+    color?: string;
+    lines: string[];
+    preferredSide: "left" | "right";
+    height: number;
+  },
+): SpecCalloutData {
+  const padding = 14;
+  const gap = 18;
+  const width = Math.min(230, Math.max(178, measure.surfaceWidth * 0.24));
+  const canUseLeft = measure.imageLeft >= width + gap + padding;
+  const canUseRight = measure.surfaceWidth - (measure.imageLeft + measure.imageWidth) >= width + gap + padding;
+  const side =
+    options.preferredSide === "left"
+      ? canUseLeft || !canUseRight
+        ? "left"
+        : "right"
+      : canUseRight || !canUseLeft
+        ? "right"
+        : "left";
+  let x = side === "left" ? measure.imageLeft - width - gap : measure.imageLeft + measure.imageWidth + gap;
+  x = clampNumber(x, padding, measure.surfaceWidth - width - padding);
+  const y = clampNumber(target.y - options.height / 2, padding, measure.surfaceHeight - options.height - padding);
+  const anchorX = side === "left" ? x + width : x;
+
+  return {
+    kind: options.kind,
+    title: options.title,
+    color: options.color,
+    lines: options.lines,
+    x,
+    y,
+    width,
+    height: options.height,
+    anchorX,
+    anchorY: y + options.height / 2,
+    targetX: target.x,
+    targetY: target.y,
+  };
+}
+
+function avoidCalloutOverlap(items: SpecCalloutData[], measure: PreviewMeasure) {
+  const sorted = [...items].sort((a, b) => a.y - b.y);
+  const padding = 14;
+  const gap = 10;
+
+  sorted.forEach((item, index) => {
+    if (index === 0) return;
+    const previous = sorted[index - 1];
+    const overlapsX = item.x < previous.x + previous.width && item.x + item.width > previous.x;
+    if (overlapsX && item.y < previous.y + previous.height + gap) {
+      item.y = clampNumber(previous.y + previous.height + gap, padding, measure.surfaceHeight - item.height - padding);
+      item.anchorY = item.y + item.height / 2;
+    }
+  });
+
+  return items;
+}
+
+function isSamePreviewMeasure(current: PreviewMeasure | null, next: PreviewMeasure) {
+  if (!current) return false;
+  return (
+    Math.abs(current.surfaceWidth - next.surfaceWidth) < 0.5 &&
+    Math.abs(current.surfaceHeight - next.surfaceHeight) < 0.5 &&
+    Math.abs(current.imageLeft - next.imageLeft) < 0.5 &&
+    Math.abs(current.imageTop - next.imageTop) < 0.5 &&
+    Math.abs(current.imageWidth - next.imageWidth) < 0.5 &&
+    Math.abs(current.imageHeight - next.imageHeight) < 0.5
+  );
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function SelectField<T extends string>({
@@ -1050,36 +1115,6 @@ function SelectField<T extends string>({
   );
 }
 
-function AnalyzerCheckboxGroup({
-  selected,
-  onToggle,
-}: {
-  selected: MatColorAnalyzer[];
-  onToggle: (value: MatColorAnalyzer) => void;
-}) {
-  return (
-    <fieldset className="analyzer-field">
-      <legend>Цвет паспарту</legend>
-      <div className="analyzer-checkboxes">
-        {matColorAnalyzerOptions.map((option) => {
-          const checked = selected.includes(option.value);
-          return (
-            <label key={option.value} className={checked ? "is-active" : ""}>
-              <input
-                type="checkbox"
-                checked={checked}
-                disabled={checked && selected.length === 1}
-                onChange={() => onToggle(option.value)}
-              />
-              <span>{option.label}</span>
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
-}
-
 function SpecItem({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
@@ -1100,15 +1135,6 @@ function FramingLoader() {
   );
 }
 
-function PaletteChip({ label, color }: { label: string; color?: ColorSample | null }) {
-  return (
-    <div className="color-chip">
-      <div className="color-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
-      <span>{color ? `${label}: ${color.hex}` : `${label}: —`}</span>
-    </div>
-  );
-}
-
 function MlInnerCandidatePanel({
   candidates,
   activeColorId,
@@ -1123,8 +1149,8 @@ function MlInnerCandidatePanel({
   return (
     <section className="ml-candidate-panel" aria-label="ML-кандидаты цвета нижнего паспарту">
       <div>
-        <strong>ML-кандидаты нижнего паспарту</strong>
-        <span>Нажмите на цвет, чтобы применить его в ML-превью</span>
+        <strong>Кандидаты цвета нижнего паспарту</strong>
+        <span>Нажмите на оттенок, чтобы примерить его в Signature</span>
       </div>
       <div className="ml-candidate-list">
         {candidates.map((candidate, index) => {
@@ -1141,90 +1167,13 @@ function MlInnerCandidatePanel({
               <span className="ml-candidate-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
               <span>
                 <strong>{color ? color.name : candidate.color_id}</strong>
-                <small>
-                  {color?.hex ?? candidate.color_id}
-                  {typeof candidate.vote_share === "number" ? ` · ${Math.round(candidate.vote_share * 100)}%` : ""}
-                </small>
+                <small>{color?.hex ?? candidate.color_id}</small>
               </span>
             </button>
           );
         })}
       </div>
     </section>
-  );
-}
-
-function AccentDetails({ accent }: { accent?: AccentAnalysis | null }) {
-  if (!accent) return null;
-
-  return (
-    <div className="accent-details">
-      <div className="accent-summary">
-        <span>Источник: {accent.source ?? "—"}</span>
-        <span>Уверенность: {accent.confidence}</span>
-      </div>
-      <p className="reason-text">{accent.reason}</p>
-      <div className="accent-candidates" aria-label="Кандидаты акцентного цвета">
-        <PaletteChip label={`Pop ${scoreLabel(accent.scores?.pop)}`} color={accent.candidates.pop} />
-        <PaletteChip label={`Temperature ${scoreLabel(accent.scores?.temperature)}`} color={accent.candidates.temperature} />
-        <PaletteChip label={`Light ${scoreLabel(accent.scores?.light)}`} color={accent.candidates.light} />
-        <PaletteChip label={`Area ${scoreLabel(accent.scores?.area)}`} color={accent.candidates.area} />
-      </div>
-    </div>
-  );
-}
-
-function scoreLabel(value: number | undefined) {
-  return typeof value === "number" ? `(${value})` : "";
-}
-
-function DecisionTree({ nodes }: { nodes: DecisionNode[] }) {
-  return (
-    <div className="decision-tree">
-      {nodes.map((node, index) => (
-        <details className="decision-node" open={index < 2} key={`${node.title}-${index}`}>
-          <summary>{node.title}</summary>
-          {node.result && <div className="decision-result">{node.result}</div>}
-          {node.facts.length > 0 && (
-            <ul>
-              {node.facts.map((fact) => (
-                <li key={fact}>{fact}</li>
-              ))}
-            </ul>
-          )}
-        </details>
-      ))}
-    </div>
-  );
-}
-
-function MatSizeRow({
-  profile,
-  values,
-  onChange,
-}: {
-  profile: SizeProfile;
-  values: Record<DecorStyle, string>;
-  onChange: (profile: SizeProfile, decorStyle: DecorStyle, value: string) => void;
-}) {
-  return (
-    <>
-      <span>{sizeProfileLabels[profile]}</span>
-      {matSizeDecorStyles.map((decorStyle) => (
-        <label key={decorStyle}>
-          <span>{decorStyleLabels[decorStyle]}</span>
-          <input
-            type="number"
-            min="1"
-            max="100"
-            step="1"
-            inputMode="decimal"
-            value={values[decorStyle]}
-            onChange={(event) => onChange(profile, decorStyle, event.target.value)}
-          />
-        </label>
-      ))}
-    </>
   );
 }
 
@@ -1246,53 +1195,16 @@ function matSpec(variant: Recommendation["variants"][number] | null) {
   );
 }
 
+function matEdgesLabel(mat: NonNullable<Recommendation["variants"][number]["mat"]>) {
+  return `${mat.left_mm}/${mat.top_mm}/${mat.right_mm}/${mat.bottom_mm} мм`;
+}
+
+function innerMatRevealLabel(mat: NonNullable<Recommendation["variants"][number]["mat"]>) {
+  return `${mat.inner_reveal_left_mm}/${mat.inner_reveal_top_mm}/${mat.inner_reveal_right_mm}/${mat.inner_reveal_bottom_mm} мм`;
+}
+
 function materialName(value?: string) {
   return value === "aluminum" ? "алюминий" : "дерево";
-}
-
-function sizeProfileName(value?: string) {
-  const names: Record<string, string> = {
-    small: "малый",
-    medium: "средний",
-    large: "большой",
-    extra_large: "очень большой",
-  };
-  return names[value ?? ""] ?? "средний";
-}
-
-function sizeProfileAbbreviation(value?: string) {
-  const names: Record<string, string> = {
-    small: "S",
-    medium: "M",
-    large: "L",
-    extra_large: "XL",
-  };
-  return names[value ?? ""] ?? "M";
-}
-
-function metricsSpec(metrics: Recommendation["image_analysis"]["metrics"] | undefined) {
-  if (!metrics) return "—";
-  return [
-    `L ${formatMetric(metrics.lightness)}`,
-    `C ${formatMetric(metrics.chroma)}`,
-    `mono ${formatMetric(metrics.monochrome_score)}`,
-    `contrast ${formatMetric(metrics.contrast)}`,
-    `occupancy ${formatMetric(metrics.frame_occupancy)}`,
-    `temp ${formatMetric(metrics.temperature_score)}`,
-  ].join(" / ");
-}
-
-function matColorAnalyzerLabel(value: MatColorAnalyzer) {
-  return value === "ml" ? "ML" : "Правила";
-}
-
-function mlModelInfoLabel(info: MlModelInfo | null) {
-  if (!info) return "загрузка";
-  if (!info.available) return info.reason ?? "не обучена";
-
-  const version = info.model_version ? `v${info.model_version}` : "v?";
-  const sampleCount = info.sample_count ?? 0;
-  return `${sampleCount} прим. · ${version}`;
 }
 
 function mlInnerMatCandidates(variant: Recommendation["variants"][number] | null): MlColorCandidate[] {
@@ -1316,10 +1228,6 @@ function withInnerMatColor(variant: Recommendation["variants"][number], color: M
   };
 }
 
-function formatMetric(value: number | undefined) {
-  return typeof value === "number" ? String(value) : "—";
-}
-
 function cloneMatSizeConfig(config: MatSizeConfig): MatSizeConfig {
   return {
     percentages: {
@@ -1337,7 +1245,7 @@ function cloneMatSizeConfig(config: MatSizeConfig): MatSizeConfig {
   };
 }
 
-function formInputSignature(form: FormState, matColorAnalyzers: MatColorAnalyzer[]) {
+function formInputSignature(form: FormState) {
   return JSON.stringify({
     image: form.image
       ? {
@@ -1355,7 +1263,7 @@ function formInputSignature(form: FormState, matColorAnalyzers: MatColorAnalyzer
     imageInfo: form.imageInfo,
     artworkType: form.artworkType,
     interiorStyle: form.interiorStyle,
-    matColorAnalyzers,
+    matColorAnalyzer: ACTIVE_MAT_COLOR_ANALYZER,
     rotationDegrees: form.rotationDegrees,
     matSizeConfig: form.matSizeConfig,
   });
