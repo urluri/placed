@@ -1226,9 +1226,9 @@ function MlInnerCandidatePanel({
   onSelect: (candidate: MlColorCandidate) => void;
 }) {
   return (
-    <section className="ml-candidate-panel" aria-label="ML-кандидаты цвета нижнего паспарту">
+    <section className="ml-candidate-panel" aria-label="Другие варианты из палитры Placed">
       <div>
-        <strong>Кандидаты цвета нижнего паспарту</strong>
+        <strong>Другие варианты из палитры Placed</strong>
         <span>Нажмите на оттенок, чтобы примерить его в Signature</span>
       </div>
       <div className="ml-candidate-list">

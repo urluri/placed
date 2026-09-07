@@ -23,7 +23,7 @@ DEFAULT_EFFECTS = {
             "width_mm": 1.5,
             "highlight_opacity": 210,
             "edge_opacity": 52,
-            "shadow_opacity": 26,
+            "shadow_opacity": 0,
         },
         "inner_reveal_depth_shadow": {
             "enabled": False,

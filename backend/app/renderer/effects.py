@@ -27,7 +27,7 @@ def apply_mat_effects(canvas, layout, effects_config):
             "width_px": bevel_width,
             "highlight_opacity": int(window_bevel.get("highlight_opacity", 210)),
             "edge_opacity": int(window_bevel.get("edge_opacity", 52)),
-            "shadow_opacity": int(window_bevel.get("shadow_opacity", 26)),
+            "shadow_opacity": int(window_bevel.get("shadow_opacity", 0)),
         }
         if layout.get("top_aperture_rect"):
             canvas = draw_mat_window_bevel(canvas, layout["top_aperture_rect"], **bevel_kwargs)
