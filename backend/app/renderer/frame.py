@@ -468,7 +468,7 @@ def apply_triangular_frame_slope(texture, frame_px, material, frame_id=None, ang
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
 
 
-def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", profile="flat", frame_id=None):
+def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", profile="flat", frame_id=None, effects_config=None):
     left, top, right, bottom = outer_rect
     width = right - left
     height = bottom - top
@@ -478,13 +478,15 @@ def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", p
         texture = aluminum_texture(width, height, base).convert("RGBA")
     else:
         texture = wood_texture(width, height, base, frame_px=frame_px, profile=profile, frame_id=frame_id).convert("RGBA")
-    texture = apply_triangular_frame_slope(
-        texture.convert("RGB"),
-        frame_px,
-        material,
-        frame_id=frame_id,
-        angle_degrees=30,
-    ).convert("RGBA")
+    slope_config = (effects_config or {}).get("triangular_slope", {"enabled": True, "angle_degrees": 30})
+    if slope_config.get("enabled", True):
+        texture = apply_triangular_frame_slope(
+            texture.convert("RGB"),
+            frame_px,
+            material,
+            frame_id=frame_id,
+            angle_degrees=float(slope_config.get("angle_degrees", 30)),
+        ).convert("RGBA")
 
     mask = Image.new("L", (width, height), 0)
     mask_draw = ImageDraw.Draw(mask)

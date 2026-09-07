@@ -161,6 +161,40 @@ def draw_inner_reveal_depth(canvas, aperture_rect, reveal_px, strength=0.24):
     return Image.alpha_composite(canvas.convert("RGBA"), shadow_layer).convert("RGB")
 
 
+def draw_mat_window_bevel(canvas, aperture_rect, width_px=4, highlight_opacity=210, edge_opacity=52, shadow_opacity=26):
+    left, top, right, bottom = [int(value) for value in aperture_rect]
+    if right <= left or bottom <= top:
+        return canvas
+
+    width_px = max(1, int(width_px))
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # A real mat bevel is a 45-degree cut. In the preview it reads best as a
+    # narrow light core on the aperture edge, with a very restrained lower/right
+    # edge. Keep it sharp: blurred shadows polluted mat colors in earlier tries.
+    for offset in range(width_px):
+        fade = 1 - offset / max(1, width_px)
+        highlight = int(highlight_opacity * fade)
+        edge = int(edge_opacity * fade)
+        shadow = int(shadow_opacity * fade)
+
+        x0 = left - offset
+        y0 = top - offset
+        x1 = right + offset
+        y1 = bottom + offset
+
+        draw.line([(x0, y0), (x1, y0)], fill=(255, 255, 255, highlight), width=1)
+        draw.line([(x0, y0), (x0, y1)], fill=(255, 255, 255, highlight), width=1)
+        draw.line([(x0, y1), (x1, y1)], fill=(70, 62, 50, shadow), width=1)
+        draw.line([(x1, y0), (x1, y1)], fill=(70, 62, 50, shadow), width=1)
+
+        if offset == 0 and edge > 0:
+            draw.rectangle([left, top, right, bottom], outline=(255, 255, 255, min(255, highlight + edge)))
+
+    return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
+
+
 def draw_inner_reveal(canvas, aperture_rect, reveal_px, color):
     if isinstance(reveal_px, (tuple, list)):
         left_reveal, top_reveal, right_reveal, bottom_reveal = [max(0, int(value)) for value in reveal_px]

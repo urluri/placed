@@ -1,35 +1,17 @@
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image
 
+from .config import load_effects_config
+from .effects import apply_renderer_effects
 from .frame import draw_frame
-from .mat import draw_inner_reveal, draw_inner_reveal_depth, draw_mat
+from .mat import draw_inner_reveal, draw_mat
 from .utils import mm_to_px
 
 TECHNICAL_FRAME_COLOR = (0, 0, 0)
 DEFAULT_MAT_COLOR = (245, 241, 232)
 
 
-def add_frame_cast_shadow(canvas, inner_rect, frame_px):
-    left, top, right, bottom = inner_rect
-    shadow_width = max(3, min(frame_px // 5, 22))
-    blur_radius = max(4, min(frame_px // 6, 20))
-
-    mask = Image.new("L", canvas.size, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.rectangle([left, top, right, bottom], outline=170, width=shadow_width)
-    mask = mask.filter(ImageFilter.GaussianBlur(blur_radius))
-
-    clip = Image.new("L", canvas.size, 0)
-    clip_draw = ImageDraw.Draw(clip)
-    clip_draw.rectangle([left, top, right, bottom], fill=255)
-    clipped_mask = Image.new("L", canvas.size, 0)
-    clipped_mask.paste(mask, mask=clip)
-
-    shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 72))
-    shadow.putalpha(clipped_mask)
-    return Image.alpha_composite(canvas.convert("RGBA"), shadow).convert("RGB")
-
-
-def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", rotation_degrees=0):
+def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", rotation_degrees=0, effects_config=None):
+    effects_config = load_effects_config(overrides=effects_config)
     artwork = Image.open(image_path).convert("RGB")
     if rotation_degrees:
         artwork = artwork.rotate(rotation_degrees, expand=True)
@@ -55,6 +37,8 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     glass_type = geometry.get("glass", "none")
     has_mat = any((mat_left, mat_right, mat_top, mat_bottom))
     has_inner_reveal = any((inner_reveal_left, inner_reveal_right, inner_reveal_top, inner_reveal_bottom))
+    mat_px = 0
+    top_aperture_rect = None
 
     artwork = artwork.resize((art_w, art_h), Image.LANCZOS)
 
@@ -81,7 +65,16 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     )
 
     canvas = Image.new("RGB", (picture_w, picture_h), frame_color)
-    canvas = draw_frame(canvas, outer_rect, frame, frame_color, material=frame_material, profile=frame_profile, frame_id=frame_id)
+    canvas = draw_frame(
+        canvas,
+        outer_rect,
+        frame,
+        frame_color,
+        material=frame_material,
+        profile=frame_profile,
+        frame_id=frame_id,
+        effects_config=effects_config.get("frame", {}),
+    )
     canvas.paste(artwork, (art_rect[0], art_rect[1]))
 
     if has_mat:
@@ -100,18 +93,24 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
                 (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
                 inner_mat_color,
             )
-            canvas = draw_inner_reveal_depth(
-                canvas,
-                window_rect,
-                (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
-                strength=0.24,
-            )
         else:
             canvas = draw_mat(canvas, mat_rect, window_rect, mat_px, mat_color)
 
-    # Realism effects are disabled temporarily while we isolate frame-corner shadows.
-    # Keep geometry, colors, artwork, and textures only. Re-enable effects step by step.
-    _ = (glass_type, frame, mat_px if has_mat else 0, window_rect)
+    layout = {
+        "outer_rect": outer_rect,
+        "frame_inner_rect": mat_rect,
+        "mat_rect": mat_rect,
+        "window_rect": window_rect,
+        "top_aperture_rect": top_aperture_rect,
+        "art_rect": art_rect,
+        "frame_px": frame,
+        "mat_px": mat_px,
+        "inner_reveal_px": (inner_reveal_left, inner_reveal_top, inner_reveal_right, inner_reveal_bottom),
+        "has_mat": has_mat,
+        "has_inner_reveal": has_inner_reveal,
+        "glass_type": glass_type,
+    }
+    canvas = apply_renderer_effects(canvas, layout, effects_config)
 
     if output_path:
         canvas.save(output_path, quality=96, subsampling=0)

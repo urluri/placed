@@ -1,0 +1,55 @@
+{
+  "frame": {
+    "triangular_slope": {
+      "enabled": true,
+      "angle_degrees": 30
+    },
+    "cast_shadow": {
+      "enabled": false,
+      "opacity": 42,
+      "blur_px": 10
+    }
+  },
+  "mat": {
+    "window_bevel": {
+      "enabled": true,
+      "width_mm": 1.5,
+      "highlight_opacity": 210,
+      "edge_opacity": 52,
+      "shadow_opacity": 26
+    },
+    "inner_reveal_depth_shadow": {
+      "enabled": false,
+      "strength": 0.18
+    },
+    "image_window_depth_shadow": {
+      "enabled": false,
+      "strength": 0.18
+    }
+  },
+  "glass": {
+    "enabled": false,
+    "opacity": 12
+  },
+  "postprocess": {
+    "global_lighting": {
+      "enabled": false,
+      "strength": 0.04
+    },
+    "vignette": {
+      "enabled": false,
+      "strength": 0.08
+    },
+    "film_grain": {
+      "enabled": false,
+      "sigma": 1.2
+    },
+    "color_grade": {
+      "enabled": false
+    },
+    "chromatic_aberration": {
+      "enabled": false,
+      "offset_px": 1
+    }
+  }
+}
