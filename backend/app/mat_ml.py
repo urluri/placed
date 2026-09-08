@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -9,8 +10,9 @@ from pathlib import Path
 
 
 APP_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = APP_ROOT.parents[1]
 MODEL_PATH = APP_ROOT / "models" / "mat_color_knn.json"
-LABELER_DB_PATH = APP_ROOT / "data" / "labeler" / "labeler.db"
+LABELER_DB_PATH = Path(os.getenv("PLACED_LABELER_DB_PATH", PROJECT_ROOT / "runtime" / "labeler" / "labeler.db"))
 
 LEVEL_VALUES = {
     "low": 0.0,

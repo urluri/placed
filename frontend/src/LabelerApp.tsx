@@ -95,9 +95,9 @@ export default function LabelerApp() {
   async function bootstrap() {
     await run("Загружаю labeler", async () => {
       const [imageResult, paletteResult, annotationResult] = await Promise.all([
-        listImages(),
+        listImages(150),
         loadPalette(),
-        listAnnotations(),
+        listAnnotations(300),
       ]);
       setImages(imageResult.images);
       setPalette(paletteResult.colors);
@@ -126,10 +126,12 @@ export default function LabelerApp() {
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
+    const total = files.length;
     await run("Загружаю изображения", async () => {
-      const result = await uploadImages(files);
-      const nextImages = mergeImages(result.images, images);
-      setImages(nextImages);
+      const result = await uploadImages(files, (uploaded) => {
+        setStatus(`Загружаю изображения ${uploaded}/${total}`);
+      });
+      setImages((currentImages) => mergeImages(result.images, currentImages));
       setSelectedImageId(result.images[0]?.id ?? selectedImageId);
     });
   }
@@ -138,7 +140,7 @@ export default function LabelerApp() {
     if (!url.trim()) return;
     await run("Загружаю изображение по ссылке", async () => {
       const result = await uploadImageUrl(url.trim());
-      setImages(mergeImages([result.image], images));
+      setImages((currentImages) => mergeImages([result.image], currentImages));
       setSelectedImageId(result.image.id);
       setUrl("");
     });

@@ -12,6 +12,7 @@ frontend/.vite/
 frontend/tsconfig.tsbuildinfo
 
 backend/app/data/
+runtime/
 
 output.jpg
 mvp_check.jpg

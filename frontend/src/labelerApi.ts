@@ -1,6 +1,7 @@
 import type { ArtworkType, ColorSample, DecorStyle, DecorationVariant, MatColor } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000").trim();
+const UPLOAD_BATCH_SIZE = 5;
 
 export type LabelerImage = {
   id: string;
@@ -94,18 +95,41 @@ export function exportDatasetUrl() {
   return `${API_BASE}/api/labeler/export.jsonl`;
 }
 
-export async function listImages() {
-  const response = await fetch(`${API_BASE}/api/labeler/images`, { cache: "no-store" });
+export async function listImages(limit = 150) {
+  const response = await fetch(`${API_BASE}/api/labeler/images?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await errorMessage(response, "Не удалось загрузить изображения"));
-  return (await response.json()) as { images: LabelerImage[] };
+  return (await response.json()) as { images: LabelerImage[]; total?: number };
 }
 
-export async function uploadImages(files: FileList | File[]) {
-  const payload = new FormData();
-  Array.from(files).forEach((file) => payload.append("files", file));
-  const response = await fetch(`${API_BASE}/api/labeler/images`, { method: "POST", body: payload });
-  if (!response.ok) throw new Error(await errorMessage(response, "Не удалось загрузить файлы"));
-  return (await response.json()) as { images: LabelerImage[] };
+export async function uploadImages(
+  files: FileList | File[],
+  onProgress?: (uploaded: number, total: number) => void,
+) {
+  const allFiles = Array.from(files);
+  const images: LabelerImage[] = [];
+
+  for (let index = 0; index < allFiles.length; index += UPLOAD_BATCH_SIZE) {
+    const batch = allFiles.slice(index, index + UPLOAD_BATCH_SIZE);
+    const payload = new FormData();
+    batch.forEach((file) => payload.append("files", file));
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/api/labeler/images`, { method: "POST", body: payload });
+    } catch {
+      throw new Error(
+        `Не удалось подключиться к backend ${API_BASE}. Проверьте, что локальный backend запущен, и попробуйте загрузить меньше файлов за раз.`,
+      );
+    }
+
+    if (!response.ok) throw new Error(await errorMessage(response, "Не удалось загрузить файлы"));
+
+    const result = (await response.json()) as { images: LabelerImage[] };
+    images.push(...result.images);
+    onProgress?.(Math.min(index + batch.length, allFiles.length), allFiles.length);
+  }
+
+  return { images };
 }
 
 export async function uploadImageUrl(url: string) {
@@ -137,10 +161,10 @@ export async function analyzeImage(imageId: string, artworkType: ArtworkType, de
   return (await response.json()) as LabelerAnalysis;
 }
 
-export async function listAnnotations() {
-  const response = await fetch(`${API_BASE}/api/labeler/annotations`, { cache: "no-store" });
+export async function listAnnotations(limit = 300) {
+  const response = await fetch(`${API_BASE}/api/labeler/annotations?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await errorMessage(response, "Не удалось загрузить датасет"));
-  return (await response.json()) as { annotations: LabelerAnnotation[] };
+  return (await response.json()) as { annotations: LabelerAnnotation[]; total?: number };
 }
 
 export async function deleteAnnotation(annotationId: string) {

@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import shutil
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -7,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 from PIL import Image
@@ -16,9 +18,13 @@ from .algorithm import PLACED_PALETTE, build_decoration_set
 
 router = APIRouter(prefix="/api/labeler", tags=["labeler"])
 
-DATA_ROOT = Path(__file__).resolve().parent / "data" / "labeler"
+APP_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = APP_ROOT.parents[1]
+LEGACY_DATA_ROOT = APP_ROOT / "data" / "labeler"
+DATA_ROOT = Path(os.getenv("PLACED_LABELER_DATA_DIR", PROJECT_ROOT / "runtime" / "labeler"))
 IMAGE_ROOT = DATA_ROOT / "images"
 DB_PATH = DATA_ROOT / "labeler.db"
+LEGACY_DB_PATH = LEGACY_DATA_ROOT / "labeler.db"
 DEFAULT_INTERIOR_STYLE = "modern"
 DEFAULT_PRINT_PPI = 300
 
@@ -50,6 +56,8 @@ class AnnotationRequest(BaseModel):
 def ensure_storage():
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     IMAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    if not DB_PATH.exists() and LEGACY_DB_PATH.exists():
+        shutil.copy2(LEGACY_DB_PATH, DB_PATH)
     with connect() as db:
         db.execute(
             """
@@ -281,11 +289,18 @@ def palette():
 
 
 @router.get("/images")
-def list_images():
+def list_images(
+    limit: int = Query(150, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
     ensure_storage()
     with connect() as db:
-        rows = db.execute("SELECT * FROM images ORDER BY created_at DESC").fetchall()
-    return {"images": [row_to_image(row) for row in rows]}
+        total = db.execute("SELECT COUNT(*) FROM images").fetchone()[0]
+        rows = db.execute(
+            "SELECT * FROM images ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+    return {"images": [row_to_image(row) for row in rows], "total": total}
 
 
 @router.post("/images")
@@ -346,11 +361,18 @@ def analyze(request: AnalyzeRequest):
 
 
 @router.get("/annotations")
-def list_annotations():
+def list_annotations(
+    limit: int = Query(300, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
     ensure_storage()
     with connect() as db:
-        rows = db.execute("SELECT * FROM annotations ORDER BY updated_at DESC").fetchall()
-    return {"annotations": [annotation_row_to_dict(row) for row in rows]}
+        total = db.execute("SELECT COUNT(*) FROM annotations").fetchone()[0]
+        rows = db.execute(
+            "SELECT * FROM annotations ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+    return {"annotations": [annotation_row_to_dict(row) for row in rows], "total": total}
 
 
 @router.post("/annotations")
