@@ -66,6 +66,30 @@ const printSizePresets = [
   { ppi: 150, label: "150 PPI", note: "крупно, но мягче" },
 ];
 
+const standardSizePresets = [
+  { id: "100x150", label: "10 x 15 см", widthMm: 100, heightMm: 150 },
+  { id: "130x180", label: "13 x 18 см", widthMm: 130, heightMm: 180 },
+  { id: "150x200", label: "15 x 20 см", widthMm: 150, heightMm: 200 },
+  { id: "180x240", label: "18 x 24 см", widthMm: 180, heightMm: 240 },
+  { id: "200x250", label: "20 x 25 см", widthMm: 200, heightMm: 250 },
+  { id: "200x300", label: "20 x 30 см", widthMm: 200, heightMm: 300 },
+  { id: "a4", label: "A4, 21 x 29.7 см", widthMm: 210, heightMm: 297 },
+  { id: "240x300", label: "24 x 30 см", widthMm: 240, heightMm: 300 },
+  { id: "300x400", label: "30 x 40 см", widthMm: 300, heightMm: 400 },
+  { id: "a3", label: "A3, 29.7 x 42 см", widthMm: 297, heightMm: 420 },
+  { id: "300x450", label: "30 x 45 см", widthMm: 300, heightMm: 450 },
+  { id: "400x500", label: "40 x 50 см", widthMm: 400, heightMm: 500 },
+  { id: "400x600", label: "40 x 60 см", widthMm: 400, heightMm: 600 },
+  { id: "a2", label: "A2, 42 x 59.4 см", widthMm: 420, heightMm: 594 },
+  { id: "500x700", label: "50 x 70 см", widthMm: 500, heightMm: 700 },
+  { id: "600x800", label: "60 x 80 см", widthMm: 600, heightMm: 800 },
+  { id: "600x900", label: "60 x 90 см", widthMm: 600, heightMm: 900 },
+  { id: "a1", label: "A1, 59.4 x 84.1 см", widthMm: 594, heightMm: 841 },
+  { id: "700x1000", label: "70 x 100 см", widthMm: 700, heightMm: 1000 },
+  { id: "800x1200", label: "80 x 120 см", widthMm: 800, heightMm: 1200 },
+  { id: "1000x1500", label: "100 x 150 см", widthMm: 1000, heightMm: 1500 },
+];
+
 const interiorSceneScale = {
   wallWidthMm: 3600,
   artworkCenterXPercent: 50,
@@ -166,6 +190,7 @@ export default function App() {
     widthMm: "300",
     heightMm: "400",
     sizeSource: "manual",
+    standardSizePresetId: "",
     printPpi: 300,
     lockAspect: true,
     imageInfo: null,
@@ -196,6 +221,7 @@ export default function App() {
   const previewSurfaceRef = useRef<HTMLDivElement>(null);
   const previewImageRef = useRef<HTMLImageElement>(null);
   const requestId = useRef(0);
+  const standardSizeSelectId = useId();
   const [previewMeasure, setPreviewMeasure] = useState<PreviewMeasure | null>(null);
   const [previewZoom, setPreviewZoom] = useState<PreviewZoomState | null>(null);
 
@@ -337,7 +363,7 @@ export default function App() {
 
   const handleImageUpload = async (file: File | null) => {
     if (!file) {
-      updateForm({ image: null, imageInfo: null, sizeSource: "manual" });
+      updateForm({ image: null, imageInfo: null, sizeSource: "manual", standardSizePresetId: "" });
       return;
     }
 
@@ -352,6 +378,7 @@ export default function App() {
         image: file,
         imageInfo,
         sizeSource: "from_file",
+        standardSizePresetId: "",
         printPpi: 300,
         lockAspect: true,
         widthMm: String(recommendedSize.widthMm),
@@ -366,7 +393,7 @@ export default function App() {
           });
       }
     } catch {
-      updateForm({ image: file, imageInfo: null, sizeSource: "manual" });
+      updateForm({ image: file, imageInfo: null, sizeSource: "manual", standardSizePresetId: "" });
       setRenderState("Не удалось прочитать размер файла");
     }
   };
@@ -398,6 +425,7 @@ export default function App() {
       const recommendedSize = sizeFromPpi(form.imageInfo, 300);
       updateForm({
         sizeSource,
+        standardSizePresetId: "",
         printPpi: 300,
         lockAspect: true,
         widthMm: String(recommendedSize.widthMm),
@@ -406,7 +434,7 @@ export default function App() {
       return;
     }
 
-    updateForm({ sizeSource });
+    updateForm({ sizeSource, standardSizePresetId: sizeSource === "from_file" ? "" : form.standardSizePresetId });
   };
 
   const applyPrintPreset = (ppi: number) => {
@@ -414,6 +442,7 @@ export default function App() {
     const nextSize = sizeFromPpi(form.imageInfo, ppi);
     updateForm({
       sizeSource: "from_file",
+      standardSizePresetId: "",
       printPpi: ppi,
       lockAspect: true,
       widthMm: String(nextSize.widthMm),
@@ -421,15 +450,41 @@ export default function App() {
     });
   };
 
+  const handleStandardSizeChange = (presetId: string) => {
+    if (!presetId) {
+      updateForm({ standardSizePresetId: "" });
+      return;
+    }
+
+    const preset = standardSizePresets.find((item) => item.id === presetId);
+    if (!preset) return;
+    const orientedSize = orientStandardSize(preset, form.imageInfo);
+    updateForm({
+      sizeSource: "manual",
+      standardSizePresetId: presetId,
+      lockAspect: true,
+      widthMm: String(orientedSize.widthMm),
+      heightMm: String(orientedSize.heightMm),
+    });
+  };
+
   const handleDimensionChange = (axis: "width" | "height", value: string) => {
     if (!form.lockAspect || !form.imageInfo || value.trim() === "") {
-      updateForm(axis === "width" ? { widthMm: value } : { heightMm: value });
+      updateForm(
+        axis === "width"
+          ? { widthMm: value, standardSizePresetId: "" }
+          : { heightMm: value, standardSizePresetId: "" },
+      );
       return;
     }
 
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      updateForm(axis === "width" ? { widthMm: value } : { heightMm: value });
+      updateForm(
+        axis === "width"
+          ? { widthMm: value, standardSizePresetId: "" }
+          : { heightMm: value, standardSizePresetId: "" },
+      );
       return;
     }
 
@@ -438,6 +493,7 @@ export default function App() {
       updateForm({
         widthMm: value,
         heightMm: String(Math.max(1, Math.round(numericValue / aspect))),
+        standardSizePresetId: "",
       });
       return;
     }
@@ -445,6 +501,7 @@ export default function App() {
     updateForm({
       widthMm: String(Math.max(1, Math.round(numericValue * aspect))),
       heightMm: value,
+      standardSizePresetId: "",
     });
   };
 
@@ -700,6 +757,25 @@ export default function App() {
                 })}
               </div>
             )}
+          </div>
+
+          <div className="menu-section standard-size-field">
+            <label htmlFor={standardSizeSelectId}>Стандартный формат</label>
+            <select
+              id={standardSizeSelectId}
+              value={form.standardSizePresetId}
+              onChange={(event) => handleStandardSizeChange(event.target.value)}
+            >
+              <option value="">Выбрать формат</option>
+              {standardSizePresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+            <small>
+              При выборе формата размер переключится на ручной, а ориентация подстроится под загруженное изображение.
+            </small>
           </div>
 
           <fieldset className="menu-section dimensions">
@@ -1337,6 +1413,7 @@ function formInputSignature(form: FormState) {
     widthMm: form.widthMm,
     heightMm: form.heightMm,
     sizeSource: form.sizeSource,
+    standardSizePresetId: form.standardSizePresetId,
     printPpi: form.printPpi,
     lockAspect: form.lockAspect,
     imageInfo: form.imageInfo,
@@ -1540,6 +1617,20 @@ function sizeFromPpi(imageInfo: ImageInfo, ppi: number) {
   return {
     widthMm: Math.max(1, Math.round((imageInfo.pixelWidth / ppi) * 25.4)),
     heightMm: Math.max(1, Math.round((imageInfo.pixelHeight / ppi) * 25.4)),
+  };
+}
+
+function orientStandardSize(
+  preset: (typeof standardSizePresets)[number],
+  imageInfo: ImageInfo | null,
+) {
+  const shortSide = Math.min(preset.widthMm, preset.heightMm);
+  const longSide = Math.max(preset.widthMm, preset.heightMm);
+  const isLandscape = imageInfo ? imageInfo.pixelWidth > imageInfo.pixelHeight : preset.widthMm > preset.heightMm;
+
+  return {
+    widthMm: isLandscape ? longSide : shortSide,
+    heightMm: isLandscape ? shortSide : longSide,
   };
 }
 

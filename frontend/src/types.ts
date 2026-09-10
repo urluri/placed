@@ -194,6 +194,7 @@ export type FormState = {
   widthMm: string;
   heightMm: string;
   sizeSource: SizeSource;
+  standardSizePresetId: string;
   printPpi: number;
   lockAspect: boolean;
   imageInfo: ImageInfo | null;

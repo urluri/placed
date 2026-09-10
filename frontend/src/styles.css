@@ -166,7 +166,8 @@ fieldset {
 
 legend,
 .dimensions label span,
-.select-field span {
+.select-field span,
+.standard-size-field label {
   display: block;
   margin-bottom: 9px;
   color: var(--muted);
@@ -542,6 +543,30 @@ legend,
   color: var(--ink);
   font-weight: 750;
   cursor: pointer;
+}
+
+.standard-size-field {
+  display: grid;
+  gap: 8px;
+}
+
+.standard-size-field select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 38px 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfaf7;
+  color: var(--ink);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.standard-size-field small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .rotate-toggle {
@@ -1739,6 +1764,7 @@ legend,
 .compact-upload,
 .size-source-panel,
 .dimensions,
+.standard-size-field,
 .select-field,
 .rotate-toggle,
 .debug-panel {
@@ -1751,6 +1777,7 @@ legend,
 .file-size-hint,
 .print-presets button,
 .dimensions input,
+.standard-size-field select,
 .select-field select,
 .debug-panel,
 .text-button,
@@ -1775,6 +1802,7 @@ legend,
 .icon-upload:hover,
 .image-history-item:hover,
 .print-presets button:hover,
+.standard-size-field select:hover,
 .select-field select:hover,
 .interior-toggle:hover,
 .decision-toggle:hover,
@@ -1925,11 +1953,13 @@ legend,
 .section-label-row,
 legend,
 .dimensions label span,
+.standard-size-field label,
 .select-field span,
 .upload-summary small,
 .size-mode-hint,
 .file-size-hint span,
 .print-presets span,
+.standard-size-field small,
 .spec-list dt,
 .accent-summary span {
   color: var(--muted);
