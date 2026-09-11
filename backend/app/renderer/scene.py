@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, ImageOps
 
 from .config import load_effects_config
 from .effects import apply_renderer_effects
@@ -10,7 +10,16 @@ TECHNICAL_FRAME_COLOR = (0, 0, 0)
 DEFAULT_MAT_COLOR = (245, 241, 232)
 
 
-def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", rotation_degrees=0, effects_config=None):
+def render(
+    image_path,
+    img_w_mm,
+    img_h_mm,
+    geometry,
+    output_path="output.jpg",
+    rotation_degrees=0,
+    effects_config=None,
+    crop_artwork_to_format=False,
+):
     effects_config = load_effects_config(overrides=effects_config)
     artwork = Image.open(image_path).convert("RGB")
     if rotation_degrees:
@@ -40,7 +49,10 @@ def render(image_path, img_w_mm, img_h_mm, geometry, output_path="output.jpg", r
     mat_px = 0
     top_aperture_rect = None
 
-    artwork = artwork.resize((art_w, art_h), Image.LANCZOS)
+    if crop_artwork_to_format:
+        artwork = ImageOps.fit(artwork, (art_w, art_h), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+    else:
+        artwork = artwork.resize((art_w, art_h), Image.Resampling.LANCZOS)
 
     window_w = art_w - 2 * overlap if has_mat else art_w
     window_h = art_h - 2 * overlap if has_mat else art_h

@@ -118,6 +118,7 @@ async def render_preview(request: Request):
         decor_style = str(payload.get("decorStyle", "standard"))
         rotate_artwork = parse_bool(payload.get("rotateArtwork", False))
         rotation_degrees = int(payload.get("rotationDegrees", 0))
+        crop_artwork_to_format = parse_bool(payload.get("cropArtworkToFormat", False))
         mat_color_analyzer = str(payload.get("matColorAnalyzer", "rules"))
         mat_size_config = parse_json_field(payload.get("matSizeConfig"))
         spec = payload.get("spec")
@@ -146,6 +147,7 @@ async def render_preview(request: Request):
                 geometry,
                 output_path=None,
                 rotation_degrees=normalize_rotation(rotation_degrees, rotate_artwork),
+                crop_artwork_to_format=crop_artwork_to_format,
             )
 
         buffer = io.BytesIO()

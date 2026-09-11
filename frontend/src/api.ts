@@ -77,6 +77,7 @@ function toPayload(form: FormState, matColorAnalyzer: MatColorAnalyzer) {
   payload.set("matColorAnalyzer", matColorAnalyzer);
   payload.set("rotateArtwork", String(form.rotationDegrees !== 0));
   payload.set("rotationDegrees", String(form.rotationDegrees));
+  payload.set("cropArtworkToFormat", String(form.artworkType === "photo" && Boolean(form.standardSizePresetId)));
   payload.set("matSizeConfig", JSON.stringify(form.matSizeConfig));
   if (form.image) {
     payload.set("image", form.image);

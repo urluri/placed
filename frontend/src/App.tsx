@@ -70,24 +70,23 @@ const standardSizePresets = [
   { id: "100x150", label: "10 x 15 см", widthMm: 100, heightMm: 150 },
   { id: "130x180", label: "13 x 18 см", widthMm: 130, heightMm: 180 },
   { id: "150x200", label: "15 x 20 см", widthMm: 150, heightMm: 200 },
-  { id: "180x240", label: "18 x 24 см", widthMm: 180, heightMm: 240 },
-  { id: "200x250", label: "20 x 25 см", widthMm: 200, heightMm: 250 },
   { id: "200x300", label: "20 x 30 см", widthMm: 200, heightMm: 300 },
   { id: "a4", label: "A4, 21 x 29.7 см", widthMm: 210, heightMm: 297 },
-  { id: "240x300", label: "24 x 30 см", widthMm: 240, heightMm: 300 },
+  { id: "300x300", label: "30 x 30 см", widthMm: 300, heightMm: 300 },
   { id: "300x400", label: "30 x 40 см", widthMm: 300, heightMm: 400 },
   { id: "a3", label: "A3, 29.7 x 42 см", widthMm: 297, heightMm: 420 },
-  { id: "300x450", label: "30 x 45 см", widthMm: 300, heightMm: 450 },
+  { id: "400x400", label: "40 x 40 см", widthMm: 400, heightMm: 400 },
   { id: "400x500", label: "40 x 50 см", widthMm: 400, heightMm: 500 },
   { id: "400x600", label: "40 x 60 см", widthMm: 400, heightMm: 600 },
   { id: "a2", label: "A2, 42 x 59.4 см", widthMm: 420, heightMm: 594 },
+  { id: "500x500", label: "50 x 50 см", widthMm: 500, heightMm: 500 },
   { id: "500x700", label: "50 x 70 см", widthMm: 500, heightMm: 700 },
+  { id: "600x600", label: "60 x 60 см", widthMm: 600, heightMm: 600 },
   { id: "600x800", label: "60 x 80 см", widthMm: 600, heightMm: 800 },
-  { id: "600x900", label: "60 x 90 см", widthMm: 600, heightMm: 900 },
   { id: "a1", label: "A1, 59.4 x 84.1 см", widthMm: 594, heightMm: 841 },
+  { id: "700x700", label: "70 x 70 см", widthMm: 700, heightMm: 700 },
   { id: "700x1000", label: "70 x 100 см", widthMm: 700, heightMm: 1000 },
-  { id: "800x1200", label: "80 x 120 см", widthMm: 800, heightMm: 1200 },
-  { id: "1000x1500", label: "100 x 150 см", widthMm: 1000, heightMm: 1500 },
+  { id: "1000x1000", label: "100 x 100 см", widthMm: 1000, heightMm: 1000 },
 ];
 
 const interiorSceneScale = {
@@ -292,6 +291,10 @@ export default function App() {
   const currentPrintQuality = form.imageInfo
     ? printQualityFor(form.imageInfo, dimensionNumber(form.widthMm), dimensionNumber(form.heightMm))
     : null;
+  const standardSizeNotice = useMemo(
+    () => standardSizeNoticeText(form.standardSizePresetId, form.imageInfo, form.artworkType),
+    [form.standardSizePresetId, form.imageInfo, form.artworkType],
+  );
   const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
     ? { backgroundImage: `url(${interiorScene.src})` }
     : undefined;
@@ -458,13 +461,33 @@ export default function App() {
 
     const preset = standardSizePresets.find((item) => item.id === presetId);
     if (!preset) return;
-    const orientedSize = orientStandardSize(preset, form.imageInfo);
+    const fittedSize = standardSizeForArtwork(preset, form.imageInfo, form.artworkType);
     updateForm({
       sizeSource: "manual",
       standardSizePresetId: presetId,
       lockAspect: true,
-      widthMm: String(orientedSize.widthMm),
-      heightMm: String(orientedSize.heightMm),
+      widthMm: String(fittedSize.widthMm),
+      heightMm: String(fittedSize.heightMm),
+    });
+  };
+
+  const handleArtworkTypeChange = (artworkType: ArtworkType) => {
+    if (!form.standardSizePresetId) {
+      updateForm({ artworkType });
+      return;
+    }
+
+    const preset = standardSizePresets.find((item) => item.id === form.standardSizePresetId);
+    if (!preset) {
+      updateForm({ artworkType });
+      return;
+    }
+
+    const nextSize = standardSizeForArtwork(preset, form.imageInfo, artworkType);
+    updateForm({
+      artworkType,
+      widthMm: String(nextSize.widthMm),
+      heightMm: String(nextSize.heightMm),
     });
   };
 
@@ -774,8 +797,9 @@ export default function App() {
               ))}
             </select>
             <small>
-              При выборе формата размер переключится на ручной, а ориентация подстроится под загруженное изображение.
+              При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции.
             </small>
+            {standardSizeNotice && <small className="standard-size-warning">{standardSizeNotice}</small>}
           </div>
 
           <fieldset className="menu-section dimensions">
@@ -844,7 +868,7 @@ export default function App() {
             label="Тип работы"
             value={form.artworkType}
             options={artworkOptions}
-            onChange={(artworkType) => updateForm({ artworkType })}
+            onChange={handleArtworkTypeChange}
           />
 
           <SelectField
@@ -1632,6 +1656,59 @@ function orientStandardSize(
     widthMm: isLandscape ? longSide : shortSide,
     heightMm: isLandscape ? shortSide : longSide,
   };
+}
+
+function fitStandardSizeToImage(
+  preset: (typeof standardSizePresets)[number],
+  imageInfo: ImageInfo | null,
+) {
+  const targetSize = orientStandardSize(preset, imageInfo);
+  if (!imageInfo) return targetSize;
+
+  const imageAspect = imageInfo.pixelWidth / imageInfo.pixelHeight;
+  const targetAspect = targetSize.widthMm / targetSize.heightMm;
+  if (!Number.isFinite(imageAspect) || imageAspect <= 0) return targetSize;
+  if (Math.abs(imageAspect - targetAspect) < 0.015) return targetSize;
+
+  if (imageAspect > targetAspect) {
+    return {
+      widthMm: targetSize.widthMm,
+      heightMm: Math.max(1, Math.round(targetSize.widthMm / imageAspect)),
+    };
+  }
+
+  return {
+    widthMm: Math.max(1, Math.round(targetSize.heightMm * imageAspect)),
+    heightMm: targetSize.heightMm,
+  };
+}
+
+function standardSizeForArtwork(
+  preset: (typeof standardSizePresets)[number],
+  imageInfo: ImageInfo | null,
+  artworkType: ArtworkType,
+) {
+  if (artworkType === "photo") return orientStandardSize(preset, imageInfo);
+  return fitStandardSizeToImage(preset, imageInfo);
+}
+
+function standardSizeNoticeText(presetId: string, imageInfo: ImageInfo | null, artworkType: ArtworkType) {
+  if (!presetId || !imageInfo) return null;
+  const preset = standardSizePresets.find((item) => item.id === presetId);
+  if (!preset) return null;
+
+  const targetSize = orientStandardSize(preset, imageInfo);
+  const fittedSize = fitStandardSizeToImage(preset, imageInfo);
+  const didFit =
+    Math.abs(targetSize.widthMm - fittedSize.widthMm) > 1 ||
+    Math.abs(targetSize.heightMm - fittedSize.heightMm) > 1;
+
+  if (!didFit) return null;
+  if (artworkType === "photo") {
+    return `Фото будет обрезано под выбранный формат ${targetSize.widthMm} x ${targetSize.heightMm} мм без растягивания.`;
+  }
+
+  return `Выбранный формат используется как максимальный габарит ${targetSize.widthMm} x ${targetSize.heightMm} мм. Изображение не обрезается и не растягивается; фактический размер работы: ${fittedSize.widthMm} x ${fittedSize.heightMm} мм.`;
 }
 
 function printQualityFor(imageInfo: ImageInfo, widthMm: number | null, heightMm: number | null) {

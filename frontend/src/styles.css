@@ -569,6 +569,14 @@ legend,
   line-height: 1.35;
 }
 
+.standard-size-field .standard-size-warning {
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, #b88738 34%, var(--line));
+  border-radius: 7px;
+  background: color-mix(in srgb, #f1d9a8 34%, var(--control));
+  color: color-mix(in srgb, #6f4b13 84%, var(--ink));
+}
+
 .rotate-toggle {
   display: flex;
   align-items: center;
@@ -1960,9 +1968,14 @@ legend,
 .file-size-hint span,
 .print-presets span,
 .standard-size-field small,
+.standard-size-field .standard-size-warning,
 .spec-list dt,
 .accent-summary span {
   color: var(--muted);
+}
+
+.standard-size-field .standard-size-warning {
+  color: color-mix(in srgb, #6f4b13 84%, var(--ink));
 }
 
 .app-shell[data-theme="dark"] .plain-preview {
