@@ -138,7 +138,6 @@ const interiorScenes: Record<
   },
 };
 
-type ThemeMode = "light" | "dark";
 type ImageHistoryItem = {
   id: string;
   name: string;
@@ -210,12 +209,6 @@ export default function App() {
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
   const [showSpecOverlay, setShowSpecOverlay] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "light";
-    const savedTheme = window.localStorage.getItem("placed-theme");
-    if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const previewSurfaceRef = useRef<HTMLDivElement>(null);
   const previewImageRef = useRef<HTMLImageElement>(null);
@@ -239,10 +232,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = themeMode;
-    document.documentElement.style.colorScheme = themeMode;
-    window.localStorage.setItem("placed-theme", themeMode);
-  }, [themeMode]);
+    delete document.documentElement.dataset.theme;
+    document.documentElement.style.colorScheme = "light";
+    window.localStorage.removeItem("placed-theme");
+  }, []);
 
   const measurePreview = useCallback(() => {
     const surface = previewSurfaceRef.current;
@@ -674,26 +667,12 @@ export default function App() {
   };
 
   return (
-    <main className="app-shell" data-theme={themeMode}>
+    <main className="app-shell">
       <section className="control-panel" aria-label="Параметры картины">
         <div className="brand-row">
           <div>
-            <p className="eyebrow">Placed MVP</p>
+            <p className="eyebrow app-title">Placed MVP</p>
           </div>
-          <button
-            type="button"
-            className="theme-switch"
-            role="switch"
-            aria-checked={themeMode === "dark"}
-            aria-label={themeMode === "dark" ? "Включить светлую тему" : "Включить темную тему"}
-            onClick={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
-          >
-            <span className="theme-switch-track" aria-hidden="true">
-              <span className="theme-switch-symbol theme-switch-sun">☀</span>
-              <span className="theme-switch-symbol theme-switch-moon">☾</span>
-              <span className="theme-switch-thumb" />
-            </span>
-          </button>
         </div>
 
         <form className="config-form">
@@ -729,13 +708,15 @@ export default function App() {
                 }}
               />
               <div className="upload-summary">
-                <strong>{form.image?.name ?? "Загрузить изображение"}</strong>
-                <small>{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
+                <strong className="block-title">{form.image?.name ?? "Загрузить изображение"}</strong>
+                <small className="block-subtitle">{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
               </div>
             </div>
             {imageHistory.length > 0 && (
               <details className="image-history-menu">
-                <summary>Ранее загруженные</summary>
+                <summary>
+                  <span className="section-title">Ранее загруженные</span>
+                </summary>
                 <div className="image-history-actions">
                   <button type="button" className="image-history-clear" onClick={handleHistoryClear}>
                     Очистить все
@@ -754,7 +735,7 @@ export default function App() {
                         <img src={item.thumbnail} alt="" />
                         <span>
                           <strong>{item.name}</strong>
-                          <small>{Math.round(item.size / 1024)} КБ</small>
+                          <small className="block-subtitle">{Math.round(item.size / 1024)} КБ</small>
                         </span>
                       </button>
                       <button
@@ -784,7 +765,7 @@ export default function App() {
 
           <div className="menu-section size-source-panel">
             <div className="section-label-row">
-              <span>Размер работы</span>
+              <span className="section-title">Размер работы</span>
             </div>
             <div className="segmented-control" aria-label="Источник физического размера">
               <button
@@ -808,7 +789,7 @@ export default function App() {
                 <span>
                   Файл: {form.imageInfo.pixelWidth} x {form.imageInfo.pixelHeight} px
                 </span>
-                <strong>{currentPrintQuality ? currentPrintQuality.label : "Качество не рассчитано"}</strong>
+                <strong className="block-title">{currentPrintQuality ? currentPrintQuality.label : "Качество не рассчитано"}</strong>
               </div>
             )}
             {form.imageInfo && form.sizeSource === "from_file" && (
@@ -822,7 +803,7 @@ export default function App() {
                       className={form.printPpi === preset.ppi ? "is-active" : ""}
                       onClick={() => applyPrintPreset(preset.ppi)}
                     >
-                      <strong>{preset.label}</strong>
+                      <strong className="block-title">{preset.label}</strong>
                       <span>
                         {size.widthMm} x {size.heightMm} мм, {preset.note}
                       </span>
@@ -835,7 +816,19 @@ export default function App() {
 
           {form.sizeSource === "manual" && (
             <div className="menu-section standard-size-field">
-              <label htmlFor={standardSizeSelectId}>Стандартный формат</label>
+              <div className="field-label-row">
+                <label className="field-label" htmlFor={standardSizeSelectId}>Стандартный формат</label>
+                <button
+                  type="button"
+                  className="info-tooltip"
+                  aria-label="При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции."
+                >
+                  <span aria-hidden="true">?</span>
+                  <span className="info-tooltip-text" role="tooltip">
+                    При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции.
+                  </span>
+                </button>
+              </div>
               <select
                 id={standardSizeSelectId}
                 value={form.standardSizePresetId}
@@ -848,16 +841,13 @@ export default function App() {
                   </option>
                 ))}
               </select>
-              <small>
-                При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции.
-              </small>
               {standardSizeNotice && <small className="standard-size-warning">{standardSizeNotice}</small>}
             </div>
           )}
 
           <fieldset className="menu-section dimensions">
             <legend>
-              Физические размеры
+              <span className="section-title">Физические размеры</span>
               {form.sizeSource === "manual" && form.imageInfo && (
                 <button
                   type="button"
@@ -870,7 +860,7 @@ export default function App() {
               )}
             </legend>
             <label>
-              <span>Ширина, мм</span>
+              <span className="field-label">Ширина, мм</span>
               <input
                 type="number"
                 min="50"
@@ -882,7 +872,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Высота, мм</span>
+              <span className="field-label">Высота, мм</span>
               <input
                 type="number"
                 min="50"
@@ -896,7 +886,7 @@ export default function App() {
           </fieldset>
 
           <div className="menu-section inline-controls" aria-label="Поворот изображения">
-            <span className="section-caption">Поворот</span>
+            <span className="section-caption section-title">Поворот</span>
             <button
               type="button"
               className={`icon-button ${form.rotationDegrees === -90 ? "is-active" : ""}`}
@@ -937,16 +927,16 @@ export default function App() {
         <div className="preview-toolbar">
           <div className="preview-meta">
             <div className="preview-meta-row">
-              <span>Размер</span>
-              <strong className="preview-dimensions">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</strong>
+              <span className="meta-label">Размер</span>
+              <strong className="preview-dimensions meta-value">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</strong>
             </div>
             <div className="preview-meta-row">
-              <span>Исполнение</span>
-              <strong>{decorStyleLabels[selectedDecorStyle]}</strong>
+              <span className="meta-label">Исполнение</span>
+              <strong className="meta-value">{decorStyleLabels[selectedDecorStyle]}</strong>
             </div>
             <div className="preview-meta-row">
-              <span>Интерьер</span>
-              <strong>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</strong>
+              <span className="meta-label">Интерьер</span>
+              <strong className="meta-value">{showInteriorPreview ? interiorScene.label : "Без интерьера"}</strong>
             </div>
           </div>
           <div className="preview-mode-panel">
@@ -1043,7 +1033,9 @@ export default function App() {
             open={showSpecOverlay}
             onToggle={(event) => setShowSpecOverlay(event.currentTarget.open)}
           >
-            <summary>Параметры итогового оформления</summary>
+            <summary>
+              <span className="section-title">Параметры итогового оформления</span>
+            </summary>
             <dl className="spec-list">
               <SpecItem label="Рама">{frameSpec(selectedVariant)}</SpecItem>
               <SpecItem label="Паспарту">{matSpec(selectedVariant)}</SpecItem>
@@ -1334,7 +1326,7 @@ function SelectField<T extends string>({
   return (
     <div className="select-field">
       <div className="field-label-row">
-        <label htmlFor={selectId}>{label}</label>
+        <label className="field-label" htmlFor={selectId}>{label}</label>
       </div>
       <select id={selectId} value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
@@ -1381,8 +1373,8 @@ function MlInnerCandidatePanel({
   return (
     <section className="ml-candidate-panel" aria-label="Другие варианты из палитры Placed">
       <div>
-        <strong>Другие варианты из палитры Placed</strong>
-        <span>Нажмите на оттенок, чтобы примерить его в авторском варианте</span>
+        <strong className="block-title">Другие варианты из палитры Placed</strong>
+        <span className="block-subtitle">Нажмите на оттенок, чтобы примерить его в авторском варианте</span>
       </div>
       <div className="ml-candidate-list">
         {candidates.map((candidate, index) => {
@@ -1398,8 +1390,8 @@ function MlInnerCandidatePanel({
             >
               <span className="ml-candidate-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
               <span>
-                <strong>{color ? color.name : candidate.color_id}</strong>
-                <small>{color?.hex ?? candidate.color_id}</small>
+                <strong className="block-title">{color ? color.name : candidate.color_id}</strong>
+                <small className="block-subtitle">{color?.hex ?? candidate.color_id}</small>
               </span>
             </button>
           );
