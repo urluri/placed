@@ -41,8 +41,8 @@ const decorStyles: DecorStyle[] = ["standard", "signature"];
 const ACTIVE_MAT_COLOR_ANALYZER: MatColorAnalyzer = "ml";
 
 const decorStyleLabels: Record<DecorStyle, string> = {
-  standard: "Универсальный",
-  signature: "Авторский",
+  standard: "Standard",
+  signature: "Signature",
 };
 
 const defaultMatSizeConfig: MatSizeConfig = {
@@ -907,7 +907,7 @@ export default function App() {
                   className={selectedDecorStyle === decorStyle ? "is-active" : ""}
                   onClick={() => handleDecorStyleChange(decorStyle)}
                 >
-                  {decorStyleLabels[decorStyle]}
+                  {decorStyle[0].toUpperCase() + decorStyle.slice(1)}
                 </button>
               ))}
             </nav>
@@ -987,7 +987,6 @@ export default function App() {
           />
         )}
         <div className="result-panel">
-          <ResultSummary variant={selectedVariant} />
           <details
             className="result-details"
             open={showSpecOverlay}
@@ -1007,59 +1006,6 @@ export default function App() {
         </div>
       </section>
     </main>
-  );
-}
-
-function ResultSummary({ variant }: { variant: Recommendation["variants"][number] | null }) {
-  if (!variant) return null;
-
-  return (
-    <section className="result-summary" aria-label="Итоговое оформление">
-      <ResultChip label="Рама" title={variant.frame.name} detail={frameSpec(variant)} color={variant.frame.hex} />
-      {variant.mat?.enabled ? (
-        <>
-          <ResultChip
-            label="Верхнее паспарту"
-            title={variant.mat.outer_color?.name ?? "Без цвета"}
-            detail={matEdgesLabel(variant.mat)}
-            color={variant.mat.outer_color?.hex}
-          />
-          {variant.mat.inner_color && (
-            <ResultChip
-              label="Нижнее паспарту"
-              title={variant.mat.inner_color.name}
-              detail={innerMatRevealLabel(variant.mat)}
-              color={variant.mat.inner_color.hex}
-            />
-          )}
-        </>
-      ) : (
-        <ResultChip label="Паспарту" title="Не используется" detail="только работа и рама" />
-      )}
-    </section>
-  );
-}
-
-function ResultChip({
-  label,
-  title,
-  detail,
-  color,
-}: {
-  label: string;
-  title: string;
-  detail: string;
-  color?: string;
-}) {
-  return (
-    <article className="result-chip">
-      <span className="result-chip-swatch" style={{ background: color ?? "transparent" }} aria-hidden="true" />
-      <span>
-        <small>{label}</small>
-        <strong>{title}</strong>
-        <em>{detail}</em>
-      </span>
-    </article>
   );
 }
 
@@ -1385,7 +1331,7 @@ function MlInnerCandidatePanel({
     <section className="ml-candidate-panel" aria-label="Другие варианты из палитры Placed">
       <div>
         <strong>Другие варианты из палитры Placed</strong>
-        <span>Нажмите на оттенок, чтобы примерить его в авторском варианте</span>
+        <span>Нажмите на оттенок, чтобы примерить его в Signature</span>
       </div>
       <div className="ml-candidate-list">
         {candidates.map((candidate, index) => {
