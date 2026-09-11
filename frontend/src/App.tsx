@@ -782,25 +782,27 @@ export default function App() {
             )}
           </div>
 
-          <div className="menu-section standard-size-field">
-            <label htmlFor={standardSizeSelectId}>Стандартный формат</label>
-            <select
-              id={standardSizeSelectId}
-              value={form.standardSizePresetId}
-              onChange={(event) => handleStandardSizeChange(event.target.value)}
-            >
-              <option value="">Выбрать формат</option>
-              {standardSizePresets.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.label}
-                </option>
-              ))}
-            </select>
-            <small>
-              При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции.
-            </small>
-            {standardSizeNotice && <small className="standard-size-warning">{standardSizeNotice}</small>}
-          </div>
+          {form.sizeSource === "manual" && (
+            <div className="menu-section standard-size-field">
+              <label htmlFor={standardSizeSelectId}>Стандартный формат</label>
+              <select
+                id={standardSizeSelectId}
+                value={form.standardSizePresetId}
+                onChange={(event) => handleStandardSizeChange(event.target.value)}
+              >
+                <option value="">Выбрать формат</option>
+                {standardSizePresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+              <small>
+                При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции.
+              </small>
+              {standardSizeNotice && <small className="standard-size-warning">{standardSizeNotice}</small>}
+            </div>
+          )}
 
           <fieldset className="menu-section dimensions">
             <legend>
