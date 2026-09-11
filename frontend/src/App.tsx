@@ -41,8 +41,8 @@ const decorStyles: DecorStyle[] = ["standard", "signature"];
 const ACTIVE_MAT_COLOR_ANALYZER: MatColorAnalyzer = "ml";
 
 const decorStyleLabels: Record<DecorStyle, string> = {
-  standard: "Standard",
-  signature: "Signature",
+  standard: "Универсальный",
+  signature: "Авторский",
 };
 
 const defaultMatSizeConfig: MatSizeConfig = {
@@ -423,6 +423,24 @@ export default function App() {
     }
   };
 
+  const handleHistoryDelete = async (id: string) => {
+    try {
+      await deleteHistoryImage(id);
+      setImageHistory(await loadImageHistory());
+    } catch {
+      setRenderState("Не удалось удалить изображение из истории");
+    }
+  };
+
+  const handleHistoryClear = async () => {
+    try {
+      await clearImageHistory();
+      setImageHistory([]);
+    } catch {
+      setRenderState("Не удалось очистить историю изображений");
+    }
+  };
+
   const handleSizeSourceChange = (sizeSource: SizeSource) => {
     if (sizeSource === "from_file" && form.imageInfo) {
       const recommendedSize = sizeFromPpi(form.imageInfo, 300);
@@ -687,9 +705,18 @@ export default function App() {
                 aria-label="Загрузить изображение"
                 onClick={() => uploadInputRef.current?.click()}
               >
-                <span className="download-glyph" aria-hidden="true">
-                  <span />
-                </span>
+                <svg
+                  className="upload-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
               </button>
               <input
                 ref={uploadInputRef}
@@ -709,22 +736,46 @@ export default function App() {
             {imageHistory.length > 0 && (
               <details className="image-history-menu">
                 <summary>Ранее загруженные</summary>
+                <div className="image-history-actions">
+                  <button type="button" className="image-history-clear" onClick={handleHistoryClear}>
+                    Очистить все
+                  </button>
+                </div>
                 <div className="image-history-list">
                   {imageHistory.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="image-history-item"
-                      onClick={() => {
-                        void handleHistorySelect(item.id);
-                      }}
-                    >
-                      <img src={item.thumbnail} alt="" />
-                      <span>
-                        <strong>{item.name}</strong>
-                        <small>{Math.round(item.size / 1024)} КБ</small>
-                      </span>
-                    </button>
+                    <div key={item.id} className="image-history-row">
+                      <button
+                        type="button"
+                        className="image-history-item"
+                        onClick={() => {
+                          void handleHistorySelect(item.id);
+                        }}
+                      >
+                        <img src={item.thumbnail} alt="" />
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>{Math.round(item.size / 1024)} КБ</small>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="image-history-delete"
+                        aria-label={`Удалить ${item.name} из ранее загруженных`}
+                        onClick={() => {
+                          void handleHistoryDelete(item.id);
+                        }}
+                      >
+                        <svg className="trash-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path
+                            d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.11 1.02.17m-1.02-.17-1.07 13.88a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48.11 48.11 0 0 0-3.48-.4m-12 .57c.34-.06.68-.12 1.02-.17m0 0a48.11 48.11 0 0 1 3.48-.4m7.5 0v-.91c0-1.18-.91-2.17-2.09-2.2a51.96 51.96 0 0 0-3.32 0c-1.18.03-2.09 1.02-2.09 2.2v.91m7.5 0a48.67 48.67 0 0 0-7.5 0"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   ))}
                 </div>
               </details>
@@ -907,7 +958,7 @@ export default function App() {
                   className={selectedDecorStyle === decorStyle ? "is-active" : ""}
                   onClick={() => handleDecorStyleChange(decorStyle)}
                 >
-                  {decorStyle[0].toUpperCase() + decorStyle.slice(1)}
+                  {decorStyleLabels[decorStyle]}
                 </button>
               ))}
             </nav>
@@ -1331,7 +1382,7 @@ function MlInnerCandidatePanel({
     <section className="ml-candidate-panel" aria-label="Другие варианты из палитры Placed">
       <div>
         <strong>Другие варианты из палитры Placed</strong>
-        <span>Нажмите на оттенок, чтобы примерить его в Signature</span>
+        <span>Нажмите на оттенок, чтобы примерить его в авторском варианте</span>
       </div>
       <div className="ml-candidate-list">
         {candidates.map((candidate, index) => {
@@ -1528,6 +1579,24 @@ async function touchHistoryImage(item: StoredImageHistoryItem) {
   const transaction = db.transaction(IMAGE_HISTORY_STORE, "readwrite");
   const store = transaction.objectStore(IMAGE_HISTORY_STORE);
   store.put({ ...item, updatedAt: Date.now() });
+  await transactionComplete(transaction);
+  db.close();
+}
+
+async function deleteHistoryImage(id: string) {
+  const db = await openImageHistoryDb();
+  const transaction = db.transaction(IMAGE_HISTORY_STORE, "readwrite");
+  const store = transaction.objectStore(IMAGE_HISTORY_STORE);
+  store.delete(id);
+  await transactionComplete(transaction);
+  db.close();
+}
+
+async function clearImageHistory() {
+  const db = await openImageHistoryDb();
+  const transaction = db.transaction(IMAGE_HISTORY_STORE, "readwrite");
+  const store = transaction.objectStore(IMAGE_HISTORY_STORE);
+  store.clear();
   await transactionComplete(transaction);
   db.close();
 }

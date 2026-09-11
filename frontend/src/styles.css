@@ -204,46 +204,10 @@ legend,
   cursor: pointer;
 }
 
-.download-glyph {
-  position: relative;
+.upload-icon {
+  width: 22px;
+  height: 22px;
   display: block;
-  width: 20px;
-  height: 20px;
-}
-
-.download-glyph::before {
-  content: "";
-  position: absolute;
-  left: 9px;
-  top: 3px;
-  width: 2px;
-  height: 10px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.download-glyph span {
-  position: absolute;
-  left: 5px;
-  top: 8px;
-  width: 10px;
-  height: 10px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(45deg);
-}
-
-.download-glyph::after {
-  content: "";
-  position: absolute;
-  left: 3px;
-  bottom: 2px;
-  width: 14px;
-  height: 5px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  border-left: 2px solid currentColor;
-  border-radius: 0 0 3px 3px;
 }
 
 .icon-upload:hover {
@@ -312,6 +276,37 @@ legend,
   overflow: auto;
 }
 
+.image-history-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 6px 6px;
+}
+
+.image-history-clear {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.image-history-clear:hover {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+}
+
+.image-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 4px;
+  align-items: stretch;
+}
+
 .image-history-item {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
@@ -328,9 +323,30 @@ legend,
   cursor: pointer;
 }
 
+.image-history-delete {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-height: 54px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .image-history-item:hover {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
   background: var(--control-hover);
+}
+
+.image-history-delete:hover {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
 }
 
 .image-history-item img {
@@ -1781,6 +1797,8 @@ legend,
 
 .icon-upload,
 .image-history-menu,
+.image-history-clear,
+.image-history-delete,
 .segmented-control,
 .file-size-hint,
 .print-presets button,
