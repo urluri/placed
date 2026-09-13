@@ -746,7 +746,9 @@ export default function App() {
                     aria-label="Показать предыдущие изображения"
                     onClick={() => scrollImageHistory(-1)}
                   >
-                    ‹
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M15 18 9 12l6-6" />
+                    </svg>
                   </button>
                   <div ref={imageHistoryListRef} className="image-history-list" tabIndex={0}>
                     {imageHistory.map((item) => (
@@ -788,7 +790,9 @@ export default function App() {
                     aria-label="Показать следующие изображения"
                     onClick={() => scrollImageHistory(1)}
                   >
-                    ›
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -1081,7 +1085,9 @@ export default function App() {
               aria-label="Закрыть параметры"
               onClick={() => setShowParametersDrawer(false)}
             >
-              ×
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
             </button>
           </div>
           <div className="parameters-drawer-body">
