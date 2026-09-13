@@ -3067,3 +3067,33 @@ body {
 .apply-button-wrap[data-disabled-hint]::after {
   font-weight: 620;
 }
+
+/* Keep preview option controls in a single horizontal row */
+.preview-option-groups {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.preview-option-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: max-content;
+}
+
+.mat-swatch-list,
+.frame-corner-list {
+  flex-wrap: nowrap;
+  gap: 14px;
+}
+
+.preview-option-divider {
+  display: block;
+  flex: 0 0 1px;
+  align-self: stretch;
+  min-height: 88px;
+}
