@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import type { CSSProperties, DragEvent, MouseEvent, ReactNode } from "react";
 
 import { recommend, renderPreview } from "./api";
 import type {
@@ -209,7 +209,9 @@ export default function App() {
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
   const [showParametersDrawer, setShowParametersDrawer] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
+  const [isUploadDragging, setIsUploadDragging] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const uploadDragDepth = useRef(0);
   const imageHistoryListRef = useRef<HTMLDivElement>(null);
   const previewSurfaceRef = useRef<HTMLDivElement>(null);
   const previewImageRef = useRef<HTMLImageElement>(null);
@@ -376,6 +378,43 @@ export default function App() {
     }
 
     await applyImageFile(file, true);
+  };
+
+  const handleUploadDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+
+    uploadDragDepth.current += 1;
+    setIsUploadDragging(true);
+  };
+
+  const handleUploadDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleUploadDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    uploadDragDepth.current = Math.max(0, uploadDragDepth.current - 1);
+    if (uploadDragDepth.current === 0) setIsUploadDragging(false);
+  };
+
+  const handleUploadDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    uploadDragDepth.current = 0;
+    setIsUploadDragging(false);
+
+    const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/")) ?? null;
+    if (!file) {
+      setRenderState("Перетащите файл изображения");
+      return;
+    }
+
+    void handleImageUpload(file);
   };
 
   const applyImageFile = async (file: File, shouldSaveToHistory: boolean) => {
@@ -696,7 +735,13 @@ export default function App() {
 
         <form className="config-form">
           <div className="menu-section">
-            <div className="compact-upload">
+            <div
+              className={`compact-upload ${isUploadDragging ? "is-dragging" : ""}`}
+              onDragEnter={handleUploadDragEnter}
+              onDragOver={handleUploadDragOver}
+              onDragLeave={handleUploadDragLeave}
+              onDrop={handleUploadDrop}
+            >
               <button
                 type="button"
                 className="icon-upload"

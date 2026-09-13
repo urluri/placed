@@ -2467,6 +2467,19 @@ body {
   background: color-mix(in srgb, var(--accent-soft) 30%, var(--control));
 }
 
+.compact-upload.is-dragging {
+  border-color: color-mix(in srgb, var(--accent) 88%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--control));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent),
+    var(--shadow-soft);
+}
+
+.compact-upload.is-dragging .icon-upload {
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
 .icon-upload {
   width: 42px;
   height: 42px;
