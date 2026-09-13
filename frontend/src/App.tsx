@@ -1498,7 +1498,6 @@ function MlInnerCandidatePanel({
             })}
           </div>
         </div>
-        <div className="preview-option-divider" aria-hidden="true" />
         <div className="preview-option-group">
           <strong>Варианты рам</strong>
           <div className="frame-corner-list" aria-label="Варианты рам">

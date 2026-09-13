@@ -3138,20 +3138,39 @@ body {
 
 /* The preview options area is split into two equal halves. */
 .ml-candidate-panel {
-  width: calc(100% - 48px);
+  width: auto;
+  box-sizing: border-box;
+  grid-template-columns: 1fr;
 }
 
 .ml-candidate-panel .preview-option-groups {
+  display: grid;
+  position: relative;
   width: 100%;
-  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
-  column-gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  align-items: center;
+}
+
+.ml-candidate-panel .preview-option-groups::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: color-mix(in srgb, var(--line) 82%, transparent);
+  transform: translateX(-0.5px);
 }
 
 .ml-candidate-panel .preview-option-group {
   width: 100%;
+  min-width: 0;
+  padding: 0 32px;
+  box-sizing: border-box;
   justify-items: center;
 }
 
 .ml-candidate-panel .preview-option-divider {
-  justify-self: center;
+  display: none;
 }
