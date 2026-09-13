@@ -3135,3 +3135,23 @@ body {
   width: 1px;
   min-height: 94px;
 }
+
+/* The preview options area is split into two equal halves. */
+.ml-candidate-panel {
+  width: calc(100% - 48px);
+}
+
+.ml-candidate-panel .preview-option-groups {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  column-gap: 0;
+}
+
+.ml-candidate-panel .preview-option-group {
+  width: 100%;
+  justify-items: center;
+}
+
+.ml-candidate-panel .preview-option-divider {
+  justify-self: center;
+}
