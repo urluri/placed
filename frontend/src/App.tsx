@@ -207,9 +207,10 @@ export default function App() {
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
-  const [showSpecOverlay, setShowSpecOverlay] = useState(false);
+  const [showParametersDrawer, setShowParametersDrawer] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const imageHistoryListRef = useRef<HTMLDivElement>(null);
   const previewSurfaceRef = useRef<HTMLDivElement>(null);
   const previewImageRef = useRef<HTMLImageElement>(null);
   const requestId = useRef(0);
@@ -236,6 +237,17 @@ export default function App() {
     document.documentElement.style.colorScheme = "light";
     window.localStorage.removeItem("placed-theme");
   }, []);
+
+  useEffect(() => {
+    if (!showParametersDrawer) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowParametersDrawer(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showParametersDrawer]);
 
   const measurePreview = useCallback(() => {
     const surface = previewSurfaceRef.current;
@@ -432,6 +444,13 @@ export default function App() {
     } catch {
       setRenderState("Не удалось очистить историю изображений");
     }
+  };
+
+  const scrollImageHistory = (direction: -1 | 1) => {
+    const list = imageHistoryListRef.current;
+    if (!list) return;
+    const step = Math.max(132, Math.floor(list.clientWidth * 0.72));
+    list.scrollBy({ left: direction * step, behavior: "smooth" });
   };
 
   const handleSizeSourceChange = (sizeSource: SizeSource) => {
@@ -713,53 +732,66 @@ export default function App() {
               </div>
             </div>
             {imageHistory.length > 0 && (
-              <details className="image-history-menu">
-                <summary>
+              <div className="image-history-menu">
+                <div className="image-history-heading">
                   <span className="section-title">Ранее загруженные</span>
-                </summary>
-                <div className="image-history-actions">
                   <button type="button" className="image-history-clear" onClick={handleHistoryClear}>
                     Очистить все
                   </button>
                 </div>
-                <div className="image-history-list">
-                  {imageHistory.map((item) => (
-                    <div key={item.id} className="image-history-row">
-                      <button
-                        type="button"
-                        className="image-history-item"
-                        onClick={() => {
-                          void handleHistorySelect(item.id);
-                        }}
-                      >
-                        <img src={item.thumbnail} alt="" />
-                        <span>
-                          <strong>{item.name}</strong>
-                          <small className="block-subtitle">{Math.round(item.size / 1024)} КБ</small>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="image-history-delete"
-                        aria-label={`Удалить ${item.name} из ранее загруженных`}
-                        onClick={() => {
-                          void handleHistoryDelete(item.id);
-                        }}
-                      >
-                        <svg className="trash-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path
-                            d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.11 1.02.17m-1.02-.17-1.07 13.88a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48.11 48.11 0 0 0-3.48-.4m-12 .57c.34-.06.68-.12 1.02-.17m0 0a48.11 48.11 0 0 1 3.48-.4m7.5 0v-.91c0-1.18-.91-2.17-2.09-2.2a51.96 51.96 0 0 0-3.32 0c-1.18.03-2.09 1.02-2.09 2.2v.91m7.5 0a48.67 48.67 0 0 0-7.5 0"
-                            stroke="currentColor"
-                            strokeWidth="1.7"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
+                <div className="image-history-carousel">
+                  <button
+                    type="button"
+                    className="image-history-nav"
+                    aria-label="Показать предыдущие изображения"
+                    onClick={() => scrollImageHistory(-1)}
+                  >
+                    ‹
+                  </button>
+                  <div ref={imageHistoryListRef} className="image-history-list" tabIndex={0}>
+                    {imageHistory.map((item) => (
+                      <div key={item.id} className="image-history-row">
+                        <button
+                          type="button"
+                          className="image-history-item"
+                          title={item.name}
+                          onClick={() => {
+                            void handleHistorySelect(item.id);
+                          }}
+                        >
+                          <img src={item.thumbnail} alt="" />
+                        </button>
+                        <button
+                          type="button"
+                          className="image-history-delete"
+                          aria-label={`Удалить ${item.name} из ранее загруженных`}
+                          onClick={() => {
+                            void handleHistoryDelete(item.id);
+                          }}
+                        >
+                          <svg className="trash-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path
+                              d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.11 1.02.17m-1.02-.17-1.07 13.88a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48.11 48.11 0 0 0-3.48-.4m-12 .57c.34-.06.68-.12 1.02-.17m0 0a48.11 48.11 0 0 1 3.48-.4m7.5 0v-.91c0-1.18-.91-2.17-2.09-2.2a51.96 51.96 0 0 0-3.32 0c-1.18.03-2.09 1.02-2.09 2.2v.91m7.5 0a48.67 48.67 0 0 0-7.5 0"
+                              stroke="currentColor"
+                              strokeWidth="1.7"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="image-history-nav"
+                    aria-label="Показать следующие изображения"
+                    onClick={() => scrollImageHistory(1)}
+                  >
+                    ›
+                  </button>
                 </div>
-              </details>
+              </div>
             )}
           </div>
 
@@ -920,25 +952,23 @@ export default function App() {
             options={interiorOptions}
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
           />
+
+          <div className="menu-section side-apply-section">
+            <span
+              className="apply-button-wrap"
+              data-disabled-hint={!isRendering && !hasInputChanges ? "Ничего не было изменено" : undefined}
+            >
+              <button type="button" className="apply-button" onClick={applyRender} disabled={isApplyDisabled}>
+                {isRendering ? "Применяю" : "Применить"}
+              </button>
+            </span>
+          </div>
         </form>
       </section>
 
       <section className="preview-stage" aria-label="Превью оформления">
         <div className="preview-toolbar">
-          <div className="preview-meta">
-            <div className="preview-meta-row">
-              <span className="meta-label">Размер</span>
-              <strong className="preview-dimensions meta-value">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</strong>
-            </div>
-            <div className="preview-meta-row">
-              <span className="meta-label">Исполнение</span>
-              <strong className="meta-value">{decorStyleLabels[selectedDecorStyle]}</strong>
-            </div>
-            <div className="preview-meta-row">
-              <span className="meta-label">Интерьер</span>
-              <strong className="meta-value">{showInteriorPreview ? interiorScene.label : "Без интерьера"}</strong>
-            </div>
-          </div>
+          <div className="preview-toolbar-spacer" aria-hidden="true" />
           <div className="preview-mode-panel">
             <nav className="variant-tabs" aria-label="Варианты оформления">
               {decorStyles.map((decorStyle) => (
@@ -962,21 +992,32 @@ export default function App() {
             </button>
           </div>
           <div className="preview-actions">
-            <span
-              className="apply-button-wrap"
-              data-disabled-hint={!isRendering && !hasInputChanges ? "Ничего не было изменено" : undefined}
-            >
-              <button type="button" className="apply-button" onClick={applyRender} disabled={isApplyDisabled}>
-                {isRendering ? "Применяю" : "Применить"}
-              </button>
-            </span>
             <button
               type="button"
               className="download-button"
               onClick={() => downloadPreview(currentPreviewUrl, selectedDecorStyle)}
               disabled={!currentPreviewUrl}
             >
-              Скачать превью
+              Скачать
+            </button>
+            <button
+              type="button"
+              className={`parameters-button ${showParametersDrawer ? "is-active" : ""}`}
+              aria-expanded={showParametersDrawer}
+              aria-controls="parametersDrawer"
+              onClick={() => setShowParametersDrawer((isOpen) => !isOpen)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 7h9m4 0h3M4 17h3m4 0h9M8 5v4m8 6v4"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                />
+                <circle cx="15" cy="7" r="2" stroke="currentColor" strokeWidth="1.9" />
+                <circle cx="9" cy="17" r="2" stroke="currentColor" strokeWidth="1.9" />
+              </svg>
+              Параметры
             </button>
           </div>
         </div>
@@ -1000,9 +1041,6 @@ export default function App() {
           {currentPreviewUrl && previewMeasure && previewZoom && (
             <PreviewMagnifier imageUrl={currentPreviewUrl} measure={previewMeasure} zoom={previewZoom} />
           )}
-          {showSpecOverlay && currentPreviewUrl && selectedVariant && previewMeasure && (
-            <SpecOverlay variant={selectedVariant} measure={previewMeasure} />
-          )}
           {isRendering && (
             <div className="render-loader" aria-label="Рендер выполняется">
               <FramingLoader />
@@ -1017,7 +1055,7 @@ export default function App() {
             <div className="render-error">{renderState}</div>
           )}
         </div>
-        {selectedDecorStyle === "signature" && mlInnerCandidates.length > 0 && (
+        {mlInnerCandidates.length > 0 && (
           <MlInnerCandidatePanel
             candidates={mlInnerCandidates}
             activeColorId={mlInnerOverrideColorId ?? mlSignatureVariant?.mat?.inner_color?.id ?? null}
@@ -1027,15 +1065,26 @@ export default function App() {
             }}
           />
         )}
-        <div className="result-panel">
-          <details
-            className="result-details"
-            open={showSpecOverlay}
-            onToggle={(event) => setShowSpecOverlay(event.currentTarget.open)}
-          >
-            <summary>
-              <span className="section-title">Параметры итогового оформления</span>
-            </summary>
+        <div
+          className={`parameters-drawer ${showParametersDrawer ? "is-open" : ""}`}
+          id="parametersDrawer"
+          aria-hidden={!showParametersDrawer}
+        >
+          <div className="parameters-drawer-header">
+            <div>
+              <strong>Параметры</strong>
+              <span>Итоговое оформление</span>
+            </div>
+            <button
+              type="button"
+              className="parameters-close"
+              aria-label="Закрыть параметры"
+              onClick={() => setShowParametersDrawer(false)}
+            >
+              ×
+            </button>
+          </div>
+          <div className="parameters-drawer-body">
             <dl className="spec-list">
               <SpecItem label="Рама">{frameSpec(selectedVariant)}</SpecItem>
               <SpecItem label="Паспарту">{matSpec(selectedVariant)}</SpecItem>
@@ -1044,8 +1093,12 @@ export default function App() {
                   ? `${selectedVariant.geometry.outer_width_mm} x ${selectedVariant.geometry.outer_height_mm} мм`
                   : "—"}
               </SpecItem>
+              <SpecItem label="Размер работы">
+                {displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм
+              </SpecItem>
+              <SpecItem label="Интерьер">{interiorScene.label}</SpecItem>
             </dl>
-          </details>
+          </div>
         </div>
       </section>
     </main>
@@ -1372,32 +1425,48 @@ function MlInnerCandidatePanel({
 }) {
   return (
     <section className="ml-candidate-panel" aria-label="Другие варианты из палитры Placed">
-      <div>
-        <strong className="block-title">Другие варианты из палитры Placed</strong>
-        <span className="block-subtitle">Нажмите на оттенок, чтобы примерить его в авторском варианте</span>
-      </div>
-      <div className="ml-candidate-list">
-        {candidates.map((candidate, index) => {
-          const color = candidate.color;
-          const isActive = Boolean(color?.id && color.id === activeColorId);
-          return (
-            <button
-              key={`${candidate.color_id}-${index}`}
-              type="button"
-              className={isActive ? "is-active" : ""}
-              disabled={disabled || !color}
-              onClick={() => onSelect(candidate)}
-            >
-              <span className="ml-candidate-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
-              <span>
-                <strong className="block-title">{color ? color.name : candidate.color_id}</strong>
-                <small className="block-subtitle">{color?.hex ?? candidate.color_id}</small>
-              </span>
-            </button>
-          );
-        })}
+      <h2>Другие варианты из палитры Placed</h2>
+      <div className="preview-option-groups">
+        <div className="preview-option-group">
+          <strong>Цвет паспарту</strong>
+          <div className="mat-swatch-list">
+            {candidates.slice(0, 3).map((candidate, index) => {
+              const color = candidate.color;
+              const isActive = Boolean(color?.id && color.id === activeColorId);
+              return (
+                <button
+                  key={`${candidate.color_id}-${index}`}
+                  type="button"
+                  className={isActive ? "is-active" : ""}
+                  disabled={disabled || !color}
+                  title={color ? `${color.name} ${color.hex}` : candidate.color_id}
+                  onClick={() => onSelect(candidate)}
+                >
+                  <span className="ml-candidate-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="preview-option-divider" aria-hidden="true" />
+        <div className="preview-option-group">
+          <strong>Варианты рам</strong>
+          <div className="frame-corner-list" aria-label="Варианты рам">
+            <FrameCornerOption tone="oak" label="Дуб" />
+            <FrameCornerOption tone="black" label="Черная рама" />
+            <FrameCornerOption tone="light-oak" label="Светлый дуб" />
+          </div>
+        </div>
       </div>
     </section>
+  );
+}
+
+function FrameCornerOption({ tone, label }: { tone: "oak" | "black" | "light-oak"; label: string }) {
+  return (
+    <button type="button" className={`frame-corner-option frame-corner-${tone}`} aria-label={label} title={label}>
+      <span aria-hidden="true" />
+    </button>
   );
 }
 
