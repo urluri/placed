@@ -1475,8 +1475,7 @@ function MlInnerCandidatePanel({
   onSelect: (candidate: MlColorCandidate) => void;
 }) {
   return (
-    <section className="ml-candidate-panel" aria-label="Другие варианты из палитры Placed">
-      <h2>Другие варианты из палитры Placed</h2>
+    <section className="ml-candidate-panel" aria-label="Варианты оформления">
       <div className="preview-option-groups">
         <div className="preview-option-group">
           <strong>Цвет паспарту</strong>
