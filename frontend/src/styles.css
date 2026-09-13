@@ -3068,69 +3068,70 @@ body {
   font-weight: 620;
 }
 
-/* Keep preview option controls in a single horizontal row */
+/* Preview option controls */
 .ml-candidate-panel {
   gap: 0;
-  padding: 14px 18px;
+  padding: 18px 24px;
 }
 
 .preview-option-groups {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  overflow-x: hidden;
-  overflow-y: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
 
 .preview-option-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: max-content;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .preview-option-group > strong {
-  flex: 0 0 auto;
   font-size: 13px;
   font-weight: 680;
+  line-height: 1.2;
+  text-align: center;
   white-space: nowrap;
 }
 
 .mat-swatch-list,
 .frame-corner-list {
+  justify-content: center;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .mat-swatch-list button {
-  width: 50px;
-  height: 50px;
+  width: 58px;
+  height: 58px;
   border-width: 2px;
 }
 
 .ml-candidate-swatch {
-  width: 39px;
-  height: 39px;
+  width: 45px;
+  height: 45px;
 }
 
 .frame-corner-option {
-  width: 58px;
-  height: 58px;
+  width: 68px;
+  height: 68px;
 }
 
 .frame-corner-option span {
-  left: 7px;
-  bottom: 7px;
-  width: 38px;
-  height: 38px;
-  border-left-width: 12px;
-  border-bottom-width: 12px;
+  left: 8px;
+  bottom: 8px;
+  width: 44px;
+  height: 44px;
+  border-left-width: 14px;
+  border-bottom-width: 14px;
 }
 
 .preview-option-divider {
   display: block;
-  flex: 0 0 1px;
   align-self: stretch;
-  min-height: 58px;
+  width: 1px;
+  min-height: 94px;
 }
