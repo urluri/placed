@@ -3002,3 +3002,31 @@ body {
     display: none;
   }
 }
+
+/* Lighter typography for primary controls */
+.variant-tabs button,
+.interior-toggle,
+.preview-actions button,
+.segmented-control button,
+.apply-button,
+.render-cta,
+.render-error {
+  font-weight: 680;
+}
+
+.standard-size-field select,
+.standard-size-field select option,
+.select-field select,
+.select-field select option {
+  font-weight: 600;
+}
+
+.print-presets button,
+.print-presets strong,
+.print-presets span {
+  font-weight: 620;
+}
+
+.apply-button-wrap[data-disabled-hint]::after {
+  font-weight: 620;
+}
