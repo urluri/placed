@@ -3069,31 +3069,68 @@ body {
 }
 
 /* Keep preview option controls in a single horizontal row */
+.ml-candidate-panel {
+  gap: 0;
+  padding: 14px 18px;
+}
+
 .preview-option-groups {
   display: flex;
   align-items: center;
-  gap: 28px;
-  overflow-x: auto;
+  justify-content: center;
+  gap: 18px;
+  overflow-x: hidden;
   overflow-y: hidden;
-  scrollbar-width: thin;
 }
 
 .preview-option-group {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   min-width: max-content;
+}
+
+.preview-option-group > strong {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 680;
+  white-space: nowrap;
 }
 
 .mat-swatch-list,
 .frame-corner-list {
   flex-wrap: nowrap;
-  gap: 14px;
+  gap: 8px;
+}
+
+.mat-swatch-list button {
+  width: 50px;
+  height: 50px;
+  border-width: 2px;
+}
+
+.ml-candidate-swatch {
+  width: 39px;
+  height: 39px;
+}
+
+.frame-corner-option {
+  width: 58px;
+  height: 58px;
+}
+
+.frame-corner-option span {
+  left: 7px;
+  bottom: 7px;
+  width: 38px;
+  height: 38px;
+  border-left-width: 12px;
+  border-bottom-width: 12px;
 }
 
 .preview-option-divider {
   display: block;
   flex: 0 0 1px;
   align-self: stretch;
-  min-height: 88px;
+  min-height: 58px;
 }
