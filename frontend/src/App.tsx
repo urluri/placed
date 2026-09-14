@@ -208,6 +208,7 @@ export default function App() {
   const [isRendering, setIsRendering] = useState(false);
   const [isPhotoRendering, setIsPhotoRendering] = useState(false);
   const [photoRenderUrl, setPhotoRenderUrl] = useState<string | null>(null);
+  const [photoRenderBackground, setPhotoRenderBackground] = useState<string | null>(null);
   const [showPhotoRender, setShowPhotoRender] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
   const [showParametersDrawer, setShowParametersDrawer] = useState(false);
@@ -299,7 +300,8 @@ export default function App() {
   const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
   const currentPreviewUrl = previewUrls[primaryAnalyzer]?.[selectedDecorStyle] ?? "";
-  const displayedPreviewUrl = showPhotoRender && photoRenderUrl ? photoRenderUrl : currentPreviewUrl;
+  const isPhotoRenderVisible = showPhotoRender && Boolean(photoRenderUrl);
+  const displayedPreviewUrl = isPhotoRenderVisible && photoRenderUrl ? photoRenderUrl : currentPreviewUrl;
   const isBusy = isRendering || isPhotoRendering;
   const isApplyDisabled = isBusy || !hasInputChanges;
   const interiorScene = interiorScenes[form.interiorStyle];
@@ -313,10 +315,12 @@ export default function App() {
     () => standardSizeNoticeText(form.standardSizePresetId, form.imageInfo, form.artworkType),
     [form.standardSizePresetId, form.imageInfo, form.artworkType],
   );
-  const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
-    ? { backgroundImage: `url(${interiorScene.src})` }
-    : undefined;
-  const previewImageStyle: CSSProperties | undefined = showInteriorPreview
+  const previewSurfaceStyle: CSSProperties | undefined = isPhotoRenderVisible
+    ? { background: photoRenderBackground ?? "#f7f6f2" }
+    : showInteriorPreview
+      ? { backgroundImage: `url(${interiorScene.src})` }
+      : undefined;
+  const previewImageStyle: CSSProperties | undefined = !isPhotoRenderVisible && showInteriorPreview
     ? {
         left: `${interiorSceneScale.artworkCenterXPercent}%`,
         top: `${interiorSceneScale.artworkCenterYPercent}%`,
@@ -374,6 +378,7 @@ export default function App() {
       if (previousUrl) URL.revokeObjectURL(previousUrl);
       return null;
     });
+    setPhotoRenderBackground(null);
     setShowPhotoRender(false);
   };
 
@@ -685,6 +690,7 @@ export default function App() {
         if (previousUrl) URL.revokeObjectURL(previousUrl);
         return null;
       });
+      setPhotoRenderBackground(null);
       setShowPhotoRender(false);
       setAppliedInputSignature(currentInputSignature);
       setRenderState("");
@@ -742,6 +748,7 @@ export default function App() {
         if (previousUrl) URL.revokeObjectURL(previousUrl);
         return null;
       });
+      setPhotoRenderBackground(null);
     } catch (error) {
       if (id === requestId.current) {
         setRenderState(error instanceof Error ? error.message : "Не удалось применить ML-кандидат");
@@ -762,6 +769,7 @@ export default function App() {
     try {
       const sourcePreview = await fetch(currentPreviewUrl).then((response) => response.blob());
       const renderedPreview = await photoRenderPreview(sourcePreview);
+      const nextBackground = await averageBlobBackgroundColor(renderedPreview).catch(() => null);
       if (id !== requestId.current) return;
 
       const nextUrl = URL.createObjectURL(renderedPreview);
@@ -769,6 +777,7 @@ export default function App() {
         if (previousUrl) URL.revokeObjectURL(previousUrl);
         return nextUrl;
       });
+      setPhotoRenderBackground(nextBackground);
       setShowPhotoRender(true);
     } catch (error) {
       if (id === requestId.current) {
@@ -1143,7 +1152,9 @@ export default function App() {
         </div>
         <div
           ref={previewSurfaceRef}
-          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"}`}
+          className={`render-surface ${
+            isPhotoRenderVisible ? "photo-render-preview" : showInteriorPreview ? "interior-preview" : "plain-preview"
+          }`}
           style={previewSurfaceStyle}
         >
           {displayedPreviewUrl ? (
@@ -2012,4 +2023,71 @@ function downloadPreview(previewUrl: string, decorStyle: DecorStyle) {
   link.download = `placed-${decorStyle}.jpg`;
   link.href = previewUrl;
   link.click();
+}
+
+async function averageBlobBackgroundColor(blob: Blob) {
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const canvas = document.createElement("canvas");
+    const maxSide = 256;
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+
+    context.drawImage(bitmap, 0, 0, width, height);
+    const imageData = context.getImageData(0, 0, width, height).data;
+    let red = 0;
+    let green = 0;
+    let blue = 0;
+    let count = 0;
+    let fallbackRed = 0;
+    let fallbackGreen = 0;
+    let fallbackBlue = 0;
+    let fallbackCount = 0;
+
+    for (let index = 0; index < imageData.length; index += 4) {
+      if (imageData[index + 3] < 16) continue;
+      const r = imageData[index];
+      const g = imageData[index + 1];
+      const b = imageData[index + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      const isNeutralLight = max - min <= 30 && luminance >= 178;
+
+      if (isNeutralLight) {
+        red += r;
+        green += g;
+        blue += b;
+        count += 1;
+      }
+
+      const pixel = index / 4;
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      const edgeBand = Math.max(8, Math.round(Math.min(width, height) * 0.08));
+      const isEdge = x < edgeBand || x >= width - edgeBand || y < edgeBand || y >= height - edgeBand;
+      if (isEdge) {
+        fallbackRed += r;
+        fallbackGreen += g;
+        fallbackBlue += b;
+        fallbackCount += 1;
+      }
+    }
+
+    if (count) return `rgb(${Math.round(red / count)} ${Math.round(green / count)} ${Math.round(blue / count)})`;
+    if (fallbackCount) {
+      return `rgb(${Math.round(fallbackRed / fallbackCount)} ${Math.round(fallbackGreen / fallbackCount)} ${Math.round(
+        fallbackBlue / fallbackCount,
+      )})`;
+    }
+    return null;
+  } finally {
+    bitmap.close();
+  }
 }
