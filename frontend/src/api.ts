@@ -52,6 +52,26 @@ export async function renderPreview(
   return response.blob();
 }
 
+export async function photoRenderPreview(preview: Blob): Promise<Blob> {
+  const payload = new FormData();
+  payload.set("preview", preview, "placed-preview.jpg");
+
+  const response = await fetch(`${API_BASE}/api/photo-render`, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache",
+    },
+    body: payload,
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, "Фоторендер не собрался"));
+  }
+
+  return response.blob();
+}
+
 export async function getMlModelInfo(): Promise<MlModelInfo> {
   const response = await fetch(`${API_BASE}/api/ml/status`, {
     method: "GET",

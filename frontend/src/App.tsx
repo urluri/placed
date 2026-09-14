@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import type { CSSProperties, DragEvent, MouseEvent, ReactNode } from "react";
 
-import { recommend, renderPreview } from "./api";
+import { photoRenderPreview, recommend, renderPreview } from "./api";
 import type {
   ArtworkType,
   DecorStyle,
@@ -138,7 +138,6 @@ const interiorScenes: Record<
   },
 };
 
-type ThemeMode = "light" | "dark";
 type ImageHistoryItem = {
   id: string;
   name: string;
@@ -207,16 +206,17 @@ export default function App() {
   const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
+  const [isPhotoRendering, setIsPhotoRendering] = useState(false);
+  const [photoRenderUrl, setPhotoRenderUrl] = useState<string | null>(null);
+  const [photoRenderBackground, setPhotoRenderBackground] = useState<string | null>(null);
+  const [showPhotoRender, setShowPhotoRender] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
-  const [showSpecOverlay, setShowSpecOverlay] = useState(false);
+  const [showParametersDrawer, setShowParametersDrawer] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "light";
-    const savedTheme = window.localStorage.getItem("placed-theme");
-    if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
+  const [isUploadDragging, setIsUploadDragging] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const uploadDragDepth = useRef(0);
+  const imageHistoryListRef = useRef<HTMLDivElement>(null);
   const previewSurfaceRef = useRef<HTMLDivElement>(null);
   const previewImageRef = useRef<HTMLImageElement>(null);
   const requestId = useRef(0);
@@ -239,10 +239,27 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = themeMode;
-    document.documentElement.style.colorScheme = themeMode;
-    window.localStorage.setItem("placed-theme", themeMode);
-  }, [themeMode]);
+    delete document.documentElement.dataset.theme;
+    document.documentElement.style.colorScheme = "light";
+    window.localStorage.removeItem("placed-theme");
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (photoRenderUrl) URL.revokeObjectURL(photoRenderUrl);
+    };
+  }, [photoRenderUrl]);
+
+  useEffect(() => {
+    if (!showParametersDrawer) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowParametersDrawer(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showParametersDrawer]);
 
   const measurePreview = useCallback(() => {
     const surface = previewSurfaceRef.current;
@@ -283,7 +300,10 @@ export default function App() {
   const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
   const currentPreviewUrl = previewUrls[primaryAnalyzer]?.[selectedDecorStyle] ?? "";
-  const isApplyDisabled = isRendering || !hasInputChanges;
+  const isPhotoRenderVisible = showPhotoRender && Boolean(photoRenderUrl);
+  const displayedPreviewUrl = isPhotoRenderVisible && photoRenderUrl ? photoRenderUrl : currentPreviewUrl;
+  const isBusy = isRendering || isPhotoRendering;
+  const isApplyDisabled = isBusy || !hasInputChanges;
   const interiorScene = interiorScenes[form.interiorStyle];
   const interiorArtworkScale = selectedVariant
     ? scaleInteriorArtwork(selectedVariant.geometry.outer_width_mm)
@@ -295,10 +315,12 @@ export default function App() {
     () => standardSizeNoticeText(form.standardSizePresetId, form.imageInfo, form.artworkType),
     [form.standardSizePresetId, form.imageInfo, form.artworkType],
   );
-  const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
-    ? { backgroundImage: `url(${interiorScene.src})` }
-    : undefined;
-  const previewImageStyle: CSSProperties | undefined = showInteriorPreview
+  const previewSurfaceStyle: CSSProperties | undefined = isPhotoRenderVisible
+    ? { background: photoRenderBackground ?? "#f7f6f2" }
+    : showInteriorPreview
+      ? { backgroundImage: `url(${interiorScene.src})` }
+      : undefined;
+  const previewImageStyle: CSSProperties | undefined = !isPhotoRenderVisible && showInteriorPreview
     ? {
         left: `${interiorSceneScale.artworkCenterXPercent}%`,
         top: `${interiorSceneScale.artworkCenterYPercent}%`,
@@ -307,7 +329,7 @@ export default function App() {
     : undefined;
 
   useEffect(() => {
-    if (!currentPreviewUrl) {
+    if (!displayedPreviewUrl) {
       setPreviewMeasure(null);
       setPreviewZoom(null);
       return;
@@ -327,15 +349,15 @@ export default function App() {
       resizeObserver.disconnect();
       window.removeEventListener("resize", measurePreview);
     };
-  }, [currentPreviewUrl, selectedDecorStyle, selectedVariant, showInteriorPreview, measurePreview]);
+  }, [displayedPreviewUrl, selectedDecorStyle, selectedVariant, showInteriorPreview, measurePreview]);
 
   useEffect(() => {
     setPreviewZoom(null);
-  }, [currentPreviewUrl, selectedDecorStyle, showInteriorPreview]);
+  }, [displayedPreviewUrl, selectedDecorStyle, showInteriorPreview]);
 
   const handlePreviewZoomMove = (event: MouseEvent<HTMLImageElement>) => {
     const surface = previewSurfaceRef.current;
-    if (!surface || !previewMeasure || !currentPreviewUrl) return;
+    if (!surface || !previewMeasure || !displayedPreviewUrl) return;
 
     const surfaceRect = surface.getBoundingClientRect();
     const imageRect = event.currentTarget.getBoundingClientRect();
@@ -352,6 +374,12 @@ export default function App() {
       revokeAnalyzerPreviewUrls(previousUrls);
       return {};
     });
+    setPhotoRenderUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+      return null;
+    });
+    setPhotoRenderBackground(null);
+    setShowPhotoRender(false);
   };
 
   const updateForm = (patch: Partial<FormState>) => {
@@ -371,6 +399,43 @@ export default function App() {
     }
 
     await applyImageFile(file, true);
+  };
+
+  const handleUploadDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+
+    uploadDragDepth.current += 1;
+    setIsUploadDragging(true);
+  };
+
+  const handleUploadDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleUploadDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    uploadDragDepth.current = Math.max(0, uploadDragDepth.current - 1);
+    if (uploadDragDepth.current === 0) setIsUploadDragging(false);
+  };
+
+  const handleUploadDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    uploadDragDepth.current = 0;
+    setIsUploadDragging(false);
+
+    const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/")) ?? null;
+    if (!file) {
+      setRenderState("Перетащите файл изображения");
+      return;
+    }
+
+    void handleImageUpload(file);
   };
 
   const applyImageFile = async (file: File, shouldSaveToHistory: boolean) => {
@@ -439,6 +504,13 @@ export default function App() {
     } catch {
       setRenderState("Не удалось очистить историю изображений");
     }
+  };
+
+  const scrollImageHistory = (direction: -1 | 1) => {
+    const list = imageHistoryListRef.current;
+    if (!list) return;
+    const step = Math.max(132, Math.floor(list.clientWidth * 0.72));
+    list.scrollBy({ left: direction * step, behavior: "smooth" });
   };
 
   const handleSizeSourceChange = (sizeSource: SizeSource) => {
@@ -548,6 +620,7 @@ export default function App() {
 
   const handleDecorStyleChange = (decorStyle: DecorStyle) => {
     setSelectedDecorStyle(decorStyle);
+    setShowPhotoRender(false);
   };
 
   const applyRender = async () => {
@@ -613,6 +686,12 @@ export default function App() {
         revokeAnalyzerPreviewUrls(previousUrls);
         return nextPreviewUrls;
       });
+      setPhotoRenderUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        return null;
+      });
+      setPhotoRenderBackground(null);
+      setShowPhotoRender(false);
       setAppliedInputSignature(currentInputSignature);
       setRenderState("");
     } catch (error) {
@@ -634,6 +713,7 @@ export default function App() {
     setIsRendering(true);
     setRenderState("");
     setSelectedDecorStyle("signature");
+    setShowPhotoRender(false);
     setMlInnerOverrideColorId(color.id);
     setRecommendations((current) => ({
       ...current,
@@ -664,6 +744,11 @@ export default function App() {
           },
         };
       });
+      setPhotoRenderUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        return null;
+      });
+      setPhotoRenderBackground(null);
     } catch (error) {
       if (id === requestId.current) {
         setRenderState(error instanceof Error ? error.message : "Не удалось применить ML-кандидат");
@@ -673,32 +758,54 @@ export default function App() {
     }
   };
 
+  const handlePhotoRender = async () => {
+    if (!currentPreviewUrl) return;
+
+    const id = ++requestId.current;
+    setIsPhotoRendering(true);
+    setRenderState("");
+    setShowPhotoRender(false);
+
+    try {
+      const sourcePreview = await fetch(currentPreviewUrl).then((response) => response.blob());
+      const renderedPreview = await photoRenderPreview(sourcePreview);
+      const nextBackground = await averageBlobBackgroundColor(renderedPreview).catch(() => null);
+      if (id !== requestId.current) return;
+
+      const nextUrl = URL.createObjectURL(renderedPreview);
+      setPhotoRenderUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        return nextUrl;
+      });
+      setPhotoRenderBackground(nextBackground);
+      setShowPhotoRender(true);
+    } catch (error) {
+      if (id === requestId.current) {
+        setRenderState(error instanceof Error ? error.message : "Фоторендер не собрался");
+      }
+    } finally {
+      if (id === requestId.current) setIsPhotoRendering(false);
+    }
+  };
+
   return (
-    <main className="app-shell" data-theme={themeMode}>
+    <main className="app-shell">
       <section className="control-panel" aria-label="Параметры картины">
         <div className="brand-row">
           <div>
-            <p className="eyebrow">Placed MVP</p>
+            <p className="eyebrow app-title">Placed MVP</p>
           </div>
-          <button
-            type="button"
-            className="theme-switch"
-            role="switch"
-            aria-checked={themeMode === "dark"}
-            aria-label={themeMode === "dark" ? "Включить светлую тему" : "Включить темную тему"}
-            onClick={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
-          >
-            <span className="theme-switch-track" aria-hidden="true">
-              <span className="theme-switch-symbol theme-switch-sun">☀</span>
-              <span className="theme-switch-symbol theme-switch-moon">☾</span>
-              <span className="theme-switch-thumb" />
-            </span>
-          </button>
         </div>
 
         <form className="config-form">
           <div className="menu-section">
-            <div className="compact-upload">
+            <div
+              className={`compact-upload ${isUploadDragging ? "is-dragging" : ""}`}
+              onDragEnter={handleUploadDragEnter}
+              onDragOver={handleUploadDragOver}
+              onDragLeave={handleUploadDragLeave}
+              onDrop={handleUploadDrop}
+            >
               <button
                 type="button"
                 className="icon-upload"
@@ -729,62 +836,81 @@ export default function App() {
                 }}
               />
               <div className="upload-summary">
-                <strong>{form.image?.name ?? "Загрузить изображение"}</strong>
-                <small>{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
+                <strong className="block-title">{form.image?.name ?? "Загрузить изображение"}</strong>
+                <small className="block-subtitle">{form.image ? `${Math.round(form.image.size / 1024)} КБ` : "JPG, PNG или WEBP"}</small>
               </div>
             </div>
             {imageHistory.length > 0 && (
-              <details className="image-history-menu">
-                <summary>Ранее загруженные</summary>
-                <div className="image-history-actions">
+              <div className="image-history-menu">
+                <div className="image-history-heading">
+                  <span className="section-title">Ранее загруженные</span>
                   <button type="button" className="image-history-clear" onClick={handleHistoryClear}>
                     Очистить все
                   </button>
                 </div>
-                <div className="image-history-list">
-                  {imageHistory.map((item) => (
-                    <div key={item.id} className="image-history-row">
-                      <button
-                        type="button"
-                        className="image-history-item"
-                        onClick={() => {
-                          void handleHistorySelect(item.id);
-                        }}
-                      >
-                        <img src={item.thumbnail} alt="" />
-                        <span>
-                          <strong>{item.name}</strong>
-                          <small>{Math.round(item.size / 1024)} КБ</small>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="image-history-delete"
-                        aria-label={`Удалить ${item.name} из ранее загруженных`}
-                        onClick={() => {
-                          void handleHistoryDelete(item.id);
-                        }}
-                      >
-                        <svg className="trash-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path
-                            d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.11 1.02.17m-1.02-.17-1.07 13.88a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48.11 48.11 0 0 0-3.48-.4m-12 .57c.34-.06.68-.12 1.02-.17m0 0a48.11 48.11 0 0 1 3.48-.4m7.5 0v-.91c0-1.18-.91-2.17-2.09-2.2a51.96 51.96 0 0 0-3.32 0c-1.18.03-2.09 1.02-2.09 2.2v.91m7.5 0a48.67 48.67 0 0 0-7.5 0"
-                            stroke="currentColor"
-                            strokeWidth="1.7"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
+                <div className="image-history-carousel">
+                  <button
+                    type="button"
+                    className="image-history-nav"
+                    aria-label="Показать предыдущие изображения"
+                    onClick={() => scrollImageHistory(-1)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M15 18 9 12l6-6" />
+                    </svg>
+                  </button>
+                  <div ref={imageHistoryListRef} className="image-history-list" tabIndex={0}>
+                    {imageHistory.map((item) => (
+                      <div key={item.id} className="image-history-row">
+                        <button
+                          type="button"
+                          className="image-history-item"
+                          title={item.name}
+                          onClick={() => {
+                            void handleHistorySelect(item.id);
+                          }}
+                        >
+                          <img src={item.thumbnail} alt="" />
+                        </button>
+                        <button
+                          type="button"
+                          className="image-history-delete"
+                          aria-label={`Удалить ${item.name} из ранее загруженных`}
+                          onClick={() => {
+                            void handleHistoryDelete(item.id);
+                          }}
+                        >
+                          <svg className="trash-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path
+                              d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.11 1.02.17m-1.02-.17-1.07 13.88a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48.11 48.11 0 0 0-3.48-.4m-12 .57c.34-.06.68-.12 1.02-.17m0 0a48.11 48.11 0 0 1 3.48-.4m7.5 0v-.91c0-1.18-.91-2.17-2.09-2.2a51.96 51.96 0 0 0-3.32 0c-1.18.03-2.09 1.02-2.09 2.2v.91m7.5 0a48.67 48.67 0 0 0-7.5 0"
+                              stroke="currentColor"
+                              strokeWidth="1.7"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="image-history-nav"
+                    aria-label="Показать следующие изображения"
+                    onClick={() => scrollImageHistory(1)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
+                  </button>
                 </div>
-              </details>
+              </div>
             )}
           </div>
 
           <div className="menu-section size-source-panel">
             <div className="section-label-row">
-              <span>Размер работы</span>
+              <span className="section-title">Размер работы</span>
             </div>
             <div className="segmented-control" aria-label="Источник физического размера">
               <button
@@ -808,7 +934,7 @@ export default function App() {
                 <span>
                   Файл: {form.imageInfo.pixelWidth} x {form.imageInfo.pixelHeight} px
                 </span>
-                <strong>{currentPrintQuality ? currentPrintQuality.label : "Качество не рассчитано"}</strong>
+                <strong className="block-title">{currentPrintQuality ? currentPrintQuality.label : "Качество не рассчитано"}</strong>
               </div>
             )}
             {form.imageInfo && form.sizeSource === "from_file" && (
@@ -822,7 +948,7 @@ export default function App() {
                       className={form.printPpi === preset.ppi ? "is-active" : ""}
                       onClick={() => applyPrintPreset(preset.ppi)}
                     >
-                      <strong>{preset.label}</strong>
+                      <strong className="block-title">{preset.label}</strong>
                       <span>
                         {size.widthMm} x {size.heightMm} мм, {preset.note}
                       </span>
@@ -835,7 +961,19 @@ export default function App() {
 
           {form.sizeSource === "manual" && (
             <div className="menu-section standard-size-field">
-              <label htmlFor={standardSizeSelectId}>Стандартный формат</label>
+              <div className="field-label-row">
+                <label className="field-label" htmlFor={standardSizeSelectId}>Стандартный формат</label>
+                <button
+                  type="button"
+                  className="info-tooltip"
+                  aria-label="При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции."
+                >
+                  <span aria-hidden="true">?</span>
+                  <span className="info-tooltip-text" role="tooltip">
+                    При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции.
+                  </span>
+                </button>
+              </div>
               <select
                 id={standardSizeSelectId}
                 value={form.standardSizePresetId}
@@ -848,16 +986,13 @@ export default function App() {
                   </option>
                 ))}
               </select>
-              <small>
-                При выборе формата размер переключится на ручной, а изображение сохранит свои пропорции.
-              </small>
               {standardSizeNotice && <small className="standard-size-warning">{standardSizeNotice}</small>}
             </div>
           )}
 
           <fieldset className="menu-section dimensions">
             <legend>
-              Физические размеры
+              <span className="section-title">Физические размеры</span>
               {form.sizeSource === "manual" && form.imageInfo && (
                 <button
                   type="button"
@@ -870,7 +1005,7 @@ export default function App() {
               )}
             </legend>
             <label>
-              <span>Ширина, мм</span>
+              <span className="field-label">Ширина, мм</span>
               <input
                 type="number"
                 min="50"
@@ -882,7 +1017,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Высота, мм</span>
+              <span className="field-label">Высота, мм</span>
               <input
                 type="number"
                 min="50"
@@ -896,7 +1031,7 @@ export default function App() {
           </fieldset>
 
           <div className="menu-section inline-controls" aria-label="Поворот изображения">
-            <span className="section-caption">Поворот</span>
+            <span className="section-caption section-title">Поворот</span>
             <button
               type="button"
               className={`icon-button ${form.rotationDegrees === -90 ? "is-active" : ""}`}
@@ -930,25 +1065,23 @@ export default function App() {
             options={interiorOptions}
             onChange={(interiorStyle) => updateForm({ interiorStyle })}
           />
+
+          <div className="menu-section side-apply-section">
+            <span
+              className="apply-button-wrap"
+              data-disabled-hint={!isRendering && !hasInputChanges ? "Ничего не было изменено" : undefined}
+            >
+              <button type="button" className="apply-button" onClick={applyRender} disabled={isApplyDisabled}>
+                {isRendering ? "Применяю" : "Применить"}
+              </button>
+            </span>
+          </div>
         </form>
       </section>
 
       <section className="preview-stage" aria-label="Превью оформления">
         <div className="preview-toolbar">
-          <div className="preview-meta">
-            <div className="preview-meta-row">
-              <span>Размер</span>
-              <strong className="preview-dimensions">{displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм</strong>
-            </div>
-            <div className="preview-meta-row">
-              <span>Исполнение</span>
-              <strong>{decorStyleLabels[selectedDecorStyle]}</strong>
-            </div>
-            <div className="preview-meta-row">
-              <span>Интерьер</span>
-              <strong>{showInteriorPreview ? interiorScene.label : "Без интерьера"}</strong>
-            </div>
-          </div>
+          <div className="preview-toolbar-spacer" aria-hidden="true" />
           <div className="preview-mode-panel">
             <nav className="variant-tabs" aria-label="Варианты оформления">
               {decorStyles.map((decorStyle) => (
@@ -972,34 +1105,63 @@ export default function App() {
             </button>
           </div>
           <div className="preview-actions">
-            <span
-              className="apply-button-wrap"
-              data-disabled-hint={!isRendering && !hasInputChanges ? "Ничего не было изменено" : undefined}
-            >
-              <button type="button" className="apply-button" onClick={applyRender} disabled={isApplyDisabled}>
-                {isRendering ? "Применяю" : "Применить"}
+            {showPhotoRender && photoRenderUrl ? (
+              <button type="button" className="photo-render-button" onClick={() => setShowPhotoRender(false)}>
+                Обычный рендер
               </button>
-            </span>
+            ) : (
+              <button
+                type="button"
+                className="photo-render-button"
+                onClick={() => {
+                  void handlePhotoRender();
+                }}
+                disabled={!currentPreviewUrl || isBusy}
+              >
+                {isPhotoRendering ? "Готовлю фото" : "Фоторендер"}
+              </button>
+            )}
             <button
               type="button"
               className="download-button"
-              onClick={() => downloadPreview(currentPreviewUrl, selectedDecorStyle)}
-              disabled={!currentPreviewUrl}
+              onClick={() => downloadPreview(displayedPreviewUrl, selectedDecorStyle)}
+              disabled={!displayedPreviewUrl}
             >
-              Скачать превью
+              Скачать
+            </button>
+            <button
+              type="button"
+              className={`parameters-button ${showParametersDrawer ? "is-active" : ""}`}
+              aria-expanded={showParametersDrawer}
+              aria-controls="parametersDrawer"
+              onClick={() => setShowParametersDrawer((isOpen) => !isOpen)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 7h9m4 0h3M4 17h3m4 0h9M8 5v4m8 6v4"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                />
+                <circle cx="15" cy="7" r="2" stroke="currentColor" strokeWidth="1.9" />
+                <circle cx="9" cy="17" r="2" stroke="currentColor" strokeWidth="1.9" />
+              </svg>
+              Параметры
             </button>
           </div>
         </div>
         <div
           ref={previewSurfaceRef}
-          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"}`}
+          className={`render-surface ${
+            isPhotoRenderVisible ? "photo-render-preview" : showInteriorPreview ? "interior-preview" : "plain-preview"
+          }`}
           style={previewSurfaceStyle}
         >
-          {currentPreviewUrl ? (
+          {displayedPreviewUrl ? (
             <img
               ref={previewImageRef}
               className="framed-art-preview"
-              src={currentPreviewUrl}
+              src={displayedPreviewUrl}
               alt="Превью оформления"
               style={previewImageStyle}
               onLoad={measurePreview}
@@ -1007,43 +1169,55 @@ export default function App() {
               onMouseLeave={() => setPreviewZoom(null)}
             />
           ) : null}
-          {currentPreviewUrl && previewMeasure && previewZoom && (
-            <PreviewMagnifier imageUrl={currentPreviewUrl} measure={previewMeasure} zoom={previewZoom} />
+          {displayedPreviewUrl && previewMeasure && previewZoom && (
+            <PreviewMagnifier imageUrl={displayedPreviewUrl} measure={previewMeasure} zoom={previewZoom} />
           )}
-          {showSpecOverlay && currentPreviewUrl && selectedVariant && previewMeasure && (
-            <SpecOverlay variant={selectedVariant} measure={previewMeasure} />
-          )}
-          {isRendering && (
+          {isBusy && (
             <div className="render-loader" aria-label="Рендер выполняется">
               <FramingLoader />
             </div>
           )}
-          {renderState === "Нажмите «Применить»" && !isRendering && (
+          {renderState === "Нажмите «Применить»" && !isBusy && (
             <button type="button" className="render-cta" onClick={applyRender} disabled={isApplyDisabled}>
               {renderState}
             </button>
           )}
-          {renderState && renderState !== "Нажмите «Применить»" && !isRendering && (
+          {renderState && renderState !== "Нажмите «Применить»" && !isBusy && (
             <div className="render-error">{renderState}</div>
           )}
         </div>
-        {selectedDecorStyle === "signature" && mlInnerCandidates.length > 0 && (
+        {mlInnerCandidates.length > 0 && (
           <MlInnerCandidatePanel
             candidates={mlInnerCandidates}
             activeColorId={mlInnerOverrideColorId ?? mlSignatureVariant?.mat?.inner_color?.id ?? null}
-            disabled={isRendering}
+            disabled={isBusy}
             onSelect={(candidate) => {
               void handleMlInnerCandidateSelect(candidate);
             }}
           />
         )}
-        <div className="result-panel">
-          <details
-            className="result-details"
-            open={showSpecOverlay}
-            onToggle={(event) => setShowSpecOverlay(event.currentTarget.open)}
-          >
-            <summary>Параметры итогового оформления</summary>
+        <div
+          className={`parameters-drawer ${showParametersDrawer ? "is-open" : ""}`}
+          id="parametersDrawer"
+          aria-hidden={!showParametersDrawer}
+        >
+          <div className="parameters-drawer-header">
+            <div>
+              <strong>Параметры</strong>
+              <span>Итоговое оформление</span>
+            </div>
+            <button
+              type="button"
+              className="parameters-close"
+              aria-label="Закрыть параметры"
+              onClick={() => setShowParametersDrawer(false)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
+          <div className="parameters-drawer-body">
             <dl className="spec-list">
               <SpecItem label="Рама">{frameSpec(selectedVariant)}</SpecItem>
               <SpecItem label="Паспарту">{matSpec(selectedVariant)}</SpecItem>
@@ -1052,8 +1226,12 @@ export default function App() {
                   ? `${selectedVariant.geometry.outer_width_mm} x ${selectedVariant.geometry.outer_height_mm} мм`
                   : "—"}
               </SpecItem>
+              <SpecItem label="Размер работы">
+                {displayDimension(form.widthMm, 300)} x {displayDimension(form.heightMm, 400)} мм
+              </SpecItem>
+              <SpecItem label="Интерьер">{interiorScene.label}</SpecItem>
             </dl>
-          </details>
+          </div>
         </div>
       </section>
     </main>
@@ -1334,7 +1512,7 @@ function SelectField<T extends string>({
   return (
     <div className="select-field">
       <div className="field-label-row">
-        <label htmlFor={selectId}>{label}</label>
+        <label className="field-label" htmlFor={selectId}>{label}</label>
       </div>
       <select id={selectId} value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
@@ -1379,33 +1557,47 @@ function MlInnerCandidatePanel({
   onSelect: (candidate: MlColorCandidate) => void;
 }) {
   return (
-    <section className="ml-candidate-panel" aria-label="Другие варианты из палитры Placed">
-      <div>
-        <strong>Другие варианты из палитры Placed</strong>
-        <span>Нажмите на оттенок, чтобы примерить его в авторском варианте</span>
-      </div>
-      <div className="ml-candidate-list">
-        {candidates.map((candidate, index) => {
-          const color = candidate.color;
-          const isActive = Boolean(color?.id && color.id === activeColorId);
-          return (
-            <button
-              key={`${candidate.color_id}-${index}`}
-              type="button"
-              className={isActive ? "is-active" : ""}
-              disabled={disabled || !color}
-              onClick={() => onSelect(candidate)}
-            >
-              <span className="ml-candidate-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
-              <span>
-                <strong>{color ? color.name : candidate.color_id}</strong>
-                <small>{color?.hex ?? candidate.color_id}</small>
-              </span>
-            </button>
-          );
-        })}
+    <section className="ml-candidate-panel" aria-label="Варианты оформления">
+      <div className="preview-option-groups">
+        <div className="preview-option-group">
+          <strong>Цвет паспарту</strong>
+          <div className="mat-swatch-list">
+            {candidates.slice(0, 3).map((candidate, index) => {
+              const color = candidate.color;
+              const isActive = Boolean(color?.id && color.id === activeColorId);
+              return (
+                <button
+                  key={`${candidate.color_id}-${index}`}
+                  type="button"
+                  className={isActive ? "is-active" : ""}
+                  disabled={disabled || !color}
+                  title={color ? `${color.name} ${color.hex}` : candidate.color_id}
+                  onClick={() => onSelect(candidate)}
+                >
+                  <span className="ml-candidate-swatch" style={{ background: color?.hex ?? "#D8D6D0" }} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="preview-option-group">
+          <strong>Варианты рам</strong>
+          <div className="frame-corner-list" aria-label="Варианты рам">
+            <FrameCornerOption tone="oak" label="Дуб" />
+            <FrameCornerOption tone="black" label="Черная рама" />
+            <FrameCornerOption tone="light-oak" label="Светлый дуб" />
+          </div>
+        </div>
       </div>
     </section>
+  );
+}
+
+function FrameCornerOption({ tone, label }: { tone: "oak" | "black" | "light-oak"; label: string }) {
+  return (
+    <button type="button" className={`frame-corner-option frame-corner-${tone}`} aria-label={label} title={label}>
+      <span aria-hidden="true" />
+    </button>
   );
 }
 
@@ -1831,4 +2023,71 @@ function downloadPreview(previewUrl: string, decorStyle: DecorStyle) {
   link.download = `placed-${decorStyle}.jpg`;
   link.href = previewUrl;
   link.click();
+}
+
+async function averageBlobBackgroundColor(blob: Blob) {
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const canvas = document.createElement("canvas");
+    const maxSide = 256;
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+
+    context.drawImage(bitmap, 0, 0, width, height);
+    const imageData = context.getImageData(0, 0, width, height).data;
+    let red = 0;
+    let green = 0;
+    let blue = 0;
+    let count = 0;
+    let fallbackRed = 0;
+    let fallbackGreen = 0;
+    let fallbackBlue = 0;
+    let fallbackCount = 0;
+
+    for (let index = 0; index < imageData.length; index += 4) {
+      if (imageData[index + 3] < 16) continue;
+      const r = imageData[index];
+      const g = imageData[index + 1];
+      const b = imageData[index + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      const isNeutralLight = max - min <= 30 && luminance >= 178;
+
+      if (isNeutralLight) {
+        red += r;
+        green += g;
+        blue += b;
+        count += 1;
+      }
+
+      const pixel = index / 4;
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      const edgeBand = Math.max(8, Math.round(Math.min(width, height) * 0.08));
+      const isEdge = x < edgeBand || x >= width - edgeBand || y < edgeBand || y >= height - edgeBand;
+      if (isEdge) {
+        fallbackRed += r;
+        fallbackGreen += g;
+        fallbackBlue += b;
+        fallbackCount += 1;
+      }
+    }
+
+    if (count) return `rgb(${Math.round(red / count)} ${Math.round(green / count)} ${Math.round(blue / count)})`;
+    if (fallbackCount) {
+      return `rgb(${Math.round(fallbackRed / fallbackCount)} ${Math.round(fallbackGreen / fallbackCount)} ${Math.round(
+        fallbackBlue / fallbackCount,
+      )})`;
+    }
+    return null;
+  } finally {
+    bitmap.close();
+  }
 }

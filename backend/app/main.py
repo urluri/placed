@@ -7,9 +7,10 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from openai import OpenAI
 from PIL import Image
 
 from .algorithm import build_decoration_set, renderer_geometry
@@ -33,6 +34,8 @@ NO_STORE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
 }
+TIMEWEB_IMAGE_MODEL = os.getenv("TIMEWEB_IMAGE_MODEL", "openai/gpt-image-2")
+TIMEWEB_PHOTO_RENDER_QUALITY = os.getenv("TIMEWEB_PHOTO_RENDER_QUALITY", "low")
 
 APP_TEMP_ROOT.mkdir(parents=True, exist_ok=True)
 IMAGE_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
@@ -156,6 +159,48 @@ async def render_preview(request: Request):
         return Response(content=buffer.getvalue(), media_type="image/jpeg", headers=headers)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/photo-render")
+async def photo_render(preview: UploadFile = File(...)):
+    api_key = os.getenv("TIMEWEB_AI_PROXY_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="TIMEWEB_AI_PROXY_KEY не настроен")
+
+    preview_bytes = await preview.read()
+    if not preview_bytes:
+        raise HTTPException(status_code=400, detail="Пустое изображение превью")
+
+    try:
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.timeweb.ai/v1",
+        )
+        image_file = io.BytesIO(preview_bytes)
+        image_file.name = preview.filename or "placed-preview.jpg"
+        response = client.images.edit(
+            model=TIMEWEB_IMAGE_MODEL,
+            image=image_file,
+            prompt=(
+                "Use the uploaded image as the exact composition reference. "
+                "Preserve the artwork, frame color, mat colors, proportions, crop, and layout. "
+                "Do not replace, redraw, restyle, recolor, or reinterpret the artwork. "
+                "Only improve photorealism of the physical presentation: realistic mat board paper texture, "
+                "subtle material depth, natural frame surface, clean studio product lighting, "
+                "and soft believable shadows. The final image must look like a high-quality product photo."
+            ),
+            size="1024x1024",
+            quality=TIMEWEB_PHOTO_RENDER_QUALITY,
+        )
+        encoded_image = response.data[0].b64_json
+        if not encoded_image:
+            raise ValueError("AI gateway did not return b64_json")
+        rendered_bytes = base64.b64decode(encoded_image)
+        return Response(content=rendered_bytes, media_type="image/png", headers=NO_STORE_HEADERS)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Фоторендер не собрался: {exc}") from exc
 
 
 def find_variant(variants, decor_style):
