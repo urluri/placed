@@ -253,15 +253,27 @@ def clean_profile_strip(strip, horizontal):
 
     if horizontal:
         rail_profile = np.median(arr, axis=1, keepdims=True)
+        low_frequency = np.asarray(
+            Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(
+                ImageFilter.GaussianBlur((max(2.0, strip.width / 18), 0.55))
+            )
+        ).astype(np.float32)
     else:
         rail_profile = np.median(arr, axis=0, keepdims=True)
-    arr = arr * 0.80 + rail_profile * 0.20
+        low_frequency = np.asarray(
+            Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(
+                ImageFilter.GaussianBlur((0.55, max(2.0, strip.height / 18)))
+            )
+        ).astype(np.float32)
+
+    stable_profile = rail_profile * 0.70 + low_frequency * 0.30
+    arr = arr * 0.35 + stable_profile * 0.65
 
     soft = np.asarray(Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.35))).astype(
         np.float32
     )
     fine_detail = arr - soft
-    arr = soft + fine_detail * 0.46
+    arr = soft + fine_detail * 0.30
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
 
 
