@@ -2803,16 +2803,6 @@ body {
     #d9d5cd;
 }
 
-.photo-render-preview {
-  background: #f7f6f2;
-}
-
-.photo-render-preview .framed-art-preview {
-  max-width: min(72%, 920px);
-  max-height: calc(100vh - 300px);
-  box-shadow: none;
-}
-
 .framed-art-preview {
   max-width: min(58%, 760px);
   max-height: calc(100vh - 330px);

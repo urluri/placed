@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, MouseEvent, ReactNode } from "react";
 
-import { photoRenderPreview, recommend, renderPreview } from "./api";
+import { recommend, renderPreview } from "./api";
 import type {
   ArtworkType,
   DecorStyle,
@@ -206,10 +206,6 @@ export default function App() {
   const [appliedInputSignature, setAppliedInputSignature] = useState<string | null>(null);
   const [renderState, setRenderState] = useState("Нажмите «Применить»");
   const [isRendering, setIsRendering] = useState(false);
-  const [isPhotoRendering, setIsPhotoRendering] = useState(false);
-  const [photoRenderUrl, setPhotoRenderUrl] = useState<string | null>(null);
-  const [photoRenderBackground, setPhotoRenderBackground] = useState<string | null>(null);
-  const [showPhotoRender, setShowPhotoRender] = useState(false);
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
   const [showParametersDrawer, setShowParametersDrawer] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
@@ -243,12 +239,6 @@ export default function App() {
     document.documentElement.style.colorScheme = "light";
     window.localStorage.removeItem("placed-theme");
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (photoRenderUrl) URL.revokeObjectURL(photoRenderUrl);
-    };
-  }, [photoRenderUrl]);
 
   useEffect(() => {
     if (!showParametersDrawer) return;
@@ -300,9 +290,7 @@ export default function App() {
   const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
   const currentPreviewUrl = previewUrls[primaryAnalyzer]?.[selectedDecorStyle] ?? "";
-  const isPhotoRenderVisible = showPhotoRender && Boolean(photoRenderUrl);
-  const displayedPreviewUrl = isPhotoRenderVisible && photoRenderUrl ? photoRenderUrl : currentPreviewUrl;
-  const isBusy = isRendering || isPhotoRendering;
+  const isBusy = isRendering;
   const isApplyDisabled = isBusy || !hasInputChanges;
   const interiorScene = interiorScenes[form.interiorStyle];
   const interiorArtworkScale = selectedVariant
@@ -315,12 +303,10 @@ export default function App() {
     () => standardSizeNoticeText(form.standardSizePresetId, form.imageInfo, form.artworkType),
     [form.standardSizePresetId, form.imageInfo, form.artworkType],
   );
-  const previewSurfaceStyle: CSSProperties | undefined = isPhotoRenderVisible
-    ? { background: photoRenderBackground ?? "#f7f6f2" }
-    : showInteriorPreview
-      ? { backgroundImage: `url(${interiorScene.src})` }
-      : undefined;
-  const previewImageStyle: CSSProperties | undefined = !isPhotoRenderVisible && showInteriorPreview
+  const previewSurfaceStyle: CSSProperties | undefined = showInteriorPreview
+    ? { backgroundImage: `url(${interiorScene.src})` }
+    : undefined;
+  const previewImageStyle: CSSProperties | undefined = showInteriorPreview
     ? {
         left: `${interiorSceneScale.artworkCenterXPercent}%`,
         top: `${interiorSceneScale.artworkCenterYPercent}%`,
@@ -329,7 +315,7 @@ export default function App() {
     : undefined;
 
   useEffect(() => {
-    if (!displayedPreviewUrl) {
+    if (!currentPreviewUrl) {
       setPreviewMeasure(null);
       setPreviewZoom(null);
       return;
@@ -349,15 +335,15 @@ export default function App() {
       resizeObserver.disconnect();
       window.removeEventListener("resize", measurePreview);
     };
-  }, [displayedPreviewUrl, selectedDecorStyle, selectedVariant, showInteriorPreview, measurePreview]);
+  }, [currentPreviewUrl, selectedDecorStyle, selectedVariant, showInteriorPreview, measurePreview]);
 
   useEffect(() => {
     setPreviewZoom(null);
-  }, [displayedPreviewUrl, selectedDecorStyle, showInteriorPreview]);
+  }, [currentPreviewUrl, selectedDecorStyle, showInteriorPreview]);
 
   const handlePreviewZoomMove = (event: MouseEvent<HTMLImageElement>) => {
     const surface = previewSurfaceRef.current;
-    if (!surface || !previewMeasure || !displayedPreviewUrl) return;
+    if (!surface || !previewMeasure || !currentPreviewUrl) return;
 
     const surfaceRect = surface.getBoundingClientRect();
     const imageRect = event.currentTarget.getBoundingClientRect();
@@ -374,12 +360,6 @@ export default function App() {
       revokeAnalyzerPreviewUrls(previousUrls);
       return {};
     });
-    setPhotoRenderUrl((previousUrl) => {
-      if (previousUrl) URL.revokeObjectURL(previousUrl);
-      return null;
-    });
-    setPhotoRenderBackground(null);
-    setShowPhotoRender(false);
   };
 
   const updateForm = (patch: Partial<FormState>) => {
@@ -620,7 +600,6 @@ export default function App() {
 
   const handleDecorStyleChange = (decorStyle: DecorStyle) => {
     setSelectedDecorStyle(decorStyle);
-    setShowPhotoRender(false);
   };
 
   const applyRender = async () => {
@@ -686,12 +665,6 @@ export default function App() {
         revokeAnalyzerPreviewUrls(previousUrls);
         return nextPreviewUrls;
       });
-      setPhotoRenderUrl((previousUrl) => {
-        if (previousUrl) URL.revokeObjectURL(previousUrl);
-        return null;
-      });
-      setPhotoRenderBackground(null);
-      setShowPhotoRender(false);
       setAppliedInputSignature(currentInputSignature);
       setRenderState("");
     } catch (error) {
@@ -713,7 +686,6 @@ export default function App() {
     setIsRendering(true);
     setRenderState("");
     setSelectedDecorStyle("signature");
-    setShowPhotoRender(false);
     setMlInnerOverrideColorId(color.id);
     setRecommendations((current) => ({
       ...current,
@@ -744,47 +716,12 @@ export default function App() {
           },
         };
       });
-      setPhotoRenderUrl((previousUrl) => {
-        if (previousUrl) URL.revokeObjectURL(previousUrl);
-        return null;
-      });
-      setPhotoRenderBackground(null);
     } catch (error) {
       if (id === requestId.current) {
         setRenderState(error instanceof Error ? error.message : "Не удалось применить ML-кандидат");
       }
     } finally {
       if (id === requestId.current) setIsRendering(false);
-    }
-  };
-
-  const handlePhotoRender = async () => {
-    if (!currentPreviewUrl) return;
-
-    const id = ++requestId.current;
-    setIsPhotoRendering(true);
-    setRenderState("");
-    setShowPhotoRender(false);
-
-    try {
-      const sourcePreview = await fetch(currentPreviewUrl).then((response) => response.blob());
-      const renderedPreview = await photoRenderPreview(sourcePreview);
-      const nextBackground = await averageBlobBackgroundColor(renderedPreview).catch(() => null);
-      if (id !== requestId.current) return;
-
-      const nextUrl = URL.createObjectURL(renderedPreview);
-      setPhotoRenderUrl((previousUrl) => {
-        if (previousUrl) URL.revokeObjectURL(previousUrl);
-        return nextUrl;
-      });
-      setPhotoRenderBackground(nextBackground);
-      setShowPhotoRender(true);
-    } catch (error) {
-      if (id === requestId.current) {
-        setRenderState(error instanceof Error ? error.message : "Фоторендер не собрался");
-      }
-    } finally {
-      if (id === requestId.current) setIsPhotoRendering(false);
     }
   };
 
@@ -1105,27 +1042,11 @@ export default function App() {
             </button>
           </div>
           <div className="preview-actions">
-            {showPhotoRender && photoRenderUrl ? (
-              <button type="button" className="photo-render-button" onClick={() => setShowPhotoRender(false)}>
-                Обычный рендер
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="photo-render-button"
-                onClick={() => {
-                  void handlePhotoRender();
-                }}
-                disabled={!currentPreviewUrl || isBusy}
-              >
-                {isPhotoRendering ? "Готовлю фото" : "Фоторендер"}
-              </button>
-            )}
             <button
               type="button"
               className="download-button"
-              onClick={() => downloadPreview(displayedPreviewUrl, selectedDecorStyle)}
-              disabled={!displayedPreviewUrl}
+              onClick={() => downloadPreview(currentPreviewUrl, selectedDecorStyle)}
+              disabled={!currentPreviewUrl}
             >
               Скачать
             </button>
@@ -1152,16 +1073,14 @@ export default function App() {
         </div>
         <div
           ref={previewSurfaceRef}
-          className={`render-surface ${
-            isPhotoRenderVisible ? "photo-render-preview" : showInteriorPreview ? "interior-preview" : "plain-preview"
-          }`}
+          className={`render-surface ${showInteriorPreview ? "interior-preview" : "plain-preview"}`}
           style={previewSurfaceStyle}
         >
-          {displayedPreviewUrl ? (
+          {currentPreviewUrl ? (
             <img
               ref={previewImageRef}
               className="framed-art-preview"
-              src={displayedPreviewUrl}
+              src={currentPreviewUrl}
               alt="Превью оформления"
               style={previewImageStyle}
               onLoad={measurePreview}
@@ -1169,8 +1088,8 @@ export default function App() {
               onMouseLeave={() => setPreviewZoom(null)}
             />
           ) : null}
-          {displayedPreviewUrl && previewMeasure && previewZoom && (
-            <PreviewMagnifier imageUrl={displayedPreviewUrl} measure={previewMeasure} zoom={previewZoom} />
+          {currentPreviewUrl && previewMeasure && previewZoom && (
+            <PreviewMagnifier imageUrl={currentPreviewUrl} measure={previewMeasure} zoom={previewZoom} />
           )}
           {isBusy && (
             <div className="render-loader" aria-label="Рендер выполняется">
@@ -2023,71 +1942,4 @@ function downloadPreview(previewUrl: string, decorStyle: DecorStyle) {
   link.download = `placed-${decorStyle}.jpg`;
   link.href = previewUrl;
   link.click();
-}
-
-async function averageBlobBackgroundColor(blob: Blob) {
-  const bitmap = await createImageBitmap(blob);
-  try {
-    const canvas = document.createElement("canvas");
-    const maxSide = 256;
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) return null;
-
-    context.drawImage(bitmap, 0, 0, width, height);
-    const imageData = context.getImageData(0, 0, width, height).data;
-    let red = 0;
-    let green = 0;
-    let blue = 0;
-    let count = 0;
-    let fallbackRed = 0;
-    let fallbackGreen = 0;
-    let fallbackBlue = 0;
-    let fallbackCount = 0;
-
-    for (let index = 0; index < imageData.length; index += 4) {
-      if (imageData[index + 3] < 16) continue;
-      const r = imageData[index];
-      const g = imageData[index + 1];
-      const b = imageData[index + 2];
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const isNeutralLight = max - min <= 30 && luminance >= 178;
-
-      if (isNeutralLight) {
-        red += r;
-        green += g;
-        blue += b;
-        count += 1;
-      }
-
-      const pixel = index / 4;
-      const x = pixel % width;
-      const y = Math.floor(pixel / width);
-      const edgeBand = Math.max(8, Math.round(Math.min(width, height) * 0.08));
-      const isEdge = x < edgeBand || x >= width - edgeBand || y < edgeBand || y >= height - edgeBand;
-      if (isEdge) {
-        fallbackRed += r;
-        fallbackGreen += g;
-        fallbackBlue += b;
-        fallbackCount += 1;
-      }
-    }
-
-    if (count) return `rgb(${Math.round(red / count)} ${Math.round(green / count)} ${Math.round(blue / count)})`;
-    if (fallbackCount) {
-      return `rgb(${Math.round(fallbackRed / fallbackCount)} ${Math.round(fallbackGreen / fallbackCount)} ${Math.round(
-        fallbackBlue / fallbackCount,
-      )})`;
-    }
-    return null;
-  } finally {
-    bitmap.close();
-  }
 }
