@@ -1622,7 +1622,6 @@ function FrameCornerOption({
   isActive: boolean;
   onSelect: (profile: FrameProfileSpec) => void;
 }) {
-  const thumbnailUrl = profile.thumbnail_url === null ? "" : profile.thumbnail_url ?? profile.image_url;
   return (
     <button
       type="button"
@@ -1632,8 +1631,8 @@ function FrameCornerOption({
       disabled={disabled}
       onClick={() => onSelect(profile)}
     >
-      {thumbnailUrl ? (
-        <img src={thumbnailUrl} alt="" aria-hidden="true" />
+      {profile.image_url ? (
+        <img src={profile.image_url} alt="" aria-hidden="true" />
       ) : (
         <span className={`frame-corner-fallback frame-corner-fallback-${profile.family}`} aria-hidden="true" />
       )}
