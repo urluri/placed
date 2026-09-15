@@ -307,13 +307,8 @@ export default function App() {
   }, [recommendations.ml]);
   const mlInnerCandidates = useMemo(() => mlInnerMatCandidates(mlSignatureVariant), [mlSignatureVariant]);
   const frameProfileCandidates = useMemo(
-    () => frameProfileOptions(
-      selectedVariant?.frame ?? null,
-      frameProfiles,
-      dimensionNumber(form.widthMm),
-      dimensionNumber(form.heightMm),
-    ),
-    [selectedVariant?.frame, frameProfiles, form.widthMm, form.heightMm],
+    () => frameProfileOptions(selectedVariant?.frame ?? null, frameProfiles),
+    [selectedVariant?.frame, frameProfiles],
   );
   const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
@@ -1688,8 +1683,6 @@ function baseFrameProfileId(frameId: string) {
 function frameProfileOptions(
   frame: Recommendation["variants"][number]["frame"] | null,
   catalogProfiles: FrameProfileSpec[],
-  artworkWidthMm: number | null,
-  artworkHeightMm: number | null,
 ): FrameProfileSpec[] {
   if (!frame) return [];
   const sourceFrameId = frame.profile_variant?.source_frame_id ?? frame.id;
@@ -1710,14 +1703,8 @@ function frameProfileOptions(
     height_mm: sourceFrameHeight ?? sourceFrameWidth,
     is_base: true,
   };
-  const isSmallArtwork =
-    artworkWidthMm !== null &&
-    artworkHeightMm !== null &&
-    Math.min(artworkWidthMm, artworkHeightMm) <= 300 &&
-    Math.max(artworkWidthMm, artworkHeightMm) <= 420;
   const profiles = catalogProfiles.filter((profile) => {
     if (!profile.frame_ids.includes(sourceFrameId)) return false;
-    if (profile.material === "wood" && profile.width_mm < 20 && !isSmallArtwork) return false;
     return true;
   });
   const uniqueProfiles = profiles.filter(
