@@ -188,6 +188,149 @@ def crop_with_profile_fill(image, mask, box, fallback_color):
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
 
 
+def crop_cleanest_profile_span(strip, horizontal):
+    width, height = strip.size
+    axis_len = width if horizontal else height
+    if axis_len <= 72:
+        return strip
+
+    arr = np.asarray(strip).astype(np.float32)
+    median = np.asarray(strip.filter(ImageFilter.MedianFilter(size=7))).astype(np.float32)
+    luma = arr.mean(axis=2)
+    median_luma = median.mean(axis=2)
+    local_defect = np.abs(luma - median_luma)
+    axis_score = local_defect.mean(axis=0 if horizontal else 1)
+
+    edge_guard = max(4, int(axis_len * 0.12))
+    window = max(28, int(axis_len * 0.62))
+    if window >= axis_len - edge_guard * 2:
+        window = max(12, axis_len - edge_guard * 2)
+    if window <= 0:
+        return strip
+
+    padded_score = axis_score.copy()
+    padded_score[:edge_guard] += 1000
+    padded_score[-edge_guard:] += 1000
+    rolling = np.convolve(padded_score, np.ones(window, dtype=np.float32), mode="valid")
+    start = int(np.argmin(rolling))
+    end = start + window
+
+    if horizontal:
+        return strip.crop((start, 0, end, height))
+    return strip.crop((0, start, width, end))
+
+
+def crop_strip_core(strip, horizontal):
+    strip = crop_cleanest_profile_span(strip, horizontal)
+    width, height = strip.size
+    if horizontal and width > 48:
+        margin = max(4, min(width // 4, int(width * 0.16)))
+        return strip.crop((margin, 0, width - margin, height))
+    if not horizontal and height > 48:
+        margin = max(4, min(height // 3, int(height * 0.20)))
+        return strip.crop((0, margin, width, height - margin))
+    return strip
+
+
+def normalize_strip_color(strip, target_color):
+    arr = np.asarray(strip).astype(np.float32)
+    current = np.median(arr.reshape(-1, 3), axis=0)
+    target = np.array(target_color, dtype=np.float32)
+    arr += (target - current) * 0.42
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
+def clean_profile_strip(strip, horizontal):
+    arr = np.asarray(strip).astype(np.float32)
+    median = np.asarray(strip.filter(ImageFilter.MedianFilter(size=7))).astype(np.float32)
+    arr_luma = arr.mean(axis=2)
+    median_luma = median.mean(axis=2)
+    spread = np.percentile(arr_luma, 95) - np.percentile(arr_luma, 5)
+    defect_threshold = max(12, min(26, spread * 0.38))
+    local_defect = np.abs(arr_luma - median_luma) > defect_threshold
+    arr[local_defect] = median[local_defect]
+    arr = arr * 0.72 + median * 0.28
+
+    if horizontal:
+        rail_profile = np.median(arr, axis=1, keepdims=True)
+    else:
+        rail_profile = np.median(arr, axis=0, keepdims=True)
+    arr = arr * 0.80 + rail_profile * 0.20
+
+    soft = np.asarray(Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.35))).astype(
+        np.float32
+    )
+    fine_detail = arr - soft
+    arr = soft + fine_detail * 0.46
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
+def tile_profile_strip(strip, width, height, horizontal):
+    width = max(1, width)
+    height = max(1, height)
+    strip = clean_profile_strip(crop_strip_core(strip, horizontal), horizontal)
+    source_w, source_h = strip.size
+    if source_w <= 0 or source_h <= 0:
+        return Image.new("RGB", (width, height), (0, 0, 0))
+
+    if horizontal:
+        scaled_w = max(1, int(source_w * height / max(1, source_h)))
+        tile = strip.resize((scaled_w, height), Image.Resampling.LANCZOS)
+        result = Image.new("RGB", (width, height))
+        x = 0
+        flip = False
+        while x < width:
+            next_tile = tile.transpose(Image.Transpose.FLIP_LEFT_RIGHT) if flip else tile
+            result.paste(next_tile, (x, 0))
+            x += next_tile.width
+            flip = not flip
+        return result
+
+    scaled_h = max(1, int(source_h * width / max(1, source_w)))
+    tile = strip.resize((width, scaled_h), Image.Resampling.LANCZOS)
+    result = Image.new("RGB", (width, height))
+    y = 0
+    flip = False
+    while y < height:
+        next_tile = tile.transpose(Image.Transpose.FLIP_TOP_BOTTOM) if flip else tile
+        result.paste(next_tile, (0, y))
+        y += next_tile.height
+        flip = not flip
+    return result
+
+
+def polish_profile_texture(texture, frame_px):
+    arr = np.asarray(texture).astype(np.float32)
+    median = np.asarray(texture.filter(ImageFilter.MedianFilter(size=5))).astype(np.float32)
+    luma = arr.mean(axis=2)
+    median_luma = median.mean(axis=2)
+    spread = np.percentile(luma, 96) - np.percentile(luma, 4)
+    threshold = max(9, min(22, spread * 0.30))
+    specks = np.abs(luma - median_luma) > threshold
+    arr[specks] = median[specks]
+
+    # Keep the rail profile readable, but tame accidental photo damage
+    # that would otherwise repeat as scuffs around the full frame.
+    soft = np.asarray(Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.28))).astype(
+        np.float32
+    )
+    detail = arr - soft
+    arr = soft + detail * 0.62
+
+    if frame_px >= 12:
+        rail = max(1, min(frame_px, texture.width // 2, texture.height // 2))
+        mask = Image.new("L", texture.size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle((rail, rail, texture.width - rail, texture.height - rail), fill=0)
+        draw.rectangle((0, 0, texture.width, texture.height), outline=255, width=rail)
+        softened = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.MedianFilter(size=3))
+        texture = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+        texture.paste(softened, (0, 0), mask)
+        return texture
+
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
 def profile_texture_sections(source, base):
     mask = profile_foreground_mask(source)
     bbox = profile_component_bbox(mask)
@@ -201,6 +344,8 @@ def profile_texture_sections(source, base):
     if row_counts.max(initial=0) <= 0 or col_counts.max(initial=0) <= 0:
         return None
 
+    source_arr = np.asarray(source).astype(np.float32)
+    profile_color = np.median(source_arr[mask], axis=0)
     rail_height = initial_run_length(row_counts, max(2, row_counts.max() * 0.32))
     left_weight = col_counts[: max(1, len(col_counts) // 2)].sum()
     right_weight = col_counts[len(col_counts) // 2 :].sum()
@@ -237,8 +382,8 @@ def profile_texture_sections(source, base):
             max(top + vertical_trim_top + 2, bottom - vertical_trim_bottom),
         )
 
-    horizontal = crop_with_profile_fill(source, mask, horizontal_box, base)
-    vertical = crop_with_profile_fill(source, mask, vertical_box, base)
+    horizontal = normalize_strip_color(crop_with_profile_fill(source, mask, horizontal_box, profile_color), profile_color)
+    vertical = normalize_strip_color(crop_with_profile_fill(source, mask, vertical_box, profile_color), profile_color)
     return horizontal, vertical, vertical_on_right
 
 
@@ -297,9 +442,9 @@ def profile_asset_texture(width, height, base, frame_px, profile_image):
     rail = max(1, frame_px)
     result = Image.new("RGB", (width, height), base)
 
-    top = horizontal_source.resize((max(1, width), rail), Image.Resampling.LANCZOS)
+    top = tile_profile_strip(horizontal_source, width, rail, horizontal=True)
     bottom = top.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-    vertical = vertical_source.resize((rail, max(1, height)), Image.Resampling.LANCZOS)
+    vertical = tile_profile_strip(vertical_source, rail, height, horizontal=False)
     if vertical_on_right:
         right = vertical
         left = vertical.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
@@ -325,7 +470,8 @@ def profile_asset_texture(width, height, base, frame_px, profile_image):
     ):
         result.paste(layer, (0, 0), mask)
 
-    return result.filter(ImageFilter.UnsharpMask(radius=0.8, percent=80, threshold=2))
+    result = polish_profile_texture(result, rail)
+    return result.filter(ImageFilter.UnsharpMask(radius=0.8, percent=45, threshold=3))
 
 
 def real_wood_texture(width, height, base, frame_px, frame_id):
