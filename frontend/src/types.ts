@@ -138,6 +138,7 @@ export type FrameProfileSpec = {
   width_mm: number;
   height_mm: number;
   image_url?: string;
+  thumbnail_url?: string | null;
   source_url?: string;
   source_page?: number;
   source_frame_id?: string;
