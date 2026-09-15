@@ -267,7 +267,13 @@ def clean_profile_strip(strip, horizontal):
         ).astype(np.float32)
 
     stable_profile = rail_profile * 0.70 + low_frequency * 0.30
-    arr = arr * 0.35 + stable_profile * 0.65
+    profile_luma = rail_profile.mean(axis=2)
+    stable_luma = stable_profile.mean(axis=2)
+    profile_spread = np.percentile(profile_luma, 95) - np.percentile(profile_luma, 5)
+    spot_threshold = max(5, min(14, profile_spread * 0.22 + 5))
+    local_spots = np.abs(arr_luma - stable_luma) > spot_threshold
+    arr[local_spots] = stable_profile[local_spots]
+    arr = arr * 0.18 + stable_profile * 0.82
 
     soft = np.asarray(Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.35))).astype(
         np.float32

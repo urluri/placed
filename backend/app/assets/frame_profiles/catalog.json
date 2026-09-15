@@ -238,21 +238,6 @@
       "source_page": 16
     },
     {
-      "page": 17,
-      "id": "05.21.AL",
-      "name": "Серебро 05.21.AL",
-      "frame_ids": [
-        "silver_aluminum"
-      ],
-      "family": "silver",
-      "material": "aluminum",
-      "width_mm": 9,
-      "height_mm": 22,
-      "source_url": "https://art-rama.com/catalog/alyuminievyy-baget/41660/",
-      "image_url": "/frame_profiles/images/silver-05.21.al.jpg",
-      "source_page": 17
-    },
-    {
       "page": 18,
       "id": "1717.620",
       "name": "Серебрянное дерево 1717.620",
@@ -341,21 +326,6 @@
       "source_url": "https://art-rama.com/catalog/baget/28422/",
       "image_url": "/frame_profiles/images/gold-679.4219.jpg",
       "source_page": 23
-    },
-    {
-      "page": 24,
-      "id": "05.32.AL",
-      "name": "Шампань 05.32.AL",
-      "frame_ids": [
-        "champagne_aluminum"
-      ],
-      "family": "champagne",
-      "material": "aluminum",
-      "width_mm": 9,
-      "height_mm": 22,
-      "source_url": "https://www.neoart.ru/catalog/93/944/90769/",
-      "image_url": "/frame_profiles/images/champagne-05.32.al.jpg",
-      "source_page": 24
     },
     {
       "page": 25,

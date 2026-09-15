@@ -307,8 +307,13 @@ export default function App() {
   }, [recommendations.ml]);
   const mlInnerCandidates = useMemo(() => mlInnerMatCandidates(mlSignatureVariant), [mlSignatureVariant]);
   const frameProfileCandidates = useMemo(
-    () => frameProfileOptions(selectedVariant?.frame ?? null, frameProfiles),
-    [selectedVariant?.frame, frameProfiles],
+    () => frameProfileOptions(
+      selectedVariant?.frame ?? null,
+      frameProfiles,
+      dimensionNumber(form.widthMm),
+      dimensionNumber(form.heightMm),
+    ),
+    [selectedVariant?.frame, frameProfiles, form.widthMm, form.heightMm],
   );
   const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
@@ -1683,6 +1688,8 @@ function baseFrameProfileId(frameId: string) {
 function frameProfileOptions(
   frame: Recommendation["variants"][number]["frame"] | null,
   catalogProfiles: FrameProfileSpec[],
+  artworkWidthMm: number | null,
+  artworkHeightMm: number | null,
 ): FrameProfileSpec[] {
   if (!frame) return [];
   const sourceFrameId = frame.profile_variant?.source_frame_id ?? frame.id;
@@ -1703,7 +1710,16 @@ function frameProfileOptions(
     height_mm: sourceFrameHeight ?? sourceFrameWidth,
     is_base: true,
   };
-  const profiles = catalogProfiles.filter((profile) => profile.frame_ids.includes(sourceFrameId));
+  const isSmallArtwork =
+    artworkWidthMm !== null &&
+    artworkHeightMm !== null &&
+    Math.min(artworkWidthMm, artworkHeightMm) <= 300 &&
+    Math.max(artworkWidthMm, artworkHeightMm) <= 420;
+  const profiles = catalogProfiles.filter((profile) => {
+    if (!profile.frame_ids.includes(sourceFrameId)) return false;
+    if (profile.material === "wood" && profile.width_mm < 20 && !isSmallArtwork) return false;
+    return true;
+  });
   const uniqueProfiles = profiles.filter(
     (profile, index, items) => items.findIndex((item) => item.id === profile.id) === index,
   );
