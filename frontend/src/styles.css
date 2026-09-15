@@ -2967,9 +2967,9 @@ body {
 .frame-corner-fallback-champagne,
 .frame-corner-fallback-champagne_aluminum,
 .frame-corner-fallback-gold {
-  border-color: #aaa18d;
+  border-color: #b8af9c;
   background:
-    linear-gradient(135deg, rgba(255,255,255,0.45), rgba(170, 161, 141, 0.74) 55%, transparent),
+    linear-gradient(135deg, rgba(255,255,255,0.45), rgba(184, 175, 156, 0.78) 55%, transparent),
     repeating-linear-gradient(90deg, rgba(72, 65, 52, 0.12) 0 1px, transparent 1px 6px);
 }
 
