@@ -1,0 +1,376 @@
+{
+  "version": 1,
+  "source": "Профили.pdf",
+  "selection_model": "The algorithm chooses a frame color id. The UI then offers concrete profiles whose frame_ids include that id. For black_aluminum, black wood profiles are also shown as alternatives in the black visual family.",
+  "profiles": [
+    {
+      "page": 2,
+      "id": "6011.181",
+      "name": "Белое дерево 6011.181",
+      "frame_ids": [
+        "white_wood"
+      ],
+      "family": "white_wood",
+      "material": "wood",
+      "width_mm": 17,
+      "height_mm": 49,
+      "source_url": "https://art-rama.com/catalog/baget/40943/",
+      "image_url": "/frame_profiles/images/white_wood-6011.181.jpg",
+      "source_page": 2
+    },
+    {
+      "page": 3,
+      "id": "5301.480",
+      "name": "Белое дерево 5301.480",
+      "frame_ids": [
+        "white_wood"
+      ],
+      "family": "white_wood",
+      "material": "wood",
+      "width_mm": 34,
+      "height_mm": 17,
+      "source_url": "https://art-rama.com/catalog/baget/40961/",
+      "image_url": "/frame_profiles/images/white_wood-5301.480.jpg",
+      "source_page": 3
+    },
+    {
+      "page": 4,
+      "id": "1070ST.B05.0",
+      "name": "Белое дерево 1070ST.B05.0",
+      "frame_ids": [
+        "white_wood"
+      ],
+      "family": "white_wood",
+      "material": "wood",
+      "width_mm": 29,
+      "height_mm": 40,
+      "source_url": "https://art-rama.com/catalog/baget/27025/",
+      "image_url": "/frame_profiles/images/white_wood-1070st.b05.0.jpg",
+      "source_page": 4
+    },
+    {
+      "page": 5,
+      "id": "361-02",
+      "name": "Темный орех 361-02",
+      "frame_ids": [
+        "dark_walnut"
+      ],
+      "family": "dark_walnut",
+      "material": "wood",
+      "width_mm": 36,
+      "height_mm": 16,
+      "source_url": "https://art-rama.com/catalog/baget/27821/",
+      "image_url": "/frame_profiles/images/dark_walnut-361-02.jpg",
+      "source_page": 5
+    },
+    {
+      "page": 6,
+      "id": "1717.536",
+      "name": "Темный орех 1717.536",
+      "frame_ids": [
+        "dark_walnut"
+      ],
+      "family": "dark_walnut",
+      "material": "wood",
+      "width_mm": 17,
+      "height_mm": 17,
+      "source_url": "https://art-rama.com/catalog/baget/40978/",
+      "image_url": "/frame_profiles/images/dark_walnut-1717.536.jpg",
+      "source_page": 6
+    },
+    {
+      "page": 7,
+      "id": "160-06",
+      "name": "Темный орех 160-06",
+      "frame_ids": [
+        "dark_walnut"
+      ],
+      "family": "dark_walnut",
+      "material": "wood",
+      "width_mm": 16,
+      "height_mm": 16,
+      "source_url": "https://art-rama.com/catalog/baget/29621/",
+      "image_url": "/frame_profiles/images/dark_walnut-160-06.jpg",
+      "source_page": 7
+    },
+    {
+      "page": 8,
+      "id": "1717.540",
+      "name": "Дуб / светлый дуб 1717.540",
+      "frame_ids": [
+        "light_oak",
+        "oak"
+      ],
+      "family": "oak",
+      "material": "wood",
+      "width_mm": 17,
+      "height_mm": 17,
+      "source_url": "https://art-rama.com/catalog/baget/40985/",
+      "image_url": "/frame_profiles/images/oak-1717.540.jpg",
+      "source_page": 8
+    },
+    {
+      "page": 9,
+      "id": "100.245.115",
+      "name": "Дуб / светлый дуб 100.245.115",
+      "frame_ids": [
+        "light_oak",
+        "oak"
+      ],
+      "family": "oak",
+      "material": "wood",
+      "width_mm": 40,
+      "height_mm": 35,
+      "source_url": "https://www.neoart.ru/catalog/91/946/88376/",
+      "image_url": "/frame_profiles/images/oak-100.245.115.jpg",
+      "source_page": 9
+    },
+    {
+      "page": 10,
+      "id": "555.115.003",
+      "name": "Дуб / светлый дуб 555.115.003",
+      "frame_ids": [
+        "light_oak",
+        "oak"
+      ],
+      "family": "oak",
+      "material": "wood",
+      "width_mm": 15,
+      "height_mm": 28,
+      "source_url": "https://www.neoart.ru/catalog/91/655/91021/",
+      "image_url": "/frame_profiles/images/oak-555.115.003.jpg",
+      "source_page": 10
+    },
+    {
+      "page": 11,
+      "id": "225-02",
+      "name": "Орех 225-02",
+      "frame_ids": [
+        "walnut"
+      ],
+      "family": "walnut",
+      "material": "wood",
+      "width_mm": 22,
+      "height_mm": 17,
+      "source_url": "https://art-rama.com/catalog/baget/43286/",
+      "image_url": "/frame_profiles/images/walnut-225-02.jpg",
+      "source_page": 11
+    },
+    {
+      "page": 12,
+      "id": "1149.6192",
+      "name": "Орех 1149.6192",
+      "frame_ids": [
+        "walnut"
+      ],
+      "family": "walnut",
+      "material": "wood",
+      "width_mm": 30,
+      "height_mm": 30,
+      "source_url": "https://art-rama.com/catalog/baget/28923/",
+      "image_url": "/frame_profiles/images/walnut-1149.6192.jpg",
+      "source_page": 12
+    },
+    {
+      "page": 13,
+      "id": "22-M819P",
+      "name": "Орех 22-M819P",
+      "frame_ids": [
+        "walnut"
+      ],
+      "family": "walnut",
+      "material": "wood",
+      "width_mm": 22,
+      "height_mm": 19,
+      "source_url": "https://art-rama.com/catalog/baget/27504/",
+      "image_url": "/frame_profiles/images/walnut-22-m819p.jpg",
+      "source_page": 13
+    },
+    {
+      "page": 14,
+      "id": "197.000.001",
+      "name": "Черное дерево 197.000.001",
+      "frame_ids": [
+        "black_aluminum",
+        "black_wood"
+      ],
+      "render_frame_id": "black_wood",
+      "family": "black",
+      "material": "wood",
+      "width_mm": 15,
+      "height_mm": 29,
+      "source_url": "https://art-rama.com/catalog/baget/29398/",
+      "image_url": "/frame_profiles/images/black-197.000.001.jpg",
+      "source_page": 14
+    },
+    {
+      "page": 15,
+      "id": "1079.449",
+      "name": "Черное дерево 1079.449",
+      "frame_ids": [
+        "black_aluminum",
+        "black_wood"
+      ],
+      "render_frame_id": "black_wood",
+      "family": "black",
+      "material": "wood",
+      "width_mm": 21,
+      "height_mm": 21,
+      "source_url": "https://art-rama.com/catalog/baget/29322/",
+      "image_url": "/frame_profiles/images/black-1079.449.jpg",
+      "source_page": 15
+    },
+    {
+      "page": 16,
+      "id": "5932.1007",
+      "name": "Черное дерево 5932.1007",
+      "frame_ids": [
+        "black_aluminum",
+        "black_wood"
+      ],
+      "render_frame_id": "black_wood",
+      "family": "black",
+      "material": "wood",
+      "width_mm": 17,
+      "height_mm": 18,
+      "source_url": "https://art-rama.com/catalog/baget/29633/",
+      "image_url": "/frame_profiles/images/black-5932.1007.jpg",
+      "source_page": 16
+    },
+    {
+      "page": 17,
+      "id": "05.21.AL",
+      "name": "Серебро 05.21.AL",
+      "frame_ids": [
+        "silver_aluminum"
+      ],
+      "family": "silver",
+      "material": "aluminum",
+      "width_mm": 9,
+      "height_mm": 22,
+      "source_url": "https://art-rama.com/catalog/alyuminievyy-baget/41660/",
+      "image_url": "/frame_profiles/images/silver-05.21.al.jpg",
+      "source_page": 17
+    },
+    {
+      "page": 18,
+      "id": "1717.620",
+      "name": "Серебрянное дерево 1717.620",
+      "frame_ids": [
+        "silver_aluminum"
+      ],
+      "family": "silver",
+      "material": "wood",
+      "width_mm": 17,
+      "height_mm": 17,
+      "source_url": "https://art-rama.com/catalog/baget/27258/",
+      "image_url": "/frame_profiles/images/silver-1717.620.jpg",
+      "source_page": 18
+    },
+    {
+      "page": 19,
+      "id": "1717.4016",
+      "name": "Серебрянное дерево 1717.4016",
+      "frame_ids": [
+        "silver_aluminum"
+      ],
+      "family": "silver",
+      "material": "wood",
+      "width_mm": 17,
+      "height_mm": 17,
+      "source_url": "https://art-rama.com/catalog/baget/40973/",
+      "image_url": "/frame_profiles/images/silver-1717.4016.jpg",
+      "source_page": 19
+    },
+    {
+      "page": 20,
+      "id": "882.3222",
+      "name": "Серебрянное дерево 882.3222",
+      "frame_ids": [
+        "silver_aluminum"
+      ],
+      "family": "silver",
+      "material": "wood",
+      "width_mm": 21,
+      "height_mm": 56,
+      "source_url": "https://art-rama.com/catalog/baget/29229/",
+      "image_url": "/frame_profiles/images/silver-882.3222.jpg",
+      "source_page": 20
+    },
+    {
+      "page": 21,
+      "id": "1284.403",
+      "name": "Золото 1284.403",
+      "frame_ids": [
+        "gold"
+      ],
+      "family": "gold",
+      "material": "wood",
+      "width_mm": 35,
+      "height_mm": 30,
+      "source_url": "https://art-rama.com/catalog/baget/29064/",
+      "image_url": "/frame_profiles/images/gold-1284.403.jpg",
+      "source_page": 21
+    },
+    {
+      "page": 22,
+      "id": "2141.740",
+      "name": "Золото 2141.740",
+      "frame_ids": [
+        "gold"
+      ],
+      "family": "gold",
+      "material": "wood",
+      "width_mm": 21,
+      "height_mm": 41,
+      "source_url": "https://art-rama.com/catalog/baget/27484/",
+      "image_url": "/frame_profiles/images/gold-2141.740.jpg",
+      "source_page": 22
+    },
+    {
+      "page": 23,
+      "id": "679.4219",
+      "name": "Золото 679.4219",
+      "frame_ids": [
+        "gold"
+      ],
+      "family": "gold",
+      "material": "wood",
+      "width_mm": 30,
+      "height_mm": 20,
+      "source_url": "https://art-rama.com/catalog/baget/28422/",
+      "image_url": "/frame_profiles/images/gold-679.4219.jpg",
+      "source_page": 23
+    },
+    {
+      "page": 24,
+      "id": "05.32.AL",
+      "name": "Шампань 05.32.AL",
+      "frame_ids": [
+        "champagne_aluminum"
+      ],
+      "family": "champagne",
+      "material": "aluminum",
+      "width_mm": 9,
+      "height_mm": 22,
+      "source_url": "https://www.neoart.ru/catalog/93/944/90769/",
+      "image_url": "/frame_profiles/images/champagne-05.32.al.jpg",
+      "source_page": 24
+    },
+    {
+      "page": 25,
+      "id": "6011.667",
+      "name": "Шампань 6011.667",
+      "frame_ids": [
+        "champagne_aluminum"
+      ],
+      "family": "champagne",
+      "material": "wood",
+      "width_mm": 17,
+      "height_mm": 49,
+      "source_url": "https://art-rama.com/catalog/baget/40932/",
+      "image_url": "/frame_profiles/images/champagne-6011.667.jpg",
+      "source_page": 25
+    }
+  ]
+}

@@ -18,6 +18,7 @@ WOOD_TEXTURE_FILES = {
 }
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEXTURE_ROOT = REPO_ROOT / "textures"
+BACKEND_ASSET_ROOT = Path(__file__).resolve().parents[1] / "assets"
 PUBLIC_ROOT = REPO_ROOT / "frontend" / "public"
 
 
@@ -79,14 +80,23 @@ def load_profile_texture_asset(image_url):
         return None
 
     relative = str(image_url).split("?", 1)[0].lstrip("/\\")
-    path = PUBLIC_ROOT.joinpath(*[part for part in relative.replace("\\", "/").split("/") if part])
-    try:
-        resolved = path.resolve()
-        if PUBLIC_ROOT.resolve() not in resolved.parents:
-            return None
-    except OSError:
-        return None
-    if not path.exists():
+    relative_parts = [part for part in relative.replace("\\", "/").split("/") if part]
+    candidate_roots = (BACKEND_ASSET_ROOT, PUBLIC_ROOT)
+    path = None
+    for root in candidate_roots:
+        candidate = root.joinpath(*relative_parts)
+        try:
+            resolved = candidate.resolve()
+            resolved_root = root.resolve()
+            if resolved != resolved_root and resolved_root not in resolved.parents:
+                continue
+        except OSError:
+            continue
+        if candidate.exists():
+            path = candidate
+            break
+
+    if path is None:
         return None
 
     image = Image.open(path).convert("RGB")
