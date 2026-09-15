@@ -125,6 +125,26 @@ export type FrameSpec = {
   depth_mm: number | null;
   profile: string;
   hex: string;
+  profile_variant?: FrameProfileSpec | null;
+};
+
+export type FrameProfileSpec = {
+  id: string;
+  name: string;
+  family: string;
+  frame_ids: string[];
+  render_frame_id?: string;
+  material: string;
+  width_mm: number;
+  height_mm: number;
+  image_url?: string;
+  source_url?: string;
+  source_page?: number;
+  source_frame_id?: string;
+  source_frame_material?: string;
+  source_frame_width_mm?: number;
+  source_frame_height_mm?: number | null;
+  is_base?: boolean;
 };
 
 export type GlassSpec = {

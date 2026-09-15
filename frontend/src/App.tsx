@@ -13,6 +13,7 @@ import type {
   MatSizeConfig,
   MlColorCandidate,
   Recommendation,
+  FrameProfileSpec,
   SizeSource,
 } from "./types";
 
@@ -182,6 +183,7 @@ type PreviewZoomState = {
 const IMAGE_HISTORY_LIMIT = 15;
 const IMAGE_HISTORY_DB = "placed-image-history";
 const IMAGE_HISTORY_STORE = "images";
+const FRAME_PROFILE_CATALOG_URL = "/frame_profiles/catalog.json";
 
 export default function App() {
   const [form, setForm] = useState<FormState>({
@@ -209,6 +211,8 @@ export default function App() {
   const [showInteriorPreview, setShowInteriorPreview] = useState(false);
   const [showParametersDrawer, setShowParametersDrawer] = useState(false);
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
+  const [frameProfiles, setFrameProfiles] = useState<FrameProfileSpec[]>([]);
+  const [selectedFrameProfileId, setSelectedFrameProfileId] = useState<string | null>(null);
   const [isUploadDragging, setIsUploadDragging] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const uploadDragDepth = useRef(0);
@@ -238,6 +242,21 @@ export default function App() {
     delete document.documentElement.dataset.theme;
     document.documentElement.style.colorScheme = "light";
     window.localStorage.removeItem("placed-theme");
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch(FRAME_PROFILE_CATALOG_URL, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("catalog"))))
+      .then((catalog: { profiles?: FrameProfileSpec[] }) => {
+        if (isMounted) setFrameProfiles(Array.isArray(catalog.profiles) ? catalog.profiles : []);
+      })
+      .catch(() => {
+        if (isMounted) setFrameProfiles([]);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -287,6 +306,10 @@ export default function App() {
     return recommendations.ml?.variants.find((variant) => variant.decor_style === "signature") ?? null;
   }, [recommendations.ml]);
   const mlInnerCandidates = useMemo(() => mlInnerMatCandidates(mlSignatureVariant), [mlSignatureVariant]);
+  const frameProfileCandidates = useMemo(
+    () => frameProfileOptions(selectedVariant?.frame ?? null, frameProfiles),
+    [selectedVariant?.frame, frameProfiles],
+  );
   const currentInputSignature = useMemo(() => formInputSignature(form), [form]);
   const hasInputChanges = appliedInputSignature !== currentInputSignature;
   const currentPreviewUrl = previewUrls[primaryAnalyzer]?.[selectedDecorStyle] ?? "";
@@ -368,6 +391,7 @@ export default function App() {
     setForm((current) => ({ ...current, ...patch }));
     setRecommendations({});
     setMlInnerOverrideColorId(null);
+    setSelectedFrameProfileId(null);
     clearPreview();
     setRenderState("Нажмите «Применить»");
   };
@@ -661,6 +685,7 @@ export default function App() {
 
       setRecommendations(nextRecommendations);
       setMlInnerOverrideColorId(null);
+      setSelectedFrameProfileId(null);
       setPreviewUrls((previousUrls) => {
         revokeAnalyzerPreviewUrls(previousUrls);
         return nextPreviewUrls;
@@ -719,6 +744,59 @@ export default function App() {
     } catch (error) {
       if (id === requestId.current) {
         setRenderState(error instanceof Error ? error.message : "Не удалось применить ML-кандидат");
+      }
+    } finally {
+      if (id === requestId.current) setIsRendering(false);
+    }
+  };
+
+  const handleFrameProfileSelect = async (profile: FrameProfileSpec) => {
+    const currentRecommendation = recommendations[primaryAnalyzer];
+    const currentVariant =
+      currentRecommendation?.variants.find((variant) => variant.decor_style === selectedDecorStyle) ?? null;
+    if (!currentRecommendation || !currentVariant) return;
+
+    const id = ++requestId.current;
+    const updatedVariant = withFrameProfile(currentVariant, profile);
+    setIsRendering(true);
+    setRenderState("");
+    setSelectedFrameProfileId(profile.id);
+    setRecommendations((current) => ({
+      ...current,
+      [primaryAnalyzer]: current[primaryAnalyzer]
+        ? {
+            ...current[primaryAnalyzer],
+            variants: current[primaryAnalyzer].variants.map((variant) =>
+              variant.decor_style === selectedDecorStyle ? updatedVariant : variant,
+            ),
+          }
+        : current[primaryAnalyzer],
+    }));
+
+    try {
+      const blob = await renderPreview(
+        form,
+        selectedDecorStyle,
+        updatedVariant,
+        primaryAnalyzer,
+        currentRecommendation.image_token,
+      );
+      if (id !== requestId.current) return;
+      const nextUrl = URL.createObjectURL(blob);
+      setPreviewUrls((previousUrls) => {
+        const previousUrl = previousUrls[primaryAnalyzer]?.[selectedDecorStyle];
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        return {
+          ...previousUrls,
+          [primaryAnalyzer]: {
+            ...(previousUrls[primaryAnalyzer] ?? {}),
+            [selectedDecorStyle]: nextUrl,
+          },
+        };
+      });
+    } catch (error) {
+      if (id === requestId.current) {
+        setRenderState(error instanceof Error ? error.message : "Не удалось применить профиль рамы");
       }
     } finally {
       if (id === requestId.current) setIsRendering(false);
@@ -1105,13 +1183,22 @@ export default function App() {
             <div className="render-error">{renderState}</div>
           )}
         </div>
-        {mlInnerCandidates.length > 0 && (
+        {(mlInnerCandidates.length > 0 || frameProfileCandidates.length > 0) && (
           <MlInnerCandidatePanel
             candidates={mlInnerCandidates}
             activeColorId={mlInnerOverrideColorId ?? mlSignatureVariant?.mat?.inner_color?.id ?? null}
+            frameProfiles={frameProfileCandidates}
+            activeFrameProfileId={
+              selectedFrameProfileId ??
+              selectedVariant?.frame.profile_variant?.id ??
+              (selectedVariant ? baseFrameProfileId(selectedVariant.frame.id) : null)
+            }
             disabled={isBusy}
             onSelect={(candidate) => {
               void handleMlInnerCandidateSelect(candidate);
+            }}
+            onFrameProfileSelect={(profile) => {
+              void handleFrameProfileSelect(profile);
             }}
           />
         )}
@@ -1467,13 +1554,19 @@ function FramingLoader() {
 function MlInnerCandidatePanel({
   candidates,
   activeColorId,
+  frameProfiles,
+  activeFrameProfileId,
   disabled,
   onSelect,
+  onFrameProfileSelect,
 }: {
   candidates: MlColorCandidate[];
   activeColorId: string | null;
+  frameProfiles: FrameProfileSpec[];
+  activeFrameProfileId: string | null;
   disabled: boolean;
   onSelect: (candidate: MlColorCandidate) => void;
+  onFrameProfileSelect: (profile: FrameProfileSpec) => void;
 }) {
   return (
     <section className="ml-candidate-panel" aria-label="Варианты оформления">
@@ -1502,9 +1595,15 @@ function MlInnerCandidatePanel({
         <div className="preview-option-group">
           <strong>Варианты рам</strong>
           <div className="frame-corner-list" aria-label="Варианты рам">
-            <FrameCornerOption tone="oak" label="Дуб" />
-            <FrameCornerOption tone="black" label="Черная рама" />
-            <FrameCornerOption tone="light-oak" label="Светлый дуб" />
+            {frameProfiles.map((profile) => (
+              <FrameCornerOption
+                key={profile.id}
+                profile={profile}
+                disabled={disabled}
+                isActive={activeFrameProfileId === profile.id}
+                onSelect={onFrameProfileSelect}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -1512,17 +1611,39 @@ function MlInnerCandidatePanel({
   );
 }
 
-function FrameCornerOption({ tone, label }: { tone: "oak" | "black" | "light-oak"; label: string }) {
+function FrameCornerOption({
+  profile,
+  disabled,
+  isActive,
+  onSelect,
+}: {
+  profile: FrameProfileSpec;
+  disabled: boolean;
+  isActive: boolean;
+  onSelect: (profile: FrameProfileSpec) => void;
+}) {
   return (
-    <button type="button" className={`frame-corner-option frame-corner-${tone}`} aria-label={label} title={label}>
-      <span aria-hidden="true" />
+    <button
+      type="button"
+      className={`frame-corner-option ${isActive ? "is-active" : ""}`}
+      aria-label={profile.name}
+      title={`${profile.name}: ${profile.width_mm} x ${profile.height_mm} мм`}
+      disabled={disabled}
+      onClick={() => onSelect(profile)}
+    >
+      {profile.image_url ? (
+        <img src={profile.image_url} alt="" aria-hidden="true" />
+      ) : (
+        <span className={`frame-corner-fallback frame-corner-fallback-${profile.family}`} aria-hidden="true" />
+      )}
     </button>
   );
 }
 
 function frameSpec(variant: Recommendation["variants"][number] | null) {
   if (!variant) return "—";
-  return `${variant.frame.width_mm} мм, ${materialName(variant.frame.material)}, ${variant.frame.name}`;
+  const profile = variant.frame.profile_variant?.is_base ? "" : `, профиль ${variant.frame.profile_variant?.id}`;
+  return `${variant.frame.width_mm} мм, ${materialName(variant.frame.material)}, ${variant.frame.name}${profile}`;
 }
 
 function matSpec(variant: Recommendation["variants"][number] | null) {
@@ -1555,6 +1676,57 @@ function mlInnerMatCandidates(variant: Recommendation["variants"][number] | null
   return top.filter((candidate) => candidate.color?.id && candidate.color?.hex).slice(0, 3);
 }
 
+function baseFrameProfileId(frameId: string) {
+  return `base:${frameId}`;
+}
+
+function frameProfileOptions(
+  frame: Recommendation["variants"][number]["frame"] | null,
+  catalogProfiles: FrameProfileSpec[],
+): FrameProfileSpec[] {
+  if (!frame) return [];
+  const sourceFrameId = frame.profile_variant?.source_frame_id ?? frame.id;
+  const sourceFrameMaterial = frame.profile_variant?.source_frame_material ?? frame.material;
+  const sourceFrameWidth = frame.profile_variant?.source_frame_width_mm ?? frame.width_mm;
+  const sourceFrameHeight = frame.profile_variant?.source_frame_height_mm ?? frame.depth_mm ?? frame.width_mm;
+
+  const baseProfile: FrameProfileSpec = {
+    id: baseFrameProfileId(sourceFrameId),
+    name: `Базовая: ${baseFrameProfileName(sourceFrameId, frame.name)}`,
+    family: sourceFrameId,
+    frame_ids: [sourceFrameId],
+    render_frame_id: sourceFrameId,
+    source_frame_id: sourceFrameId,
+    source_frame_material: sourceFrameMaterial,
+    material: sourceFrameMaterial,
+    width_mm: sourceFrameWidth,
+    height_mm: sourceFrameHeight ?? sourceFrameWidth,
+    is_base: true,
+  };
+  const profiles = catalogProfiles.filter((profile) => profile.frame_ids.includes(sourceFrameId));
+  const uniqueProfiles = profiles.filter(
+    (profile, index, items) => items.findIndex((item) => item.id === profile.id) === index,
+  );
+
+  return [baseProfile, ...uniqueProfiles];
+}
+
+function baseFrameProfileName(frameId: string, fallback: string) {
+  const names: Record<string, string> = {
+    black_aluminum: "Черный алюминий",
+    black_wood: "Черное дерево",
+    white_wood: "Белое дерево",
+    champagne_aluminum: "Шампань",
+    silver_aluminum: "Серебро",
+    light_oak: "Светлый дуб",
+    oak: "Дуб",
+    walnut: "Орех",
+    dark_walnut: "Темный орех",
+    gold: "Золото",
+  };
+  return names[frameId] ?? fallback;
+}
+
 function withInnerMatColor(variant: Recommendation["variants"][number], color: MatColor): Recommendation["variants"][number] {
   if (!variant.mat) return variant;
   return {
@@ -1567,6 +1739,43 @@ function withInnerMatColor(variant: Recommendation["variants"][number], color: M
         hex: color.hex,
       },
       color_source: "ml_candidate_override",
+    },
+  };
+}
+
+function withFrameProfile(
+  variant: Recommendation["variants"][number],
+  profile: FrameProfileSpec,
+): Recommendation["variants"][number] {
+  const sourceFrameId = variant.frame.profile_variant?.source_frame_id ?? variant.frame.id;
+  const sourceFrameMaterial = variant.frame.profile_variant?.source_frame_material ?? variant.frame.material;
+  const sourceFrameWidth = variant.frame.profile_variant?.source_frame_width_mm ?? variant.frame.width_mm;
+  const sourceFrameHeight = variant.frame.profile_variant?.source_frame_height_mm ?? variant.frame.depth_mm;
+  const nextFrameWidth = Math.max(1, Math.round(profile.width_mm));
+  const widthDelta = nextFrameWidth - variant.frame.width_mm;
+  const renderFrameId = profile.render_frame_id ?? (profile.is_base ? sourceFrameId : sourceFrameId);
+
+  return {
+    ...variant,
+    frame: {
+      ...variant.frame,
+      id: renderFrameId,
+      name: profile.is_base ? baseFrameProfileName(sourceFrameId, variant.frame.name) : profile.name,
+      material: profile.material,
+      width_mm: nextFrameWidth,
+      depth_mm: Math.max(1, Math.round(profile.height_mm)),
+      profile_variant: {
+        ...profile,
+        source_frame_id: sourceFrameId,
+        source_frame_material: sourceFrameMaterial,
+        source_frame_width_mm: sourceFrameWidth,
+        source_frame_height_mm: sourceFrameHeight,
+      },
+    },
+    geometry: {
+      ...variant.geometry,
+      outer_width_mm: Math.max(1, variant.geometry.outer_width_mm + widthDelta * 2),
+      outer_height_mm: Math.max(1, variant.geometry.outer_height_mm + widthDelta * 2),
     },
   };
 }
