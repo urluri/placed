@@ -2081,6 +2081,7 @@ def renderer_geometry(spec):
         "frame_id": frame.get("id"),
         "frame_material": frame.get("material", "wood"),
         "frame_profile": frame.get("profile", "natural_wood"),
+        "frame_profile_image": (frame.get("profile_variant") or {}).get("image_url"),
         "glass": spec.get("glass", {}).get("type", "none"),
     }
 

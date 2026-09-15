@@ -41,6 +41,7 @@ def render(
     frame_material = geometry.get("frame_material", "wood")
     frame_profile = geometry.get("frame_profile", "flat")
     frame_id = geometry.get("frame_id")
+    frame_profile_image = geometry.get("frame_profile_image")
     mat_color = tuple(geometry.get("mat_color", DEFAULT_MAT_COLOR))
     inner_mat_color = tuple(geometry.get("inner_mat_color", mat_color))
     glass_type = geometry.get("glass", "none")
@@ -85,6 +86,7 @@ def render(
         material=frame_material,
         profile=frame_profile,
         frame_id=frame_id,
+        profile_image=frame_profile_image,
         effects_config=effects_config.get("frame", {}),
     )
     canvas.paste(artwork, (art_rect[0], art_rect[1]))

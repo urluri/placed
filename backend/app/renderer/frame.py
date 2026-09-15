@@ -1,6 +1,7 @@
 from functools import lru_cache
 import math
 from pathlib import Path
+from collections import deque
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -17,6 +18,7 @@ WOOD_TEXTURE_FILES = {
 }
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEXTURE_ROOT = REPO_ROOT / "textures"
+PUBLIC_ROOT = REPO_ROOT / "frontend" / "public"
 
 
 def stable_seed(width, height, base, salt=0):
@@ -71,6 +73,165 @@ def load_wood_texture_asset(texture_name):
     return image
 
 
+@lru_cache(maxsize=48)
+def load_profile_texture_asset(image_url):
+    if not image_url:
+        return None
+
+    relative = str(image_url).split("?", 1)[0].lstrip("/\\")
+    path = PUBLIC_ROOT.joinpath(*[part for part in relative.replace("\\", "/").split("/") if part])
+    try:
+        resolved = path.resolve()
+        if PUBLIC_ROOT.resolve() not in resolved.parents:
+            return None
+    except OSError:
+        return None
+    if not path.exists():
+        return None
+
+    image = Image.open(path).convert("RGB")
+    max_side = max(image.size)
+    if max_side > 720:
+        scale = 720 / max_side
+        image = image.resize(
+            (max(1, int(image.width * scale)), max(1, int(image.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+    return image
+
+
+def profile_foreground_mask(image):
+    arr = np.asarray(image).astype(np.float32)
+    lightness = arr.mean(axis=2)
+    saturation = arr.max(axis=2) - arr.min(axis=2)
+    distance_from_white = np.linalg.norm(arr - 255, axis=2)
+    raw_mask = (distance_from_white > 30) & ((saturation > 7) | (lightness < 238))
+    return largest_component(raw_mask)
+
+
+def largest_component(mask):
+    height, width = mask.shape
+    visited = np.zeros(mask.shape, dtype=bool)
+    best_points = []
+
+    for start_y in range(height):
+        for start_x in range(width):
+            if not mask[start_y, start_x] or visited[start_y, start_x]:
+                continue
+
+            points = []
+            queue = deque([(start_y, start_x)])
+            visited[start_y, start_x] = True
+            while queue:
+                y, x = queue.popleft()
+                points.append((y, x))
+                for next_y, next_x in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                    if (
+                        0 <= next_y < height
+                        and 0 <= next_x < width
+                        and mask[next_y, next_x]
+                        and not visited[next_y, next_x]
+                    ):
+                        visited[next_y, next_x] = True
+                        queue.append((next_y, next_x))
+
+            if len(points) > len(best_points):
+                best_points = points
+
+    component = np.zeros(mask.shape, dtype=bool)
+    if best_points:
+        ys, xs = zip(*best_points)
+        component[np.array(ys), np.array(xs)] = True
+    return component
+
+
+def profile_component_bbox(mask):
+    ys, xs = np.where(mask)
+    if len(xs) == 0 or len(ys) == 0:
+        return None
+    return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+
+
+def initial_run_length(values, threshold, from_end=False):
+    sequence = values[::-1] if from_end else values
+    length = 0
+    for value in sequence:
+        if value >= threshold:
+            length += 1
+        elif length >= 4:
+            break
+        elif length > 0:
+            length += 1
+    return max(1, length)
+
+
+def crop_with_profile_fill(image, mask, box, fallback_color):
+    left, top, right, bottom = box
+    crop = image.crop((left, top, right, bottom))
+    crop_mask = mask[top:bottom, left:right]
+    arr = np.asarray(crop).astype(np.float32).copy()
+    if crop_mask.any():
+        fill = np.median(arr[crop_mask], axis=0)
+    else:
+        fill = np.array(fallback_color, dtype=np.float32)
+    arr[~crop_mask] = fill
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
+def profile_texture_sections(source, base):
+    mask = profile_foreground_mask(source)
+    bbox = profile_component_bbox(mask)
+    if bbox is None:
+        return None
+
+    left, top, right, bottom = bbox
+    cropped_mask = mask[top:bottom, left:right]
+    row_counts = cropped_mask.sum(axis=1)
+    col_counts = cropped_mask.sum(axis=0)
+    if row_counts.max(initial=0) <= 0 or col_counts.max(initial=0) <= 0:
+        return None
+
+    rail_height = initial_run_length(row_counts, max(2, row_counts.max() * 0.32))
+    left_weight = col_counts[: max(1, len(col_counts) // 2)].sum()
+    right_weight = col_counts[len(col_counts) // 2 :].sum()
+    vertical_on_right = right_weight >= left_weight
+    rail_width = initial_run_length(col_counts, max(2, col_counts.max() * 0.32), from_end=vertical_on_right)
+
+    rail_height = max(4, min(rail_height, max(4, (bottom - top) // 2)))
+    rail_width = max(4, min(rail_width, max(4, (right - left) // 2)))
+
+    bbox_height = bottom - top
+    vertical_trim_top = max(2, rail_height + int(bbox_height * 0.05))
+    vertical_trim_bottom = max(2, int(bbox_height * 0.13))
+    if vertical_trim_top + vertical_trim_bottom >= bbox_height - 4:
+        vertical_trim_top = min(max(1, rail_height), max(1, bbox_height // 3))
+        vertical_trim_bottom = max(1, bbox_height // 10)
+
+    if vertical_on_right:
+        horizontal_box = (left, top, max(left + 4, right - max(1, rail_width // 2)), min(bottom, top + rail_height))
+    else:
+        horizontal_box = (min(right - 4, left + max(1, rail_width // 2)), top, right, min(bottom, top + rail_height))
+
+    if vertical_on_right:
+        vertical_box = (
+            max(left, right - rail_width),
+            min(bottom - 2, top + vertical_trim_top),
+            right,
+            max(top + vertical_trim_top + 2, bottom - vertical_trim_bottom),
+        )
+    else:
+        vertical_box = (
+            left,
+            min(bottom - 2, top + vertical_trim_top),
+            min(right, left + rail_width),
+            max(top + vertical_trim_top + 2, bottom - vertical_trim_bottom),
+        )
+
+    horizontal = crop_with_profile_fill(source, mask, horizontal_box, base)
+    vertical = crop_with_profile_fill(source, mask, vertical_box, base)
+    return horizontal, vertical, vertical_on_right
+
+
 def texture_key_for_frame(frame_id, base):
     if frame_id in WOOD_TEXTURE_FILES:
         return frame_id
@@ -111,6 +272,50 @@ def tint_texture_to_frame(texture, base, texture_key=None):
         target = np.array(base, dtype=np.float32) + detail * 0.92
         blended = arr * 0.68 + target * 0.32
     return Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8))
+
+
+def profile_asset_texture(width, height, base, frame_px, profile_image):
+    source = load_profile_texture_asset(profile_image)
+    if source is None:
+        return None
+
+    sections = profile_texture_sections(source, base)
+    if sections is None:
+        return None
+
+    horizontal_source, vertical_source, vertical_on_right = sections
+    rail = max(1, frame_px)
+    result = Image.new("RGB", (width, height), base)
+
+    top = horizontal_source.resize((max(1, width), rail), Image.Resampling.LANCZOS)
+    bottom = top.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+    vertical = vertical_source.resize((rail, max(1, height)), Image.Resampling.LANCZOS)
+    if vertical_on_right:
+        right = vertical
+        left = vertical.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    else:
+        left = vertical
+        right = vertical.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+
+    top_layer = Image.new("RGB", (width, height), base)
+    bottom_layer = Image.new("RGB", (width, height), base)
+    left_layer = Image.new("RGB", (width, height), base)
+    right_layer = Image.new("RGB", (width, height), base)
+    top_layer.paste(top, (0, 0))
+    bottom_layer.paste(bottom, (0, max(0, height - rail)))
+    left_layer.paste(left, (0, 0))
+    right_layer.paste(right, (max(0, width - rail), 0))
+
+    masks = wood_rail_masks(width, height, rail)
+    for layer, mask in (
+        (top_layer, masks["top"]),
+        (bottom_layer, masks["bottom"]),
+        (left_layer, masks["left"]),
+        (right_layer, masks["right"]),
+    ):
+        result.paste(layer, (0, 0), mask)
+
+    return result.filter(ImageFilter.UnsharpMask(radius=0.8, percent=80, threshold=2))
 
 
 def real_wood_texture(width, height, base, frame_px, frame_id):
@@ -468,13 +673,26 @@ def apply_triangular_frame_slope(texture, frame_px, material, frame_id=None, ang
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
 
 
-def draw_frame(canvas, outer_rect, frame_px, base=FRAME_BASE, material="wood", profile="flat", frame_id=None, effects_config=None):
+def draw_frame(
+    canvas,
+    outer_rect,
+    frame_px,
+    base=FRAME_BASE,
+    material="wood",
+    profile="flat",
+    frame_id=None,
+    profile_image=None,
+    effects_config=None,
+):
     left, top, right, bottom = outer_rect
     width = right - left
     height = bottom - top
 
     frame_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    if material == "aluminum":
+    texture = profile_asset_texture(width, height, base, frame_px, profile_image)
+    if texture is not None:
+        texture = texture.convert("RGBA")
+    elif material == "aluminum":
         texture = aluminum_texture(width, height, base).convert("RGBA")
     else:
         texture = wood_texture(width, height, base, frame_px=frame_px, profile=profile, frame_id=frame_id).convert("RGBA")
